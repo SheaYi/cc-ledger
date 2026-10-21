@@ -1,0 +1,135 @@
+{
+  "results": [
+    {
+      "label": "侧栏出现「往来」入口",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "label": "三张卡与 API 数值一致（待收 / 待付 / 净头寸）",
+      "ok": true,
+      "detail": "[{\"label\":\"待收\",\"value\":\"¥ 2,800.00\"},{\"label\":\"待付\",\"value\":\"¥ 4,050.00\"},{\"label\":\"净头寸\",\"value\":\"-¥ 1,250.00\"}]"
+    },
+    {
+      "label": "行数与 API 一致",
+      "ok": true,
+      "detail": "8 vs 8"
+    },
+    {
+      "label": "每行「还差金额」与 API 一致",
+      "ok": true,
+      "detail": "[\"还差 ¥ 1,600.00\",\"还差 ¥ 500.00\",\"还差 ¥ 1,200.00\",\"还差 ¥ 1,500.00\",\"还差 ¥ 450.00\",\"还差 ¥ 500.00\",\"还差 ¥ 800.00\",\"还差 ¥ 500.00\"]"
+    },
+    {
+      "label": "排序：最久未结清在前",
+      "ok": true,
+      "detail": "88 天 / 62 天 / 55 天"
+    },
+    {
+      "label": "未归属冲销有说明条（不藏起来，且写明总额仍含它）",
+      "ok": true,
+      "detail": "有 ¥ 200.00 的结算 / 核销没有关联到具体哪一笔\n                  （待收侧 ¥ 200.00、待付侧 ¥ 0.00）。\n                  记账时补一次「结清哪一笔」就能归属，未归属的部分仍然算在上面的总额里。"
+    },
+    {
+      "label": "每行都有「结清 / 核销」两个动作",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "label": "无缺失图标",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "label": "「含已结清」列出更多行",
+      "ok": true,
+      "detail": "10 vs 10"
+    },
+    {
+      "label": "已结清行有勾选标记且只有「查看」",
+      "ok": true,
+      "detail": "[[\"open\"],[\"open\"]]"
+    },
+    {
+      "label": "结清跳到记账页",
+      "ok": true,
+      "detail": "/transactions/new"
+    },
+    {
+      "label": "类型 = 应收/应付 + 阶段 = 结算",
+      "ok": true,
+      "detail": "还款"
+    },
+    {
+      "label": "方向分段高亮在结算档",
+      "ok": true,
+      "detail": "[{\"v\":\"none\",\"on\":false,\"label\":\"登记欠款产生\"},{\"v\":\"decrease\",\"on\":true,\"label\":\"还款结算\"},{\"v\":\"write_off\",\"on\":false,\"label\":\"债务免除终态\"}]"
+    },
+    {
+      "label": "「结清哪一笔」出现且已选中该笔",
+      "ok": true,
+      "detail": "tx_01M4TWV7QFQ2AXWN8BVYFY0CA7"
+    },
+    {
+      "label": "金额带出「还差多少」",
+      "ok": true,
+      "detail": "1600.00 vs 1600.00"
+    },
+    {
+      "label": "对象带出",
+      "ok": true,
+      "detail": "房东"
+    },
+    {
+      "label": "预览显示债权/债务减少",
+      "ok": true,
+      "detail": "账户将减少 ¥1,600.00债务 −¥1,600.00"
+    },
+    {
+      "label": "核销阶段可选且已选中",
+      "ok": true,
+      "detail": "[[\"none\",false],[\"decrease\",false],[\"write_off\",true]]"
+    },
+    {
+      "label": "核销：手续费字段收起",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "label": "核销：不强制选分类（分类块仍可见但非必填）",
+      "ok": true,
+      "detail": "应付款项"
+    },
+    {
+      "label": "核销预览写明「不动现金 / 账户余额不变」",
+      "ok": true,
+      "detail": "账户余额不变债务 −¥1,600.00"
+    },
+    {
+      "label": "夜间：行数一致且无缺失图标",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "label": "390：三张卡竖排",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "label": "390：可点元素全部 ≥44×44",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "label": "全程零控制台报错",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "探针全程未改动账本",
+      "ok": true,
+      "detail": "33 → 33"
+    }
+  ],
+  "errors": []
+}

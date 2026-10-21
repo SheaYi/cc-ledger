@@ -1,0 +1,86 @@
+# =====================================================================
+#  CC记账 (cc-ledger)
+#  用法：
+#    1) cp .env.example .env  &&  vim .env   （填 JWT_SECRET）
+#    2) docker compose up -d --build
+#    3) 访问 http://<NAS_IP>:3000
+# =====================================================================
+
+services:
+  cc-ledger:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: cc-ledger:1.0.0
+    container_name: cc-ledger
+    restart: unless-stopped
+
+    ports:
+      - "3000:3000"
+
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      HOST: "0.0.0.0"
+      TZ: Asia/Shanghai
+
+      DATA_DIR: /data
+      DB_PATH: /data/cc-ledger.db
+      UPLOAD_DIR: /data/uploads
+      BACKUP_DIR: /data/backups
+
+      # 密钥（必须通过 .env 注入，切勿硬编码）
+      JWT_SECRET: ${JWT_SECRET:?必须设置 JWT_SECRET，可用 openssl rand -base64 48 生成}
+      JWT_ACCESS_EXPIRES: "15m"
+      JWT_REFRESH_EXPIRES: "30d"
+      JWT_REFRESH_EXPIRES_MOBILE: "90d"
+
+      # 对外地址：生成邀请链接用，务必改成 NAS 的实际访问地址
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:3000}
+
+      # 限流（docs/04 §1.6 生产基线；本地调试可临时调大）
+      RATE_LIMIT_LOGIN_MAX: ${RATE_LIMIT_LOGIN_MAX:-5}
+      RATE_LIMIT_REGISTER_MAX: ${RATE_LIMIT_REGISTER_MAX:-3}
+
+      LOG_LEVEL: "info"
+      ENABLE_SCHEDULER: "true"
+      BACKUP_ENABLED: "true"
+      BACKUP_RETENTION_DAYS: "14"
+
+    volumes:
+      - cc-ledger-data:/data
+
+    # 资源限制
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
+        reservations:
+          memory: 128M
+
+    # 安全加固
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+    # 日志轮转
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+    stop_grace_period: 30s
+
+volumes:
+  cc-ledger-data:
+    driver: local

@@ -1,0 +1,1 @@
+ALTER TABLE `reconciliation_records` ADD `attribution_json` text;

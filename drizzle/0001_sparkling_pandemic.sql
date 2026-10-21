@@ -1,0 +1,1 @@
+ALTER TABLE `accounts` ADD `locked_before_date` text;

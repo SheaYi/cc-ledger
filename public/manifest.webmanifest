@@ -1,0 +1,36 @@
+{
+  "name": "CC记账",
+  "short_name": "CC记账",
+  "description": "多人协作的记账系统。金额精确到分，每一笔都能对账。",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#ffffff",
+  "theme_color": "#f5f5f7",
+  "lang": "zh-CN",
+  "dir": "ltr",
+  "categories": ["finance", "productivity"],
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    {
+      "src": "/icons/icon-maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    { "name": "记一笔", "url": "/transactions/new" },
+    { "name": "账单", "url": "/transactions" },
+    { "name": "往来（待收/待付）", "url": "/debts" }
+  ],
+  "prefer_related_applications": false
+}

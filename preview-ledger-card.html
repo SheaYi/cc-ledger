@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>账本卡片 · 预览</title>
+<link rel="stylesheet" href="public/assets/tokens.css" />
+<style>
+  /* —— 预览容器（仅预览用，不影响组件） —— */
+  body {
+    margin: 0;
+    background: var(--c-parchment);
+    font-family: var(--f-text);
+    color: var(--c-ink);
+    padding: 48px 24px;
+  }
+  .preview-wrap { max-width: 520px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+  .preview-title { font-family: var(--f-display); font-size: 28px; font-weight: 600; letter-spacing: -0.4px; margin: 0 0 4px; }
+  .preview-note { font-size: 13px; color: var(--c-ink-muted-48); margin: 0 0 24px; }
+
+  /* ===== 以下为 app.css 中真实的账本卡片样式（与线上一致） ===== */
+  .ledger-card {
+    display: flex;
+    flex-direction: column;
+    background: var(--c-canvas);
+    border: 1px solid var(--c-hairline);
+    border-radius: var(--r-lg);
+    overflow: hidden;
+    transition: border-color var(--d-state) var(--e-standard), background var(--d-state) var(--e-standard);
+  }
+  .ledger-card.is-current {
+    border-color: var(--c-primary);
+    background: var(--c-accent-1);
+  }
+  .ledger-card__switch {
+    display: flex;
+    align-items: center;
+    gap: var(--s-sm);
+    width: 100%;
+    min-height: 64px;
+    padding: var(--s-lg);
+    background: transparent;
+    border: 0;
+    text-align: left;
+    cursor: pointer;
+    transition: background var(--d-state) var(--e-standard);
+  }
+  .ledger-card__switch:hover { background: var(--c-soft-fill); }
+  .ledger-card.is-current .ledger-card__switch:hover { background: transparent; }
+  .ledger-card__icon {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 44px; height: 44px; flex: none;
+    border-radius: var(--r-md); background: var(--c-soft-fill); color: var(--c-primary);
+  }
+  .ledger-card.is-current .ledger-card__icon { background: var(--c-accent-4); }
+  .ledger-card__main { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1; }
+  .ledger-card__head { display: flex; align-items: center; gap: var(--s-xs); min-width: 0; }
+  .ledger-card__name {
+    font-family: var(--f-display); font-size: 18px; font-weight: 600;
+    letter-spacing: -0.28px; color: var(--c-ink);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .ledger-card__current {
+    flex: none; font-size: 12px; font-weight: 600; letter-spacing: -0.12px;
+    color: var(--c-primary); background: var(--c-accent-4);
+    border-radius: var(--r-pill); padding: 2px 9px;
+  }
+  .ledger-card__sub {
+    display: flex; align-items: center; flex-wrap: wrap; gap: 6px;
+    font-family: var(--f-text); font-size: 13px; font-weight: 400;
+    letter-spacing: -0.12px; color: var(--c-ink-muted-48);
+  }
+  .ledger-card__sep { color: var(--c-placeholder); }
+  .ledger-card__meta { font-family: var(--f-text); font-size: 12px; letter-spacing: -0.12px; color: var(--c-ink-muted-48); }
+  .ledger-card__go {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 18px; height: 18px; flex: none; color: var(--c-placeholder);
+    transition: transform var(--d-state) var(--e-standard), color var(--d-state) var(--e-standard);
+  }
+  .ledger-card__go::after {
+    content: ""; width: 7px; height: 7px;
+    border-right: 2px solid currentColor; border-top: 2px solid currentColor;
+    transform: rotate(45deg);
+  }
+  .ledger-card__switch:hover .ledger-card__go { color: var(--c-primary); transform: translateX(2px); }
+  .ledger-card__ops {
+    display: flex; justify-content: flex-end; gap: var(--s-xs);
+    padding: 10px var(--s-lg) var(--s-lg); border-top: 1px solid var(--c-hairline);
+  }
+  .ledger-card.is-current .ledger-card__ops { border-top-color: var(--c-accent-2); }
+  .ledger-card__ops .is-danger { color: var(--c-danger); }
+
+  /* 操作按钮（与线上 .btn / .btn--quiet 同形） */
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    min-height: 36px; padding: 6px 14px; border-radius: var(--r-pill);
+    font-family: var(--f-text); font-size: 14px; font-weight: 400; cursor: pointer;
+    border: 1px solid var(--c-hairline); background: var(--c-canvas); color: var(--c-ink);
+  }
+  .btn--quiet { border-color: transparent; background: transparent; color: var(--c-primary); }
+  .btn--sm { min-height: 32px; padding: 4px 12px; font-size: 13px; }
+  .btn svg { width: 14px; height: 14px; }
+</style>
+</head>
+<body>
+  <div class="preview-wrap">
+    <h1 class="preview-title">账本卡片 · 新设计</h1>
+    <p class="preview-note">依据 docs/00-DESIGN.md（Apple 设计语言）：单一 Action Blue 强调、无卡片投影、明确圆角、大留白、SF Pro 负字距。</p>
+
+    <!-- 当前账本 -->
+    <article class="ledger-card is-current" data-ledger="demo-1">
+      <button class="ledger-card__switch" type="button">
+        <span class="ledger-card__icon">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h18M3 12h18M3 17h18"/></svg>
+        </span>
+        <span class="ledger-card__main">
+          <span class="ledger-card__head">
+            <span class="ledger-card__name">家庭日常账本</span>
+            <span class="ledger-card__current">当前账本</span>
+          </span>
+          <span class="ledger-card__sub">
+            <span>共享账本</span><span class="ledger-card__sep">·</span><span>所有者</span><span class="ledger-card__sep">·</span><span>3 人</span>
+          </span>
+          <span class="ledger-card__meta">正在用这本账记账</span>
+        </span>
+        <span class="ledger-card__go"></span>
+      </button>
+      <div class="ledger-card__ops">
+        <button class="btn btn--quiet btn--sm" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg><span>编辑</span></button>
+        <button class="btn btn--quiet btn--sm is-danger" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg><span>删除</span></button>
+      </div>
+    </article>
+
+    <!-- 普通账本 -->
+    <article class="ledger-card" data-ledger="demo-2">
+      <button class="ledger-card__switch" type="button">
+        <span class="ledger-card__icon">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h18M3 12h18M3 17h18"/></svg>
+        </span>
+        <span class="ledger-card__main">
+          <span class="ledger-card__head">
+            <span class="ledger-card__name">个人旅行记账</span>
+          </span>
+          <span class="ledger-card__sub">
+            <span>个人账本</span><span class="ledger-card__sep">·</span><span>所有者</span><span class="ledger-card__sep">·</span><span>1 人</span>
+          </span>
+          <span class="ledger-card__meta">点击切换为当前账本</span>
+        </span>
+        <span class="ledger-card__go"></span>
+      </button>
+      <div class="ledger-card__ops">
+        <button class="btn btn--quiet btn--sm" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg><span>编辑</span></button>
+        <button class="btn btn--quiet btn--sm is-danger" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg><span>删除</span></button>
+      </div>
+    </article>
+  </div>
+</body>
+</html>

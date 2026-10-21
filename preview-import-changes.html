@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>导入页改动预览 · CC记账</title>
+  <link rel="stylesheet" href="public/assets/tokens.css" />
+  <link rel="stylesheet" href="public/assets/app.css" />
+  <style>
+    body { margin: 0; background: var(--c-parchment); font-family: "SF Pro Text", system-ui, -apple-system, "PingFang SC", sans-serif; }
+    .wrap { max-width: 980px; margin: 0 auto; padding: 32px 24px 64px; }
+    .demo-note { font-size: 12px; color: var(--c-ink-muted-48); margin: 4px 0 20px; }
+    .demo-h { font-size: 13px; font-weight: 600; color: var(--c-primary); letter-spacing: -0.224px; margin: 40px 0 12px; }
+    .card { background: var(--c-canvas); border: 1px solid var(--c-hairline); border-radius: var(--r-card); padding: var(--s-lg); }
+    .section__head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 16px; }
+    .section__head h2 { font-size: 22px; font-weight: 600; letter-spacing: -0.28px; margin: 0; color: var(--c-ink); }
+    /* 预览里用一个按钮模拟「选中文件」，演示 filled 态 */
+    .demo-act { margin-top: 14px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1 style="font-size:28px;font-weight:600;letter-spacing:-0.28px;color:var(--c-ink);margin:0 0 4px;">导入账单 · 三项改动预览</h1>
+    <p class="demo-note">下方组件直接复用线上 <code>tokens.css</code> 与 <code>app.css</code>，可点击交互验证。</p>
+
+    <!-- ① 选择文件 -->
+    <div class="demo-h">① 选择文件（00-DESIGN 风格落区）</div>
+    <div class="card">
+      <div class="field" data-field="file">
+        <label class="field__label" id="imp-file-label">CSV 文件（≤ 20 MB / ≤ 20000 行）</label>
+        <button class="dropzone" type="button" data-role="dropzone" aria-labelledby="imp-file-label">
+          <span class="dropzone__icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3v5h5"/><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg></span>
+          <span class="dropzone__body">
+            <span class="dropzone__title" data-role="dz-title">拖拽 CSV 文件到此处，或点击选择</span>
+            <span class="dropzone__hint" data-role="dz-hint">支持支付宝 / 微信 / 银行导出 · ≤ 20 MB / ≤ 20000 行</span>
+          </span>
+          <span class="dropzone__check" data-role="dz-check" aria-hidden="true" hidden><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5 5L20 6.5"/></svg></span>
+          <input class="visually-hidden" id="imp-file" type="file" accept=".csv,text/csv" data-role="file" />
+        </button>
+        <button class="dropzone__remove" type="button" data-role="file-remove" hidden aria-label="移除已选文件"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5l14 14M19 5L5 19"/></svg><span>移除</span></button>
+        <span class="field__error" data-role="file-error"></span>
+      </div>
+      <div class="demo-act">
+        <button class="btn btn--quiet btn--sm" type="button" id="demo-toggle">模拟「已选文件 / 移除」切换</button>
+      </div>
+    </div>
+
+    <!-- ② 校对映射：文件字段对照（默认折叠） -->
+    <div class="demo-h">② 校对映射 · 文件字段对照（默认折叠，点击展开）</div>
+    <div class="card">
+      <details class="col-ref" data-role="col-ref">
+        <summary class="tt-body-strong">文件字段对照（17 列：读取 11 列，其余 6 列导入时不使用）</summary>
+        <div class="imp-table-wrap">
+          <table class="imp-table col-ref__table" id="col-ref-table">
+            <thead>
+              <tr><th>#</th><th>文件列名</th><th>类型</th><th>取值范围</th><th>必填</th><th>导入去向</th><th>留空时</th><th>说明</th></tr>
+            </thead>
+            <tbody><!-- 由脚本生成 --></tbody>
+          </table>
+        </div>
+        <p class="tt-fine-print text-muted">已识别为「本系统导出」格式，上表即该格式的完整契约。</p>
+      </details>
+    </div>
+
+    <!-- ③ 导入报告（横向滚动） -->
+    <div class="demo-h">③ 导入报告（失败明细，支持左右横向滚动）</div>
+    <div class="card">
+      <div class="stat-strip">
+        <div class="stat-strip__cell"><span class="stat-strip__label">成功</span><span class="stat-strip__value tnum is-pos">3</span></div>
+        <div class="stat-strip__cell"><span class="stat-strip__label">失败</span><span class="stat-strip__value tnum is-neg">2</span></div>
+        <div class="stat-strip__cell"><span class="stat-strip__label">跳过（重复）</span><span class="stat-strip__value tnum">1</span></div>
+        <div class="stat-strip__cell"><span class="stat-strip__label">总行数</span><span class="stat-strip__value tnum">6</span></div>
+      </div>
+      <div class="imp-errors">
+        <table class="imp-table imp-report">
+          <thead><tr><th>行</th><th>字段</th><th>原值</th><th>原因</th></tr></thead>
+          <tbody>
+            <tr><td class="tnum">2</td><td class="tt-caption">日期</td><td class="tt-caption">2026-13-45</td><td class="tt-caption text-muted">日期格式非法（月份/日期超出范围）</td></tr>
+            <tr><td class="tnum">3</td><td class="tt-caption">金额</td><td class="tt-caption">abc</td><td class="tt-caption text-muted">金额不是有效数字</td></tr>
+            <tr><td class="tnum">5</td><td class="tt-caption">商家</td><td class="tt-caption">这是一段故意写得很长很长的原始值内容，用来演示当某一列的取值特别长时，报告区可以左右滚动完整查看而不被截断</td><td class="tt-caption text-muted">该商家名称超过字段长度限制</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="tt-fine-print text-muted">提示：当「原值 / 原因」过长时，鼠标在表格区域内横向滚动即可看全（容器已开启 overflow:auto）。</p>
+    </div>
+  </div>
+
+  <script>
+    // ---- ② 生成 17 列对照数据 ----
+    const COLS = [
+      ['日期','日期','date','—','必填','日期','','账单日期取这一列'],
+      ['时间','时间','time','—','可选','时间','','留空则记账时间为当日 00:00:00'],
+      ['类型','类型','enum','支出 / 收入 / 转账 / 余额调整 / 应收 / 应付','可选','类型','','留空则整份按默认记录类型入账'],
+      ['方向','方向','enum','收入 / 支出 / 减少 / 增加','可选','收支','','仅作辅助判断，主要看类型列'],
+      ['分类','分类','ref','（账本内分类）','可选','分类','','留空则走自动分类规则再退回兜底分类'],
+      ['账户','账户','ref','（账本内账户）','可选','不读取','','账户由下方「导入到哪个账户」统一指定'],
+      ['转入账户','转入账户','ref','（账本内账户）','可选','不读取','','转账导入暂不支持，此列不读取'],
+      ['名称','名称','text','—','可选','名称','','留空则取商家列，仍为空则记「导入的账单」'],
+      ['商家','商家','text','—','可选','商家','','留空则账单无商家'],
+      ['对象','对象','text','—','可选','对象','','留空则账单无往来对象'],
+      ['金额','金额','money','金额（元）','必填','金额','','导入取绝对值，正负由类型决定'],
+      ['手续费','手续费','money','0.00','可选','手续费','','留空则按 0 处理'],
+      ['折扣','折扣','money','0.00','可选','折扣','','留空则按 0 处理'],
+      ['实际值','实际值','money','金额+手续费−折扣','可选','不读取','','派生列，系统自动重算，禁止映射以免重复计入'],
+      ['标签','标签','ref','（账本内标签）','可选','标签','','只认账本内已有标签，多个用、分隔'],
+      ['备注','备注','text','—','可选','备注','','留空则账单无备注'],
+      ['记账人','记账人','text','—','可选','不读取','','导入统一记为当前用户'],
+    ];
+    const tb = document.querySelector('#col-ref-table tbody');
+    tb.innerHTML = COLS.map((c, i) => {
+      const [col, zh, kind, values, req, target, def, hint] = c;
+      const used = target !== '不读取';
+      return `<tr class="${used ? 'col-ref__row--used' : ''}">
+        <td class="tnum">${i + 1}</td>
+        <td class="tt-body-strong">${zh}</td>
+        <td>${kind === 'date' ? '日期' : kind === 'time' ? '时间' : kind === 'money' ? '金额（元）' : kind === 'enum' ? '枚举' : kind === 'ref' ? '引用' : '文本'}</td>
+        <td class="tt-fine-print">${values}</td>
+        <td>${req === '必填' ? '<span class="badge is-req">必填</span>' : '<span class="badge">可选</span>'}</td>
+        <td class="tt-fine-print">${used ? zh : '<span class="text-muted">不读取</span>'}</td>
+        <td class="tt-fine-print text-muted">${def}</td>
+        <td class="tt-fine-print text-muted">${hint}</td>
+      </tr>`;
+    }).join('');
+
+    // ---- ① 模拟「已选文件 / 移除」切换 ----
+    const dropzone = document.querySelector('[data-role=dropzone]');
+    const dzTitle = document.querySelector('[data-role=dz-title]');
+    const dzHint = document.querySelector('[data-role=dz-hint]');
+    const dzCheck = document.querySelector('[data-role=dz-check]');
+    const fileRemove = document.querySelector('[data-role=file-remove]');
+    const DEFAULT_TITLE = '拖拽 CSV 文件到此处，或点击选择';
+    const DEFAULT_HINT = '支持支付宝 / 微信 / 银行导出 · ≤ 20 MB / ≤ 20000 行';
+    let picked = false;
+    document.querySelector('#demo-toggle').addEventListener('click', () => {
+      picked = !picked;
+      dropzone.classList.toggle('is-filled', picked);
+      dzTitle.textContent = picked ? '账单_我的账本_2026-10-18.csv' : DEFAULT_TITLE;
+      dzHint.textContent = picked ? '18.4 KB · 已就绪，点击「读取表头」预览' : DEFAULT_HINT;
+      dzCheck.hidden = !picked;
+      fileRemove.hidden = !picked;
+    });
+    fileRemove.addEventListener('click', () => {
+      picked = false;
+      dropzone.classList.remove('is-filled');
+      dzTitle.textContent = DEFAULT_TITLE;
+      dzHint.textContent = DEFAULT_HINT;
+      dzCheck.hidden = true;
+      fileRemove.hidden = true;
+    });
+  </script>
+</body>
+</html>

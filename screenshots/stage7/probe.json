@@ -1,0 +1,1943 @@
+[
+  {
+    "label": "light-1440-empty",
+    "theme": "light",
+    "type": "支出",
+    "direction": null,
+    "preview": [
+      "填入金额后，这里会显示这笔账会怎么动账户"
+    ],
+    "summary": "¥ 0.00",
+    "amountLS": "-0.33px",
+    "amountFont": "30px",
+    "bodyLS": null,
+    "hasTabbar": false,
+    "pagePadBottom": "64px",
+    "assetBar": {
+      "w": 720,
+      "h": 70
+    },
+    "composePill": null,
+    "missingIcons": 0,
+    "sub44": [
+      {
+        "tag": "BUTTON",
+        "cls": "segmented__item",
+        "w": 68,
+        "h": 34
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "segmented__item",
+        "w": 68,
+        "h": 34
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "segmented__item",
+        "w": 68,
+        "h": 34
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "type-more",
+        "w": 74,
+        "h": 40
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 58,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 56,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 56,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 70,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 83,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 83,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 83,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 83,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 83,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 70,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 70,
+        "h": 36
+      }
+    ],
+    "mismatch": 0
+  },
+  {
+    "label": "light-1440-filled",
+    "theme": "light",
+    "type": "支出",
+    "direction": null,
+    "preview": [
+      "账户将减少 ¥32.00"
+    ],
+    "summary": "¥ 32.00",
+    "amountLS": "-0.33px",
+    "amountFont": "30px",
+    "bodyLS": null,
+    "hasTabbar": false,
+    "pagePadBottom": "64px",
+    "assetBar": {
+      "w": 720,
+      "h": 70
+    },
+    "composePill": null,
+    "missingIcons": 0,
+    "sub44": [
+      {
+        "tag": "BUTTON",
+        "cls": "segmented__item",
+        "w": 68,
+        "h": 34
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "segmented__item",
+        "w": 68,
+        "h": 34
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "segmented__item",
+        "w": 68,
+        "h": 34
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "type-more",
+        "w": 74,
+        "h": 40
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 78,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 58,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 56,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 56,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 70,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 83,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 83,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 83,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 83,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 83,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 70,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 70,
+        "h": 36
+      }
+    ],
+    "mismatch": 0
+  },
+  {
+    "label": "light-1440-more",
+    "theme": "light",
+    "type": "支出",
+    "direction": null,
+    "preview": [
+      "账户将减少 ¥32.00"
+    ],
+    "summary": "¥ 32.00",
+    "amountLS": "-0.33px",
+    "amountFont": "30px",
+    "bodyLS": null,
+    "hasTabbar": false,
+    "pagePadBottom": "64px",
+    "assetBar": {
+      "w": 720,
+      "h": 70
+    },
+    "composePill": null,
+    "missingIcons": 0,
+    "sub44": [
+      {
+        "tag": "BUTTON",
+        "cls": "segmented__item",
+        "w": 68,
+        "h": 34
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "segmented__item",
+        "w": 68,
+        "h": 34
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "segmented__item",
+        "w": 68,
+        "h": 34
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "type-more",
+        "w": 74,
+        "h": 40
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 78,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 78,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 89,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 89,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 102,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 102,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 102,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 102,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 102,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 102,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 102,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 102,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 102,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 102,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 89,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 102,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 89,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 89,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 89,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 89,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 102,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 102,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 102,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 102,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 102,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 89,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 102,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 102,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 75,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 102,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 102,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 89,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 102,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 102,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 89,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 89,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 89,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 89,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 89,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 89,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 102,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 89,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 102,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 102,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 102,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 89,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 102,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 89,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 102,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 102,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 102,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 102,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 102,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 102,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 102,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 102,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 89,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 102,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 89,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 102,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 102,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 102,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 102,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 89,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 102,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 102,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 89,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 89,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 100,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 102,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 102,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 102,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 102,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 102,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 102,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 102,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 102,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 102,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 102,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 102,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 89,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 102,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 115,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 115,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 102,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 102,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 89,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 58,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 56,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 56,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 70,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 83,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 83,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 83,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 83,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 83,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 70,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 70,
+        "h": 36
+      }
+    ],
+    "mismatch": 0
+  },
+  {
+    "label": "light-1440-transfer",
+    "theme": "light",
+    "type": "转账",
+    "direction": null,
+    "preview": [
+      "转出账户 −¥5,003.00",
+      "转入账户 +¥5,000.00",
+      "净资产 −¥3.00"
+    ],
+    "summary": "¥ 5,000.00",
+    "amountLS": "-0.33px",
+    "amountFont": "30px",
+    "bodyLS": null,
+    "hasTabbar": false,
+    "pagePadBottom": "64px",
+    "assetBar": {
+      "w": 720,
+      "h": 70
+    },
+    "composePill": null,
+    "missingIcons": 0,
+    "sub44": [
+      {
+        "tag": "BUTTON",
+        "cls": "segmented__item",
+        "w": 68,
+        "h": 34
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "segmented__item",
+        "w": 68,
+        "h": 34
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "segmented__item",
+        "w": 68,
+        "h": 34
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "type-more",
+        "w": 74,
+        "h": 40
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 58,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 56,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 56,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 70,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 83,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 83,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 83,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 83,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 83,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 70,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 70,
+        "h": 36
+      }
+    ],
+    "mismatch": 0
+  },
+  {
+    "label": "light-1440-payable",
+    "theme": "light",
+    "type": "应付款项",
+    "direction": "登记欠款产生",
+    "preview": [
+      "账户余额不变",
+      "债务 +¥800.00"
+    ],
+    "summary": "¥ 800.00",
+    "amountLS": "-0.33px",
+    "amountFont": "30px",
+    "bodyLS": null,
+    "hasTabbar": false,
+    "pagePadBottom": "64px",
+    "assetBar": {
+      "w": 720,
+      "h": 70
+    },
+    "composePill": null,
+    "missingIcons": 0,
+    "sub44": [
+      {
+        "tag": "BUTTON",
+        "cls": "segmented__item",
+        "w": 96,
+        "h": 34
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "segmented__item",
+        "w": 96,
+        "h": 34
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "type-more",
+        "w": 74,
+        "h": 40
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "segmented__item",
+        "w": 126,
+        "h": 34
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "segmented__item",
+        "w": 98,
+        "h": 34
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 104,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 102,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 115,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 102,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 102,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 102,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 104,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 102,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 115,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 102,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 102,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 102,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 89,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 102,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 58,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 56,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 56,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 70,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 83,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 83,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 83,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 83,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 83,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 70,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 70,
+        "h": 36
+      }
+    ],
+    "mismatch": 0
+  },
+  {
+    "label": "dark-1440-filled",
+    "theme": "dark",
+    "type": "支出",
+    "direction": null,
+    "preview": [
+      "账户将减少 ¥32.00"
+    ],
+    "summary": "¥ 32.00",
+    "amountLS": "-0.33px",
+    "amountFont": "30px",
+    "bodyLS": null,
+    "hasTabbar": false,
+    "pagePadBottom": "64px",
+    "assetBar": {
+      "w": 720,
+      "h": 70
+    },
+    "composePill": null,
+    "missingIcons": 0,
+    "sub44": [
+      {
+        "tag": "BUTTON",
+        "cls": "segmented__item",
+        "w": 68,
+        "h": 34
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "segmented__item",
+        "w": 68,
+        "h": 34
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "segmented__item",
+        "w": 68,
+        "h": 34
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "type-more",
+        "w": 74,
+        "h": 40
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 78,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 58,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 56,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 56,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 70,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 83,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 83,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 83,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 83,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 83,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 70,
+        "h": 36
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "option-chip",
+        "w": 70,
+        "h": 36
+      }
+    ],
+    "mismatch": 0
+  },
+  {
+    "label": "light-390-filled",
+    "theme": "light",
+    "type": "支出",
+    "direction": null,
+    "preview": [
+      "账户将减少 ¥32.00"
+    ],
+    "summary": "¥ 32.00",
+    "amountLS": "-0.286px",
+    "amountFont": "26px",
+    "bodyLS": null,
+    "hasTabbar": false,
+    "pagePadBottom": "24px",
+    "assetBar": {
+      "w": 382,
+      "h": 69
+    },
+    "composePill": null,
+    "missingIcons": 0,
+    "sub44": [],
+    "mismatch": 0
+  },
+  {
+    "label": "dark-390-filled",
+    "theme": "dark",
+    "type": "支出",
+    "direction": null,
+    "preview": [
+      "账户将减少 ¥32.00"
+    ],
+    "summary": "¥ 32.00",
+    "amountLS": "-0.286px",
+    "amountFont": "26px",
+    "bodyLS": null,
+    "hasTabbar": false,
+    "pagePadBottom": "24px",
+    "assetBar": {
+      "w": 382,
+      "h": 69
+    },
+    "composePill": null,
+    "missingIcons": 0,
+    "sub44": [],
+    "mismatch": 0
+  },
+  {
+    "label": "light-390-entry",
+    "theme": "light",
+    "direction": null,
+    "preview": [],
+    "amountLS": null,
+    "amountFont": null,
+    "bodyLS": "-0.33px",
+    "hasTabbar": true,
+    "pagePadBottom": "120px",
+    "assetBar": null,
+    "composePill": {
+      "w": 48,
+      "h": 48
+    },
+    "missingIcons": 0,
+    "sub44": [],
+    "mismatch": 0
+  },
+  {
+    "label": "light-1440-entry",
+    "theme": "light",
+    "direction": null,
+    "preview": [],
+    "amountLS": null,
+    "amountFont": null,
+    "bodyLS": "-0.33px",
+    "hasTabbar": true,
+    "pagePadBottom": "64px",
+    "assetBar": null,
+    "composePill": {
+      "w": 0,
+      "h": 0
+    },
+    "missingIcons": 0,
+    "sub44": [],
+    "mismatch": 0
+  }
+]

@@ -1,0 +1,139 @@
+{
+  "results": [
+    {
+      "ok": true,
+      "detail": "/templates"
+    },
+    {
+      "ok": true,
+      "detail": "模板 / 模板"
+    },
+    {
+      "ok": true,
+      "detail": "8 行"
+    },
+    {
+      "ok": true,
+      "detail": "[\"pin\",\"up\",\"down\",\"edit\",\"del\"]"
+    },
+    {
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "ok": true,
+      "detail": "长按可直接选模板"
+    },
+    {
+      "ok": true,
+      "detail": "{\"pinnedFirst\":\"ldg_01M4RCGWFYP7H0HZNX3EBWVFS7#tpl_breakfast\",\"pinnedCount\":1,\"groupLabel\":\"已置顶\"}"
+    },
+    {
+      "ok": true,
+      "detail": "ldg_01M4RCGWFYP7H0HZNX3EBWVFS7#tpl_breakfast→ldg_01M4RCGWFYP7H0HZNX3EBWVFS7#tpl_taxi→ldg_01M4RCGWFYP7H0HZNX3EBWVFS7#tpl_lunch 变 ldg_01M4RCGWFYP7H0HZNX3EBWVFS7#tpl_breakfast→ldg_01M4RCGWFYP7H0HZNX3EBWVFS7#tpl_lunch→ldg_01M4RCGWFYP7H0HZNX3EBWVFS7#tpl_taxi"
+    },
+    {
+      "ok": true,
+      "detail": "true"
+    },
+    {
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "detail": "[\"name\",\"icon\",\"recordType\",\"direction\",\"defaultAmount\",\"accountId\",\"toAccountId\",\"categoryId\",\"txName\",\"merchant\",\"counterparty\",\"fee\",\"note\"]"
+    },
+    {
+      "ok": true,
+      "detail": "receipt"
+    },
+    {
+      "ok": true,
+      "detail": "157 项"
+    },
+    {
+      "ok": true,
+      "detail": "{\"toVisible\":true,\"dirCount\":1,\"icon\":\"arrow-left-right\"}"
+    },
+    {
+      "ok": true,
+      "detail": "arrow-left-right"
+    },
+    {
+      "ok": true,
+      "detail": "9 个（起始 8）"
+    },
+    {
+      "ok": true,
+      "detail": "18.80"
+    },
+    {
+      "ok": true,
+      "detail": "{\"stillOpen\":true,\"fieldErr\":\"同名模板已存在\",\"body\":true}"
+    },
+    {
+      "ok": true,
+      "detail": "{\"open\":true,\"name\":\"探针模板f5s0\",\"amt\":\"18.80\",\"title\":\"编辑模板「探针模板f5s0」\"}"
+    },
+    {
+      "ok": true,
+      "detail": "20.00"
+    },
+    {
+      "ok": true,
+      "detail": "8 → 8"
+    },
+    {
+      "ok": true,
+      "detail": "{\"w\":215,\"h\":44,\"tag\":\"BUTTON\",\"isLink\":false}"
+    },
+    {
+      "ok": true,
+      "detail": "215×44"
+    },
+    {
+      "ok": true,
+      "detail": "{\"open\":true,\"rows\":8,\"top\":150,\"bottom\":710,\"vh\":1000,\"onScreen\":true,\"hostClass\":\"sidebar__cta mega-host mega-host--side is-open\"}"
+    },
+    {
+      "ok": true,
+      "detail": "{\"open\":true,\"rows\":8,\"top\":150,\"bottom\":710,\"vh\":1000,\"onScreen\":true,\"hostClass\":\"sidebar__cta mega-host mega-host--side is-open\"}"
+    },
+    {
+      "ok": true,
+      "detail": "8"
+    },
+    {
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "detail": "{\"path\":\"/transactions/new\",\"amount\":\"\",\"hasFullReload\":false}"
+    },
+    {
+      "ok": true,
+      "detail": "{\"rows\":8,\"sub44\":[],\"tabbarActive\":\"分类\"}"
+    },
+    {
+      "ok": true,
+      "detail": "分类"
+    },
+    {
+      "ok": true,
+      "detail": "33 → 33"
+    },
+    {
+      "ok": true,
+      "detail": "8 → 8"
+    },
+    {
+      "ok": true,
+      "detail": ""
+    }
+  ],
+  "errors": [
+    "LOG Failed to load resource: the server responded with a status of 409 (Conflict) <http://127.0.0.1:3000/api/v1/ledgers/ldg_01M4RCGWFYP7H0HZNX3EBWVFS7/templates>"
+  ]
+}

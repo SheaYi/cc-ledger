@@ -1,0 +1,8839 @@
+/* ==========================================================================
+   CC记账 · 样式层
+   设计基线来自 docs/00-DESIGN.md，落到「财务工作台」而不是「营销落地页」：
+     · 桌面 = 左侧固定导航栏 + 右侧内容栏；移动 = 顶栏 + 底部 TabBar
+     · 卡片 = 白面 + 1px hairline 描边 + 18px 圆角，零投影
+       （00-DESIGN：全系统只有一处投影，且只给真·浮层）
+     · 层次由「面色切换」承担：羊皮纸页底 → 白卡片 → 深色强调面
+     · 唯一强调色 Action Blue；字重只用 300/400/600/700，不用 500
+     · 动效 = 单一缓动 + 四档时长；按压 scale(0.95)，大面按压换面色；
+       进场「淡入 + 8px 上浮」40ms 错峰（详见「一·补充、动效语法」与 tokens.css）
+   颜色与尺寸一律取自 tokens.css 变量。
+   ========================================================================== */
+
+/* ==========================================================================
+   一、基础
+   ========================================================================== */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* hidden 属性必须赢过任何组件级的 display 声明（.field 是 flex、.compose__block 也是），
+   否则「转入账户」「分类」这类靠 hidden 切换的字段会在不该出现的时候出现。 */
+[hidden] {
+  display: none !important;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  color-scheme: light;
+}
+
+body {
+  margin: 0;
+  font-family: var(--f-text);
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--c-body);
+  background: var(--c-parchment);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1,
+h2,
+h3,
+p,
+figure {
+  margin: 0;
+}
+
+ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+svg {
+  display: block;
+  flex: none;
+}
+
+input,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--c-primary-focus);
+  outline-offset: 2px;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* ==========================================================================
+   一·补充、动效语法
+   来源：00-DESIGN —— 「transform: scale(0.95) 是系统级微交互」；
+        「只定义 Default 与 Active/Pressed，不定义 hover」（Iteration Guide #4）。
+   纪律：单一缓动（--e-standard）、四档时长（90/160/240/420ms）、
+        无弹跳、无装饰动效。与「唯一强调色 / 唯一投影」同构。
+   分工：
+     · 按钮类（btn / chip / segmented / swatch / 小图标钮）→ 按压 scale(0.95)
+     · 大面（卡片 / 行 / 侧栏项 / Tab）→ 按压改面色，不缩放
+     · 页面进场 → 淡入 + 8px 上浮，40ms 错峰
+   ========================================================================== */
+
+/* --------- 进场：内容列按 40ms 错峰上浮，呼应 section 的呼吸节奏 --------- */
+@keyframes enter-rise {
+  from {
+    opacity: 0;
+    transform: translateY(var(--enter-shift));
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes tabbar-in {
+  from {
+    transform: translateY(100%);
+  }
+}
+
+.page > * {
+  animation: enter-rise var(--d-enter) var(--e-standard) backwards;
+}
+
+.page > *:nth-child(2) {
+  animation-delay: var(--d-stagger);
+}
+
+.page > *:nth-child(3) {
+  animation-delay: calc(var(--d-stagger) * 2);
+}
+
+.page > *:nth-child(4) {
+  animation-delay: calc(var(--d-stagger) * 3);
+}
+
+.page > *:nth-child(5) {
+  animation-delay: calc(var(--d-stagger) * 4);
+}
+
+.page > *:nth-child(6) {
+  animation-delay: calc(var(--d-stagger) * 5);
+}
+
+.page > *:nth-child(7) {
+  animation-delay: calc(var(--d-stagger) * 6);
+}
+
+.page > *:nth-child(8) {
+  animation-delay: calc(var(--d-stagger) * 7);
+}
+
+/* 骨架之后的正式内容（表单卡等局部出现）：比整页进场更轻 */
+[data-role='form-slot'] > .card {
+  animation: enter-rise var(--d-base) var(--e-standard) backwards;
+}
+
+/* 登录 / 邀请这类整页浮层卡：一次上浮，不带错峰 */
+.auth-card,
+.invite-card {
+  animation: enter-rise var(--d-enter) var(--e-standard) backwards;
+}
+
+/* 外壳：侧栏淡入，移动端 TabBar 从底部滑入（一次，不循环） */
+.sidebar {
+  animation: fade-in var(--d-base) var(--e-standard) backwards;
+}
+
+.tabbar {
+  animation: tabbar-in var(--d-enter) var(--e-standard) backwards;
+  animation-delay: calc(var(--d-stagger) * 2);
+}
+
+/* --------- 按压态（Active/Pressed，00-DESIGN 的系统级微交互） --------- */
+/* 按钮类：scale(0.95) */
+.chip:active,
+.segmented__item:active,
+.swatch:active,
+.cat-chip:active,
+.icon-grid__item:active {
+  transform: scale(var(--press-scale));
+}
+
+/* 大面：面色变化承担按压反馈（00-DESIGN：强调先换面、再加装饰） */
+.sidebar__ledger:active,
+.user-chip:active,
+.sidenav__item:active {
+  background: var(--c-divider-soft);
+}
+
+a.acct-row:active {
+  background: var(--c-parchment);
+}
+
+.ledger-card:active,
+.tag-card:active {
+  background: var(--c-soft-fill);
+}
+
+.tabbar__item:active {
+  color: var(--c-primary);
+}
+
+/* --------- hover（非设计态，仅保留极轻的颜色反馈提升桌面可用性；
+   依据 00-DESIGN Iteration Guide #4：布局与结构不因 hover 变化） --------- */
+.ledger-card:hover,
+.chip:hover {
+  background: var(--c-soft-fill);
+}
+
+/* ==========================================================================
+   二、排版（00-DESIGN 阶梯的落地层 · 第 3 批拍板：Q2 = 保持密度）
+
+   ── 适配口径 ────────────────────────────────────────────────────────────
+   00-DESIGN 的正文是 17px（Do 明文），那是「阅读型页面」的呼吸；
+   记账是高密度工具，同屏信息量优先。所以**字号按本应用压缩**，
+   把文档里与字号无关的语法原样落下：
+
+   ① letter-spacing 用 em，按文档的比值回推。
+      00-DESIGN 给的 px 值恰好是「字号 × 比值」的取整结果，全部整除：
+        -0.28px / 56 = -0.005em     -0.374px / 34 = -0.011em
+        +0.196px / 28 = +0.007em    +0.231px / 21 = +0.011em
+        -0.374px / 17 = -0.022em    -0.224px / 14 = -0.016em
+        -0.12px  / 12 = -0.010em    -0.08px  / 10 = -0.008em
+      → px 只是 em 比值 × 字号的展示值。这里直接写回 em：
+        字号压缩后，**松紧比例仍与文档逐档一致**。
+      **方向是重点**：display 档负（紧标题）、tagline / lead **正**（松副标）——
+      文档里这是一对刻意的对比，第 1、2 批之前全做成负，本批翻正。
+      （文档 tracking 按拉丁文测量；对 CJK 是 ≤2% 的轻微收紧，
+        观感是「更整」而不是「更挤」。）
+
+   ② 字重阶梯 300 / 400 / 600 / 700，文档明文「Weight 500 is deliberately absent」。
+      300 档落在 `.networth__value`（净资产大数）——文档称之为 light-atmosphere cue。
+
+   line-height 是唯一随字号一起调的量：文档 display 档的紧行高（1.07–1.19）
+   建立在 21–56px 上，压到 16px 以下会粘行，故文本档取可读值 ≥ 1.45。
+   未被视图消费的档位（hero-display / display-lg / tagline / lead-airy）
+   保留为阶梯定义，注释标注「暂未消费」。
+   ========================================================================== */
+
+/* ── display 档（≥ 19px：紧行高 + 文档 tracking 比值）── */
+.tt-hero-display {
+  font-family: var(--f-display);
+  font-size: 56px; /* 文档 hero-display 56 */
+  line-height: 1.07;
+  font-weight: 600;
+  letter-spacing: -0.28px; /* 文档绝对值；-0.005em 在 56px 上等于 -0.28px，写成绝对值才不会被改字号时带偏 */
+}
+
+.tt-display-lg {
+  font-family: var(--f-display);
+  font-size: 40px; /* 文档 display-lg 40 */
+  line-height: 1.1;
+  font-weight: 600;
+  letter-spacing: 0; /* 文档 display-lg 无 tracking —— 修正原先的 -0.012em */ /* 暂未消费 */
+}
+
+.tt-display-md {
+  font-family: var(--f-display);
+  font-size: 34px; /* 文档 display-md 34 */
+  line-height: 1.47; /* 文档 display-md 1.47（多行区块标题）；单行改用 display-lg */
+  font-weight: 600;
+  letter-spacing: -0.374px; /* 文档绝对值 */
+}
+
+.tt-tagline {
+  font-size: 21px; /* 文档 tagline 21 */
+  line-height: 1.35;
+  font-weight: 600;
+  letter-spacing: 0.231px; /* 文档 tagline 是**正** tracking —— 大字号宽呼吸，与 display 的负 tracking 成对 */
+}
+
+.tt-lead {
+  font-size: 28px; /* 文档 lead 28 */
+  line-height: 1.5;
+  font-weight: 400;
+  letter-spacing: 0.196px; /* 文档 lead 正 tracking */
+  color: var(--c-ink-muted-48);
+}
+
+/* 300 档：文档仅两处 —— lead-airy(24/300) 与 button-large(18/300)，
+   文档称之为 light-atmosphere cue。此处 1:1 落地（无压缩），
+   实际消费见 .networth__value。 */ /* 暂未消费 */
+.tt-lead-airy {
+  font-size: 24px;
+  line-height: 1.5;
+  font-weight: 300;
+  letter-spacing: 0;
+}
+
+/* ── 文本档（≤ 16px：可读行高 + 文档 tracking 比值）── */
+.tt-body-strong {
+  font-size: 15px; /* 文档 17 —— Q2=B：保持密度，作为已知偏离记入 docs/11 §7 */
+  line-height: 1.45; /* 文档 1.24 建立在 17px 上，压缩后取可读值 */
+  font-weight: 600;
+  letter-spacing: -0.374px; /* 文档绝对值 */
+}
+
+.tt-body {
+  font-size: 15px; /* 文档 17 —— Q2=B：保持密度，作为已知偏离记入 docs/11 §7 */
+  line-height: 1.5;
+  font-weight: 400;
+  letter-spacing: -0.374px; /* 文档绝对值 */
+}
+
+.tt-caption {
+  font-size: 14px; /* 文档 caption 14 */
+  line-height: 1.5;
+  font-weight: 400;
+  letter-spacing: -0.224px; /* 文档绝对值 */
+}
+
+.tt-fine-print {
+  font-size: 12px;
+  line-height: 1.45; /* 文档 1.0 是页脚密集列表语境；独立一行取 1.45 */
+  font-weight: 400;
+  letter-spacing: -0.12px; /* 文档绝对值；文档明令 12px 以下不用负 tracking，12px 是下限 */
+  color: var(--c-ink-muted-48);
+}
+
+/* --------- 补齐文档缺档（00-DESIGN Typography 16 档） --------- */
+
+/**
+ * `caption-strong` 14/600/1.29/-0.224px —— 文档有、此前未落地。
+ * 用于「已结 / 待付」这类需要比 caption 更硬一档的小标签。
+ */
+.tt-caption-strong {
+  font-size: 14px;
+  line-height: 1.29;
+  font-weight: 600;
+  letter-spacing: -0.224px;
+}
+
+/**
+ * `dense-link` 17/400/**2.41**/0 —— 文档明确说 2.41「不是 bug」：
+ * 它是页脚密集链接列的呼吸方式。本应用只有「设置页法务行」这类场景用得到。
+ */
+.tt-dense-link {
+  font-size: 17px;
+  line-height: 2.41;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+/** `micro-legal` 10/400/1.3/-0.08px —— 法务小字专用，配 `--c-ink-muted-48` */
+.tt-micro-legal {
+  font-size: 10px;
+  line-height: 1.3;
+  font-weight: 400;
+  letter-spacing: -0.08px;
+  color: var(--c-ink-muted-48);
+}
+
+/**
+ * `button-large` 18/**300**/1.0/0 —— 全系统仅有的两处 300 字重之一。
+ * 只给「空态主 CTA」这类需要轻盈感的大按钮，不要滥用（文档称之为 light-atmosphere cue）。
+ */
+.tt-button-large {
+  font-size: 18px;
+  line-height: 1;
+  font-weight: 300;
+  letter-spacing: 0;
+}
+
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+.text-muted {
+  color: var(--c-ink-muted-48);
+}
+
+.text-soft {
+  color: var(--c-ink-muted-80);
+}
+
+/* ==========================================================================
+   三、应用外壳：左侧导航 + 内容栏
+   ========================================================================== */
+
+/* --------- 3.1 栅格 --------- */
+.shell {
+  min-height: 100dvh;
+  display: grid;
+  /* 首列 = 岛宽 + 左右各一道 --island-gap。
+     ⚠️ 不能沿用 var(--w-sidebar) 单值：岛要「不贴边」，它与页底之间必须留出
+     20px 的通道，而这 20px 属于首列的宽度 —— 少写会让内容栏压到岛身上。 */
+  grid-template-columns: calc(var(--w-sidebar) + var(--island-gap) * 2) minmax(0, 1fr);
+  align-items: start;
+  /* 页底 = parchment：岛面是 canvas 白，靠「白岛浮在灰底上」读出悬浮。
+     ⚠️ 若这里留 canvas 白，岛面与四周缝隙同色，20px 的间距就白留了 ——
+     悬浮靠的是「岛比周围亮」，不是靠阴影。 */
+  background: var(--c-parchment);
+}
+
+.shell__main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 100dvh;
+  background: var(--c-parchment);
+}
+
+/* --------- 3.2 左侧导航栏：悬浮岛（floating island） ---------
+   从「贴左边缘、通高、与内容栏用 1px 竖线分隔」改成「浮在页面之上的一块板」。
+   四条实现要点：
+
+   ① 高度不再是 100dvh，而是扣掉上下各 --island-gap 的 calc() ——
+      板不能顶到视口上下边缘，否则「悬浮」读不出来。
+   ② 圆角 --r-island（= --r-card 12px）：岛 / 导航项 / 卡片三者同一枚值，
+      00-DESIGN 的「不混用 radii 语法」在这里就是「不另开第四档」。
+   ③ 去掉 border-right：竖线是「分隔两个区域」的语言，岛是「浮在一个面上」，
+      两种语言互斥。层次改由「面色（岛面 canvas 白 / 页底 parchment 灰）+ 极淡扩散投影」
+      承担 —— 与 00-DESIGN Elevation 表里 backdrop-blur 那一族同源。
+   ④ margin 四边都是 --island-gap：左侧的 20px 就是「不贴边」的那道缝，
+      栅格首列也已按 calc(var(--w-sidebar) + gap*2) 加宽，两处必须同步。 */
+.sidebar {
+  position: sticky;
+  top: var(--island-gap);
+  height: calc(100dvh - var(--island-gap) * 2);
+  margin: var(--island-gap);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px 12px 12px;
+  border-radius: var(--r-island);
+  background: var(--c-canvas);
+  box-shadow: var(--shadow-island);
+}
+
+.sidebar__head {
+  padding: 0 8px;
+}
+
+/* 当前账本：岛内的一块信息板（点进「我的」管理账本与成员） */
+.sidebar__ledger {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 12px 16px;
+  /* 与岛 / 导航项同用 --r-card：岛内所有容器共用一枚圆角 */
+  border-radius: var(--r-card);
+  background: var(--c-parchment);
+  transition: background var(--d-state) var(--e-standard);
+}
+
+.sidebar__ledger:hover {
+  background: var(--c-divider-soft);
+}
+
+.sidebar__ledger-label {
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  color: var(--c-ink-muted-48);
+}
+
+.sidebar__ledger-name {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.006em;
+  padding-right: 20px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar__ledger-meta {
+  font-size: 11px;
+  color: var(--c-ink-muted-48);
+}
+
+.sidebar__ledger-arrow {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  color: var(--c-ink-muted-48);
+}
+
+/* --------- 3.3 侧栏导航 --------- */
+.sidenav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+
+  /**
+   * 侧栏是**滚动区**，不是被裁掉的一列。
+   *
+   * `.sidebar` 是 `position: sticky` + `height: 100dvh` 的 flex 列：
+   * 品牌、CTA、账本块、底部账号条各占一格，中间放导航。导航项一多，
+   * 内容高度就超过 `100dvh` —— 而**整个侧栏没有 `overflow`**，
+   * 于是溢出的那几项被画到视口下方，鼠标在侧栏上滚时滚的仍是**页面**，
+   * 侧栏自己纹丝不动（sticky），最后几个入口（成员、对账历史、导入…）
+   * 永远停在屏幕外，点不到、也看不出来还有东西。
+   *
+   * 修法：把导航本身变成滚动容器 —— 只让它滚，品牌与底部账号条保持固定
+   * （滚导航时不该把「当前账本」和「退出登录」一起滚走）。
+   *
+   * ⚠️ `min-height: 0` 不能省：flex 子项默认 `min-height: auto`，
+   * 那样它宁可撑到内容高度也不肯缩到容器高度里，`overflow-y: auto` 直接失效 ——
+   * 这是 flex 容器做内部滚动时最常见的静默失效。
+   *
+   * `overscroll-behavior: contain`：导航滚到底时不把滚动接力给页面，
+   * 否则「滑到最后一个导航项却把整个页面带着跑」会让人以为导航没滚到底。
+   */
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* 分组容器：只负责纵向堆叠，不给视觉（分层靠组标题表达） */
+/* 分组容器：只负责纵向堆叠，不给视觉（分层靠组标题 + 链接块表达）。
+   gap 必须是 0 —— 标题与链接块之间的 6px 呼吸由「标题 margin-bottom 4px +
+   链接块 padding-top 4px」两段各 4px 合成；若这里再留 2px 就变成 8px，
+   与组与组之间的 16px 拉不开层级差。 */
+.sidenav__group {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* 导航项容器：只负责排版，不承载选中态。
+   ⚠️ 刻意**不**在这里做「整组点亮」（曾用 :has() 点亮，但把同组 4 个未选中项
+   也染上底色，等于宣告「这四项都相关」，与「选中态只由 aria-current 一个来源
+   表达」相悖）。组容器只提供 4px 内缩与统一圆角，选中的表达全权交给单个 .sidenav__item。 */
+.sidenav__items {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px;
+  /* 与岛 / 单项同用 --r-card，不留 --r-sm 第三档 */
+  border-radius: var(--r-card);
+}
+
+/**
+ * 组标题（00-DESIGN › Components › Navigation › Section label）。
+ *
+ * ① 刻意**不加** hover 态、不给 cursor:pointer —— 它不是可点的东西，
+ *    给了就是在骗用户去点一个点不动的标题。
+ *
+ * ② tracking **正**（+0.06em）：它要靠字距与下面 14px 的导航项在视觉上分层。
+ *    display 系的负 tracking 是给大标题用的，11px 上用负 tracking 会让字挤成一团。
+ *
+ * ③ 首组不加顶部间距（它紧贴 CTA），其余每组 16px —— 分组之间要有「换段」感。
+ */
+.sidenav__group-head {
+  margin: 0 0 4px;
+  padding: 0 12px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: 0.06em;
+  color: var(--c-ink-muted-48);
+}
+
+/** 非首组的顶部间距 */
+.sidenav__group-head--gap {
+  margin-top: 16px;
+}
+
+/**
+ * 选中态的左侧标记条。
+ *
+ * 为什么用 ::before 而不是只给背景色：背景色（accent-3 浅蓝）在
+ * 「分组标题下方紧邻 2px 细线」时对比不足，而左侧 2px 实色条
+ * 在长列表里能提供一条**连续的纵向定位线** —— 眼睛不用逐行找。
+ *
+ * 选中态与 hover 的优先级：hover 是 [aria-current='page'] 的**同级**而非替代，
+ * 所以 CSS 里两者都要写，且 aria-current 写在后面（同特异性下后者胜）。
+ */
+.sidenav__item[aria-current='page']::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 2px;
+  height: 16px;
+  border-radius: var(--r-full);
+  background: var(--c-primary);
+}
+
+.sidenav__item {
+  position: relative; /* 选中态左侧标记条的定位上下文 */
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px; /* 向间距尺度表对齐；桌面密集导航按文档「precision desktop action」例外处理 */
+  padding: 0 12px;
+  /* 与岛、卡片同用 --r-card：悬浮岛方案要求「圆角只有一枚」，
+     导航项若留 --r-sm 会与岛面差一档，贴起时能看出两层圆角不一致。 */
+  border-radius: var(--r-card);
+  font-size: 14px;
+  letter-spacing: -0.01em; /* 文档 nav-link 比值（-0.12px / 12） */
+  color: var(--c-ink-muted-80);
+  transition: background var(--d-state) var(--e-standard),
+    color var(--d-state) var(--e-standard), box-shadow var(--d-state) var(--e-standard);
+}
+
+.sidenav__item svg {
+  color: var(--c-ink-muted-48);
+  transition: color var(--d-state) var(--e-standard);
+}
+
+/**
+ * 悬停态：面色 + 一层极淡的「贴起」投影。
+ * 只给投影不给位移 —— 位移会让指针下的目标跑掉，桌面密集导航里很烦。
+ */
+.sidenav__item:hover {
+  background: var(--c-parchment);
+  color: var(--c-ink);
+  box-shadow: var(--shadow-island-item);
+}
+
+.sidenav__item:hover svg {
+  color: var(--c-ink-muted-80);
+}
+
+/**
+ * 键盘焦点：与 hover 同一套视觉，另加 outline。
+ * 00-DESIGN 的 button-primary-focus 是 2px solid primary outline，这里沿用同一口径。
+ */
+.sidenav__item:focus-visible {
+  outline: 2px solid var(--c-primary);
+  outline-offset: -2px;
+}
+
+/* 选中态：面色 + 左侧标记条 + 一层贴起投影（岛 → 组 → 选中项 三级层次里最实的一级） */
+.sidenav__item[aria-current='page'] {
+  background: var(--c-accent-3);
+  color: var(--c-primary);
+  font-weight: 600;
+  box-shadow: var(--shadow-island-item);
+}
+
+.sidenav__item[aria-current='page'] svg {
+  color: var(--c-primary);
+}
+
+/** 选中项同时被 hover：不叠加第二层投影（会糊成一块），只保持面色。 */
+.sidenav__item[aria-current='page']:hover {
+  box-shadow: none;
+}
+
+.sidenav__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 底部账号条：去掉 1px 顶边。
+   岛内各层已由 16px 的 gap + 面色区分，再加一条实线就成了「生硬描边」——
+   而 00-DESIGN 的 hairline 是给卡片/胶囊做结构描边用的，不是拿来切分同一个面的。 */
+.sidebar__foot {
+  margin-top: auto;
+  padding-top: 4px;
+}
+
+/**
+ * 导航滚动到末尾时，最后一项不贴着 foot 的分隔线（留 4px 结构间距）。
+ * 只加在滚动容器内 —— 外层 `.sidebar` 的下内边距管不到内部滚动内容。
+ */
+.sidenav {
+  padding-bottom: 4px;
+}
+
+/* --------- 3.3·补充 「记一笔」主 CTA（pill 形态，docs/13 §3.3） ---------
+   「记」是一个动作，不是导航目的地：它落在品牌区之下、主导航之上，
+   占满侧栏宽度，用 pill 圆角把它和下方的方形导航项区分开。 */
+.sidebar__cta {
+  padding: 0 0 4px;
+}
+
+.compose-cta {
+  height: 44px;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.011em;
+}
+
+/* CTA 落在侧栏（白面）内部时需要一个「刚好搭在白色上」的底：
+   沿用 primary-fill 实心，hover 提亮一档（与 .btn 同源，无需额外覆盖）。 */
+.sidebar__cta .compose-cta svg {
+  color: currentColor;
+}
+
+/* --------- 3.4 顶部细条（仅移动端；桌面由侧栏承担品牌与用户） --------- */
+.app-bar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--c-frost-bg);
+  -webkit-backdrop-filter: var(--frost-blur);
+  backdrop-filter: var(--frost-blur);
+  border-bottom: 1px solid var(--c-hairline-soft);
+}
+
+.app-bar__inner {
+  max-width: var(--w-content);
+  margin: 0 auto;
+  padding: 0 var(--gutter);
+  height: var(--nav-h);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.app-bar__right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* --------- 3.5 品牌 --------- */
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.brand__tile {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--r-sm);
+  background: var(--c-primary-fill);
+  color: var(--c-on-primary);
+  display: grid;
+  place-items: center;
+  font-family: var(--f-display);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  flex: none;
+}
+
+.brand__name {
+  font-family: var(--f-display);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  white-space: nowrap;
+}
+
+/* --------- 3.6 用户胶囊 --------- */
+.user-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px 4px 4px;
+  border-radius: var(--r-pill);
+  background: var(--c-soft-fill);
+  border: 1px solid transparent;
+  transition: background var(--d-state) var(--e-standard), border-color var(--d-state) var(--e-standard);
+}
+
+.user-chip:hover {
+  background: var(--c-canvas);
+  border-color: var(--c-hairline);
+}
+
+.user-chip__name {
+  font-size: 13px;
+  font-weight: 400;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 侧栏底部的整行用户卡 */
+.user-chip--full {
+  display: flex;
+  width: 100%;
+  padding: 6px 12px 6px 6px;
+  border-radius: var(--r-sm);
+  background: transparent;
+  text-align: left;
+}
+
+.user-chip--full:hover {
+  background: var(--c-parchment);
+  border-color: transparent;
+}
+
+.user-chip--full > svg:last-child {
+  margin-left: auto;
+  color: var(--c-ink-muted-48);
+}
+
+.user-chip__main {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.user-chip__main .user-chip__name {
+  font-weight: 600;
+  max-width: none;
+  font-size: 13px;
+  letter-spacing: -0.004em;
+}
+
+.user-chip__sub {
+  font-size: 11px;
+  color: var(--c-ink-muted-48);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ==========================================================================
+   四、页面容器与区块
+   ========================================================================== */
+/* 内容列：1040px 正文 + 左右各 40px 呼吸（1120px = 内容列上限） */
+.page {
+  width: 100%;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 32px 32px 64px;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+/** 报表页是 12 栅格，内容锁宽提到 1440px（00-DESIGN：≥1441px 由外边距吸收） */
+.page--report {
+  max-width: 1440px;
+}
+
+.page__hero {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* 页面主标题：比区块标题高一档，形成「页 → 区 → 卡」三层节奏 */
+.page__hero h1 {
+  font-size: 30px;
+  line-height: 1.12;
+  font-weight: 600;
+  letter-spacing: -0.011em; /* display-md 比值（-0.374px / 34），30px 落在 md–lg 之间偏 md */
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.section__head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.section__head h2 {
+  margin-right: auto;
+}
+
+.section__hint {
+  font-size: 13px;
+  color: var(--c-ink-muted-48);
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.stack--sm {
+  gap: 12px;
+}
+
+.stack--md {
+  gap: 20px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.row--wrap {
+  flex-wrap: wrap;
+}
+
+.row--top {
+  align-items: flex-start;
+}
+
+.row--between {
+  justify-content: space-between;
+}
+
+.row--md {
+  gap: 12px;
+}
+
+.grid-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 16px;
+}
+
+.form-narrow {
+  max-width: var(--w-form);
+}
+
+/* 表单行：字段自适应换行。宽度策略集中在样式层，视图不再写内联 flex。 */
+.field-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.field-row > .field {
+  flex: 1 1 160px;
+  min-width: 0;
+}
+
+.field-row > .field--wide {
+  flex: 2 1 220px;
+}
+
+.field-row > .field--wide2 {
+  flex: 3 1 240px;
+}
+
+.field-row > .field--note {
+  flex: 2 1 240px;
+  padding-bottom: 12px;
+}
+
+/* ==========================================================================
+   五、按钮
+   ========================================================================== */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 22px;
+  border: 1px solid transparent;
+  border-radius: var(--r-pill);
+  background: var(--c-primary-fill);
+  color: var(--c-on-primary);
+  font-size: 15px; /* button-primary 的字号随 body（Q2=B 压缩档） */
+  font-weight: 400;
+  letter-spacing: -0.022em; /* body 比值（-0.374px / 17），修正原先的 -0.004em */
+  white-space: nowrap;
+  transition: background var(--d-state) var(--e-standard), opacity var(--d-state) var(--e-standard), transform var(--d-press) var(--e-standard),
+    border-color var(--d-state) var(--e-standard);
+}
+
+.btn:hover {
+  background: var(--c-primary-fill-hover);
+}
+
+.btn:active {
+  transform: scale(var(--press-scale));
+}
+
+.btn[disabled],
+.btn[aria-disabled='true'] {
+  background: var(--c-soft-fill);
+  color: var(--c-ink-muted-48);
+  border-color: transparent;
+  box-shadow: none;
+  pointer-events: none;
+}
+
+.btn--secondary {
+  background: transparent;
+  color: var(--c-primary);
+  border-color: var(--c-primary);
+}
+
+.btn--secondary:hover {
+  background: var(--c-accent-2);
+  border-color: var(--c-primary);
+}
+
+/* 对比填充（00-DESIGN 的 button-dark-utility）：日间近黑、夜间翻转为近白，
+   否则这枚按钮会在深色页面上彻底消失。 */
+.btn--dark {
+  background: var(--c-ink-fill);
+  color: var(--c-on-ink-fill);
+  border-radius: var(--r-sm);
+}
+
+.btn--dark:hover {
+  background: var(--c-ink-fill-hover);
+}
+
+.btn--quiet {
+  background: transparent;
+  color: var(--c-ink-muted-48);
+  padding: 0 12px;
+}
+
+.btn--quiet:hover {
+  background: var(--c-soft-fill); /* 悬停底用「比所在面暗一档」的软填充，不用描边令牌充当底色 */
+  color: var(--c-ink);
+}
+
+.btn--pearl {
+  background: var(--c-pearl);
+  color: var(--c-ink-muted-80);
+  border-color: transparent;
+  border-radius: var(--r-md);
+  /* 文档 button-pearl-capsule 的「3px divider-soft 环」：spread 0 模糊 0 位移，
+     是环不是投影，不参与 elevation 体系 */
+  box-shadow: 0 0 0 3px var(--c-divider-soft);
+}
+
+.btn--pearl:hover {
+  background: var(--c-divider-soft);
+}
+
+.btn--danger {
+  background: transparent;
+  color: var(--c-danger);
+  border-color: var(--c-danger-line);
+}
+
+.btn--danger:hover {
+  background: var(--c-danger-bg);
+}
+
+.btn--block {
+  width: 100%;
+}
+
+.btn--sm {
+  height: 44px;
+  padding: 0 16px;
+  font-size: 14px;
+}
+
+/* 00-DESIGN button-icon-circular：44×44 圆形图标按钮（触控底线） */
+.btn--icon {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border-radius: var(--r-full);
+  background: transparent;
+  color: var(--c-ink-muted-80);
+}
+
+.btn--icon:hover {
+  background: var(--c-soft-fill);
+  color: var(--c-ink);
+}
+
+.btn__spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: var(--r-full);
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.link {
+  color: var(--c-primary);
+  font-weight: 400;
+}
+
+.link:hover {
+  text-decoration: underline;
+}
+
+/* ==========================================================================
+   六、卡片与容器
+   00-DESIGN 的 store-utility-card：白面 + 1px hairline 描边 + 18px 圆角，
+   零投影。层次交给面色切换（羊皮纸页底 → 白卡片 → 深色强调面），不交给阴影。
+   ========================================================================== */
+.card {
+  background: var(--c-canvas);
+  border: 1px solid var(--c-hairline);
+  border-radius: var(--r-lg);
+  padding: var(--s-lg);
+}
+
+/* 列表型卡片：行间用极浅分隔线，圆角靠裁剪，避免行首行尾顶到直角 */
+.card--flush {
+  padding: 0;
+  overflow: hidden;
+}
+
+.card__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 16px var(--s-lg) 16px;
+}
+
+.card__head h3 {
+  margin-right: auto;
+}
+
+.card__body {
+  padding: 0 var(--s-lg) var(--s-lg);
+}
+
+/* 卡片内的浅底分区（说明 / 汇总 / 次级信息） */
+.panel {
+  background: var(--c-parchment);
+  border-radius: var(--r-sm);
+  padding: 16px;
+}
+
+/* --- 账本卡片（00-DESIGN：单强调蓝 + 无卡片投影 + 大留白 + 明确圆角）---
+   卡片从 `<button>` 降级为 `<article>` 后，整卡 padding/圆角留在这里，
+   内层切换按钮自己负责可点击区的 hover，两者各管一层，不互相干扰。
+
+   圆角用 `--r-lg`（18px）—— 00-DESIGN `{rounded.lg}` 就是 utility card 的那一档，
+   与 `.card` 同值；**不给卡片投影**，层次靠 1px hairline 描边 + 面色切换表达。 */
+.ledger-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--c-canvas);
+  border: 1px solid var(--c-hairline);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  transition: border-color var(--d-state) var(--e-standard), background var(--d-state) var(--e-standard);
+}
+
+.ledger-card.is-current {
+  border-color: var(--c-primary);
+  background: var(--c-accent-1);
+}
+
+/* 顶区用 flex-start 而不是 center：
+   center 会把右侧的 chevron 送到整块内容的垂直中间，而内容有三行 ——
+   chevron 于是谁也不挨着。顶对齐后它与**名称行**齐平（margin-top 微调到行心）。 */
+.ledger-card__switch {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-sm);
+  width: 100%;
+  min-height: 64px;
+  padding: var(--s-lg);
+  background: transparent;
+  border: 0;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--d-state) var(--e-standard);
+}
+
+.ledger-card__switch:hover {
+  background: var(--c-soft-fill);
+}
+
+.ledger-card.is-current .ledger-card__switch:hover {
+  background: transparent;
+}
+
+/* 图标：24px 见方，与 17px/1.29 的名称行（22px）中心对齐。
+   ⚠️ 它是**标识**不是按钮 —— 可点的是整张 `__switch`，
+   所以不适用 44×44 的触控底线（那是给独立可点控件的）。 */
+.ledger-card__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex: none;
+  border-radius: var(--r-sm);
+  background: var(--c-soft-fill);
+  color: var(--c-primary);
+}
+
+.ledger-card.is-current .ledger-card__icon {
+  background: var(--c-accent-4);
+}
+
+/* 三层信息各差一档：名称 17/600 · 元信息 14/400 · 提示 12/400。 */
+.ledger-card__main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-xs);
+  min-width: 0;
+  flex: 1;
+}
+
+/* 标题行：图标 + 名称同行。名字自己换行，不设行数上限 ——
+   账本名后端允许 40 字，任何截断（ellipsis / line-clamp）都会把用户的名字吃掉。
+
+   ⚠️ 这里用 flex-start 而不是 center：名字占两行时，center 会让图标居中于
+   **整个两行文字块**（即第 1.5 行），于是它对着的是空档而不是第一行 ——
+   偏整整一行（22px）。顶对齐后图标贴着第一行，中心只差 1px（24px 图标 vs 22px 行高）。 */
+.ledger-card__head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-xs);
+  min-width: 0;
+}
+
+.ledger-card__name {
+  font-family: var(--f-text);
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.29;
+  letter-spacing: -0.374px;
+  color: var(--c-ink);
+  min-width: 0;
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+
+/* 状态徽标：12px（fine-print 档）+ 强调蓝，与 00-DESIGN「单一强调色」一致。 */
+.ledger-card__current {
+  flex: none;
+  font-family: var(--f-text);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.12px;
+  color: var(--c-primary);
+  background: var(--c-accent-4);
+  border-radius: var(--r-pill);
+  padding: 2px 8px;
+}
+
+/* 元信息行：caption 14/400。徽标也在这一行 —— 放标题行会与名字争横向空间。 */
+.ledger-card__sub {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-family: var(--f-text);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.43;
+  letter-spacing: -0.224px;
+  color: var(--c-ink-muted-48);
+}
+
+.ledger-card__sep {
+  color: var(--c-placeholder);
+}
+
+/* 提示行：fine-print 12/400 —— 最弱的一层，只在需要时解释「这张卡能点」。 */
+.ledger-card__meta {
+  font-family: var(--f-text);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.3;
+  letter-spacing: -0.12px;
+  color: var(--c-ink-muted-48);
+}
+
+/* 纯 CSS 右向 chevron —— 不依赖图标库（库里无 chevron-right），
+   既给出「可点切换」的暗示，又不引入缺名回退的问号图。
+   margin-top 把它压到名称行的行心（图标 24px 高，chevron 18px → 差 3px，取 4px 合法值）。 */
+.ledger-card__go {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  flex: none;
+  margin-top: 4px;
+  color: var(--c-placeholder);
+  transition: transform var(--d-state) var(--e-standard), color var(--d-state) var(--e-standard);
+}
+
+.ledger-card__go::after {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-right: 2px solid currentColor;
+  border-top: 2px solid currentColor;
+  transform: rotate(45deg);
+}
+
+.ledger-card__switch:hover .ledger-card__go {
+  color: var(--c-primary);
+  transform: translateX(2px);
+}
+
+/* 操作行：margin-top:auto 让它贴住卡片底部 ——
+   同一栅格行的卡片被拉成等高时，各卡的操作行仍然在同一条基线上。
+
+   水平内边距 16px 而非 24px：`.btn--sm` 自带 0 16px 内边距，
+   两者相加 32px 会把按钮**文字**推到 32px 处，而上方标题行的文字基准是 24px ——
+   于是操作区比内容区多缩进 8px，右侧「删除」与上方 chevron 的右缘错开一截。
+   改成行 16px + 按钮自身收到 8px，两段相加正好落回 24px 这条基准线：
+     文字右缘 = 16(行内边距) + 8(按钮内边距) = 24 ✓ 与内容区右缘同线
+   同时 hover 底色离卡片边缘仍有 16px，不至于贴边。
+
+   上下内边距取同一个值 16px，按钮在操作行内才是真居中；
+   之前上 12 下 24 是不对称的，肉眼能看出按钮偏上贴住分隔线。 */
+.ledger-card__ops {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--s-xs);
+  margin-top: auto;
+  padding: 16px;
+  border-top: 1px solid var(--c-hairline);
+}
+
+/* 操作按钮只收水平内边距，不动高度 —— 触控底线 44px 必须保留。 */
+.ledger-card__ops .btn {
+  padding-inline: 8px;
+}
+
+.ledger-card.is-current .ledger-card__ops {
+  border-top-color: var(--c-accent-2);
+}
+
+/* 删除按钮：只把文字换成语义红 —— 全红实心会把「编辑 / 删除」入口重量拉平，
+   而删除应是**更淡但更明确**的那一个（语义色仅作用于文本，不作用填充）。 */
+.ledger-card__ops .is-danger {
+  color: var(--c-danger);
+}
+
+/* --- 删除影响清单 ---
+   每行「名称 + 数量」，用已有的 `.recon-line` 排版，不新造栅格。 */
+.purge-list {
+  display: flex;
+  flex-direction: column;
+  margin-top: 8px;
+}
+
+.chip--icon {
+  padding: 8px;
+}
+
+/* ==========================================================================
+   七、表单
+   ========================================================================== */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field__label {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--c-ink-muted-80);
+}
+
+.field__hint {
+  font-size: 12px;
+  color: var(--c-ink-muted-48);
+}
+
+.field__error {
+  font-size: 12px;
+  color: var(--c-danger);
+}
+
+.field__error:empty {
+  display: none;
+}
+
+.input {
+  width: 100%;
+  height: 44px; /* 00-DESIGN search-input：44px = 触控底线 */
+  padding: 0 20px; /* 文档内距 12×20 的横向值（定高输入框纵向内距由行高承担） */
+  background: var(--c-canvas);
+  border: 1px solid var(--c-hairline);
+  border-radius: var(--r-md);
+  font-size: 15px;
+  transition: border-color var(--d-state) var(--e-standard), outline-color var(--d-state) var(--e-standard);
+}
+
+.input::placeholder {
+  color: var(--c-placeholder);
+}
+
+.input:focus {
+  outline: 2px solid var(--c-primary-focus);
+  outline-offset: 1px;
+  border-color: var(--c-primary-focus);
+  /* 00-DESIGN search-input：focus 用 2px solid 描边，不用光晕 */
+}
+
+.input[aria-invalid='true'] {
+  border-color: var(--c-danger);
+}
+
+.input[aria-invalid='true']:focus {
+  outline-color: var(--c-danger);
+  border-color: var(--c-danger);
+}
+
+.alert {
+  display: none;
+  padding: 12px 16px;
+  border-radius: var(--r-md);
+  background: var(--c-danger-bg);
+  border: 1px solid var(--c-danger-line);
+  color: var(--c-danger);
+  font-size: 13px;
+}
+
+.alert[data-visible='true'] {
+  display: block;
+}
+
+/* ==========================================================================
+   八、选择胶囊
+   ========================================================================== */
+.chip-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+}
+
+/* 紧凑变体：胶囊按内容取宽，不撑满整行（账本切换等场景） */
+.chip-row--inline {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.chip-row--inline .chip {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  width: auto;
+  padding: 8px 16px;
+}
+
+.chip {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 12px 16px;
+  text-align: left;
+  background: var(--c-canvas);
+  border: 1px solid var(--c-hairline);
+  border-radius: var(--r-sm);
+  font-size: 14px;
+  font-weight: 400;
+  transition: border-color var(--d-state) var(--e-standard),
+    background var(--d-state) var(--e-standard),
+    transform var(--d-press) var(--e-standard);
+}
+
+.chip[aria-checked='true'] {
+  border: 2px solid var(--c-primary-focus);
+  /* 文档 configurator-option-chip-selected：2px solid primary-focus */
+  background: var(--c-accent-2);
+  color: var(--c-primary);
+  font-weight: 600;
+}
+
+.chip__sub {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--c-ink-muted-48);
+}
+
+.chip[aria-checked='true'] .chip__sub {
+  color: var(--c-primary);
+  opacity: 0.8;
+}
+
+/* ==========================================================================
+   九、列表 / 徽标 / 头像
+   ========================================================================== */
+.kv {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-top: 1px solid var(--c-divider-soft);
+}
+
+.kv:first-child {
+  border-top: 0;
+}
+
+.kv__v {
+  margin-left: auto;
+  flex: none;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--c-ink-muted-80);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: var(--r-pill);
+  background: var(--c-parchment);
+  color: var(--c-ink-muted-80);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: -0.006em;
+  white-space: nowrap;
+}
+
+.badge--dark {
+  background: var(--c-ink-fill);
+  color: var(--c-on-ink-fill);
+}
+
+.badge--accent {
+  background: var(--c-accent-4);
+  color: var(--c-primary);
+}
+
+/**
+ * 异常态徽标：Danger 语义。
+ *
+ * ⚠️ 这是**补齐既有缺口**，不是新增一档阶梯 ——
+ * budgets.js 的「已超支」与 reconciliations.js 的「从未对账 / 已逾期」
+ * 早就写着 `badge--danger`，而这一条 CSS 一直不存在。
+ * 后果是那些最该被看见的状态被渲染成了**与「未到期」同一个灰片**，
+ * 既不报错也不刺眼，只是安静地把紧急信号抹平了。
+ *
+ * 取值严格按 tokens 的语义色分工：
+ *   · 底 = `--c-danger-bg`（状态底），字 = `--c-danger`（状态文本）；
+ *   · 不用 `--c-danger` 当底 —— 那是可交互填充的用法，被明令禁止；
+ *   · 徽标不是可交互元素，可以用语义色作状态底（见 tokens 语义色第 ② 条）。
+ *
+ * 三态由此闭环，全复用既有变体、不造第四个：
+ *   正常 → `.badge`（中性安静）· 待处理 → `.badge--accent` · 异常 → `.badge--danger`
+ */
+.badge--danger {
+  background: var(--c-danger-bg);
+  color: var(--c-danger);
+}
+
+.avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--r-full);
+  display: grid;
+  place-items: center;
+  flex: none;
+  overflow: hidden;
+  background: var(--c-parchment);
+  color: var(--c-ink-muted-80);
+  font-size: 14px;
+  font-weight: 600;
+  user-select: none;
+}
+
+.avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.avatar--sm {
+  width: 32px;
+  height: 32px;
+  font-size: 12px;
+}
+
+.avatar--lg {
+  width: 56px;
+  height: 56px;
+  font-size: 20px;
+}
+
+.code-display {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-align: center;
+  padding: 16px;
+  border-radius: var(--r-md);
+  background: var(--c-parchment);
+  border: 1px dashed var(--c-hairline);
+  word-break: break-all;
+}
+
+/* ==========================================================================
+   十、登录 / 注册页（左品牌面板 + 右表单）
+   00-DESIGN 不用装饰渐变，品牌面板用平色近黑面（surface-tile-1）。
+   ========================================================================== */
+.auth-page {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  padding: clamp(16px, 4vw, 40px) var(--gutter);
+  background: var(--c-parchment);
+}
+
+.auth-page__main {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 0;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: var(--w-auth);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  background: var(--c-canvas);
+  border: 1px solid var(--c-overlay-ring);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-overlay);
+  overflow: hidden;
+}
+
+.auth-card__aside {
+  position: relative;
+  padding: 48px;
+  background: var(--c-brand-panel);
+  color: var(--c-on-dark);
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.auth-card__aside .brand__tile {
+  background: var(--c-on-dark-tile);
+  color: var(--c-on-dark);
+}
+
+.auth-card__headline {
+  font-family: var(--f-display);
+  font-size: 26px;
+  line-height: 1.25;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.auth-card__lead {
+  margin-top: 8px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--c-on-dark-2);
+}
+
+.auth-points {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin: auto 0; /* 在标题与法务行之间垂直居中，避免中部留白 */
+}
+
+.auth-point {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.auth-point__icon {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--r-sm);
+  display: grid;
+  place-items: center;
+  flex: none;
+  background: var(--c-on-dark-chip);
+  color: var(--c-on-dark-1);
+}
+
+.auth-point__title {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.auth-point__body {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--c-on-dark-3);
+}
+
+.auth-card__legal {
+  font-size: 11px;
+  color: var(--c-on-dark-4);
+}
+
+.auth-card__form {
+  padding: 48px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 24px;
+}
+
+.auth-brand-sm {
+  display: none;
+}
+
+.auth-card__title {
+  font-family: var(--f-display);
+  font-size: 24px;
+  line-height: 1.25;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.auth-card__sub {
+  margin-top: 6px;
+  font-size: 14px;
+  color: var(--c-ink-muted-48);
+}
+
+.auth-switch {
+  font-size: 13px;
+  color: var(--c-ink-muted-48);
+}
+
+/* ==========================================================================
+   十·补充、邀请落地页（整页一张居中卡片）
+   ========================================================================== */
+.invite-main {
+  min-height: calc(100dvh - var(--nav-h) - 64px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px var(--gutter);
+  background: var(--c-parchment);
+}
+
+.invite-card {
+  width: 100%;
+  max-width: 440px;
+  background: var(--c-canvas);
+  border: 1px solid var(--c-hairline);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-overlay);
+  padding: 32px 24px;
+}
+
+/* ==========================================================================
+   十一、页脚（一行版权，不做死链栏）
+   ========================================================================== */
+.footer-min {
+  margin-top: auto; /* 内容不足一屏时页脚沉到主栏底部 */
+  border-top: 1px solid var(--c-divider-soft);
+  padding: 20px var(--gutter);
+  text-align: center;
+  font-size: 12px;
+  color: var(--c-ink-muted-48);
+}
+
+.auth-page .footer-min {
+  border-top: 0;
+  padding-bottom: 0;
+}
+
+/* ==========================================================================
+   十二、底部 TabBar（≤734px）
+   ========================================================================== */
+.tabbar {
+  display: none;
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 20;
+  background: var(--c-frost-bg-strong);
+  -webkit-backdrop-filter: var(--frost-blur);
+  backdrop-filter: var(--frost-blur);
+  border-top: 1px solid var(--c-hairline-soft);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.tabbar__inner {
+  height: var(--tabbar-h);
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+}
+
+/* --------- 「记」：TabBar 正中央的动作位（docs/13 §3.2） ---------
+   它不是第 5 个导航项，是插在 4 个导航位中间的**动作**：
+   pill 形态、抬升 8px、无文字标签、不参与 aria-current 选中态。
+   按钮本体撑满整个格子（≈78×56），保证长按手势的触控面积远超 44×44 底线。 */
+.tabbar__compose {
+  position: relative;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--c-primary);
+}
+
+/*
+  「记」按钮外面包了一层 .mega-host（模板面板需要 position: relative 的定位上下文）。
+  但 .tabbar__inner 是 grid，**按钮的 78×56 完全靠 grid 拉伸撑出来**（它本身没有内在尺寸，
+  可见的 pill 是 absolute）。包裹层若只是普通 block，按钮就退化成 inline-block → 尺寸塌成 0。
+
+  修法：让包裹层与父级**同构为 grid**，按钮仍是 grid item，继续被拉伸。
+  只作用于 TabBar（记账页里的 .mega-host 该是 block，不受这条影响）。
+*/
+.tabbar__inner > .mega-host {
+  display: grid;
+  min-width: 0;
+}
+
+.tabbar__compose-pill {
+  position: absolute;
+  left: 50%;
+  top: -14px; /* 抬升 8px 之上再留 6px，避免贴住 TabBar 上沿的 hairline */
+  transform: translateX(-50%);
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--r-pill);
+  background: var(--c-primary-fill);
+  color: var(--c-on-primary);
+  /* 4px 环（同 .btn--pearl 的语法：spread 0 模糊 0，是环不是投影），
+     让抬升出来的胶囊与下方导航条之间有一道干净的分界 */
+  box-shadow: 0 0 0 4px var(--c-frost-bg-strong);
+  transition: transform var(--d-press) var(--e-standard), background var(--d-state) var(--e-standard);
+}
+
+.tabbar__compose:active .tabbar__compose-pill {
+  transform: translateX(-50%) scale(var(--press-scale));
+  background: var(--c-primary-fill-hover);
+}
+
+.tabbar__item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  font-size: 10px;
+  color: var(--c-ink-muted-48);
+  transition: color var(--d-state) var(--e-standard);
+}
+
+.tabbar__item[aria-current='page'] {
+  color: var(--c-primary);
+}
+
+/* ==========================================================================
+   十三、Toast / 空状态 / 骨架屏
+   ========================================================================== */
+#toast-root {
+  position: fixed;
+  left: 50%;
+  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  pointer-events: none;
+}
+
+.toast {
+  padding: 12px 20px;
+  border-radius: var(--r-pill);
+  background: var(--c-toast-bg);
+  color: var(--c-on-dark);
+  font-size: 13px;
+  box-shadow: var(--shadow-overlay);
+  animation: toast-in var(--d-base) var(--e-standard);
+  max-width: min(90vw, 420px);
+}
+
+.toast[data-kind='error'] {
+  background: var(--c-toast-error);
+}
+
+.toast[data-kind='success'] {
+  background: var(--c-toast-success);
+}
+
+/* 带动作的 Toast（docs/13 §7.1：记完账的确认条 + [再记一笔][撤销]）
+   按钮只上描边与文字，不用语义色填充（语义色不得作可交互元素填充）。 */
+.toast--action {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-radius: var(--r-md);
+  padding: 10px 10px 10px 16px;
+  pointer-events: auto; /* toast-root 整体 pointer-events:none，动作条要单独开回来 */
+}
+
+.toast__msg {
+  min-width: 0;
+}
+
+.toast__acts {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  flex: none;
+}
+
+.toast__act {
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: var(--r-pill);
+  background: transparent;
+  color: var(--c-on-dark);
+  font-size: 12px;
+  white-space: nowrap;
+  transition: background var(--d-state) var(--e-standard), transform var(--d-press) var(--e-standard);
+}
+
+.toast__act:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.toast__act:active {
+  transform: scale(var(--press-scale));
+}
+
+/* 「再记一笔」是这一屏的主推动作，靠字重 + 更实的描边提权，
+   不去抢一个实心填充 —— Toast 底在日/夜两态都是深面，任何语义色填充都会失真。 */
+.toast__act--primary {
+  font-weight: 600;
+  border-color: rgba(255, 255, 255, 0.62);
+}
+
+.toast__act--primary:hover {
+  background: rgba(255, 255, 255, 0.24);
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+.empty {
+  padding: 32px 16px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--c-ink-muted-48);
+}
+
+.skeleton {
+  height: 14px;
+  border-radius: var(--r-full);
+  background: linear-gradient(
+    90deg,
+    var(--c-divider-soft) 25%,
+    var(--c-parchment) 37%,
+    var(--c-divider-soft) 63%
+  );
+  background-size: 400% 100%;
+  /* 骨架屏是功能反馈而非装饰：降速降对比，让「等待」安静一点 */
+  animation: shimmer 1.6s var(--e-standard) infinite;
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 100% 50%;
+  }
+  to {
+    background-position: 0 50%;
+  }
+}
+
+/* ==========================================================================
+   十三·补充、记账组件（概览 / 账户 / 分类 / 标签 / 对账）
+   主导航在左侧栏（见 §3.3）；这里只放内容区的记账语义组件。
+   ========================================================================== */
+
+/* --------- 金额语义色 --------- */
+/* 记账语义：支出/负向用告警色，收入/正向用成功色（与股票涨跌相反） */
+.is-pos {
+  color: var(--c-success);
+}
+
+.is-neg {
+  color: var(--c-danger);
+}
+
+.is-zero {
+  color: var(--c-ink-muted-48);
+}
+
+/* --------- 净资产面板（全页唯一的深色强调面，平色不渐变） --------- */
+.networth {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--s-lg);
+  border-radius: var(--r-lg);
+  background: var(--c-hero-panel);
+  color: var(--c-on-dark);
+}
+
+.networth__label {
+  font-size: 13px;
+  color: var(--c-on-dark-2);
+}
+
+.networth__value {
+  font-family: var(--f-display);
+  font-size: 40px;
+  line-height: 1.1;
+  font-weight: 300; /* 00-DESIGN 字重阶梯的 300 档（light-atmosphere cue），全系统唯一消费点 */
+  letter-spacing: 0; /* display-lg 比值（40px 档无 tracking），修正原先的 -0.02em */
+}
+
+.networth__split {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--c-on-dark-2);
+}
+
+.networth__split b {
+  font-weight: 600;
+  color: var(--c-on-dark);
+}
+
+/* --------- 本月收支三格 --------- */
+.flow-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.flow-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px;
+  background: var(--c-canvas);
+  border: 1px solid var(--c-hairline);
+  border-radius: var(--r-lg);
+}
+
+.flow-cell__label {
+  font-size: 12px;
+  color: var(--c-ink-muted-48);
+}
+
+.flow-cell__value {
+  font-family: var(--f-display);
+  font-size: 21px;
+  line-height: 1.2;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+/* --------- 统计条（标签页） --------- */
+.stat-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+}
+
+.stat-strip__cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px;
+  background: var(--c-canvas);
+  border: 1px solid var(--c-hairline);
+  border-radius: var(--r-lg);
+}
+
+.stat-strip__label {
+  font-size: 12px;
+  color: var(--c-ink-muted-48);
+}
+
+.stat-strip__value {
+  font-family: var(--f-display);
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+/**
+ * 指标格的第三行：给数字补一句「它是怎么来的」。
+ *
+ * ⚠️ 用 12px 的 muted 而不是正文级字号 —— 它是**辅助信息**，
+ * 抬到 17px 会与上面的主数字争夺注意力（视觉层级被拍平）。
+ * 12px 的对比度由 `audit:contrast` 的「次级文字压卡片 ≥4.5」那条守住。
+ */
+.stat-strip__sub {
+  font-size: 12px;
+  color: var(--c-ink-muted-48);
+}
+
+/* --------- 账户分组与账户行 --------- */
+.acct-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.acct-group__head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  padding: 0 4px;
+}
+
+/* 分组管理动作：与账户行的动作按钮区分开，默认安静，靠分组头右侧 */
+.acct-group__acts {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+
+.acct-group.is-archived {
+  opacity: 0.62;
+}
+
+.acct-group__name {
+  margin-right: auto;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.004em;
+  color: var(--c-ink-muted-80);
+}
+
+.acct-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  padding: 16px 24px;
+  border-top: 1px solid var(--c-divider-soft);
+  transition: background var(--d-state) var(--e-standard);
+}
+
+.acct-row:first-child {
+  border-top: 0;
+}
+
+a.acct-row:hover {
+  background: var(--c-soft-fill);
+}
+
+.acct-row__icon {
+  width: 26px;
+  height: 26px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  font-size: 14px;
+  border-radius: var(--r-sm);
+  background: var(--c-parchment);
+  overflow: hidden;
+}
+
+.acct-row__main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1 1 150px;
+  min-width: 0;
+}
+
+.acct-row__amount {
+  flex: none;
+  margin-left: auto;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+/* --------- 概览：可点账户行（任务 4） ---------
+
+   概览的账户行现在**跳到该账户的账单列表**（`/transactions?accountId=`），
+   所以它必须一眼看出「这是个能去的地方」。
+
+   ## 箭头为什么默认藏在 hover 之外
+   它**常驻**而不是 hover 才出现：hover 才出现的箭头在触屏上等于不存在，
+   而概览是移动端高频页。代价是默认态多一个元素 —— 用极浅的颜色消化掉。
+
+   ## 箭头不参与布局跳动
+   `width` 固定 + 常驻，所以 hover 时整行不会横向抖动一格。
+   （用 `margin-left:auto` 推右，与 `.acct-row__amount` 一起右对齐。）
+*/
+.acct-row__go {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 14px;
+  color: var(--c-ink-muted-48);
+  opacity: 0.55;
+  transition: opacity var(--d-state) var(--e-standard), transform var(--d-state) var(--e-standard);
+}
+
+.acct-row--link:hover .acct-row__go {
+  opacity: 1;
+  transform: translateX(2px);
+}
+
+/**
+ * 焦点态（00-DESIGN：焦点环 2px solid primary，全站统一）。
+ * 键盘用户 Tab 到这里时必须看得见落点 —— 侧栏与账户行都有这个问题。
+ */
+.acct-row--link:focus-visible {
+  outline: 2px solid var(--c-primary-focus);
+  outline-offset: -2px;
+  border-radius: 0;
+}
+
+.acct-row__actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+
+/* --------- 分段切换（分类：支出/收入/应收/应付） --------- */
+.segmented {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--r-pill);
+  background: var(--c-parchment);
+  align-self: flex-start;
+}
+
+.segmented__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 20px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: transparent;
+  font-size: 14px;
+  color: var(--c-ink-muted-48);
+  transition: background var(--d-state) var(--e-standard),
+    color var(--d-state) var(--e-standard),
+    transform var(--d-press) var(--e-standard);
+}
+
+.segmented__item:hover {
+  color: var(--c-ink);
+}
+
+.segmented__item[aria-selected='true'],
+.segmented__item[aria-checked='true'] {
+  background: var(--c-canvas);
+  color: var(--c-ink);
+  font-weight: 600;
+  box-shadow: none;
+}
+
+/* --------- 分类（主类别块 + 子类别 chip） --------- */
+.cat-block {
+  background: var(--c-canvas);
+  border: 1px solid var(--c-hairline);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+}
+
+.cat-block + .cat-block {
+  margin-top: 12px;
+}
+
+.cat-block.is-archived {
+  opacity: 0.6;
+}
+
+.cat-block__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 24px;
+}
+
+.cat-block__icon {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-sm);
+  background: var(--c-parchment);
+  color: var(--c-ink-muted-80);
+}
+
+.cat-block__name {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.002em;
+}
+
+.cat-block__total {
+  margin-left: auto;
+  flex: none;
+  font-size: 13px;
+  color: var(--c-ink-muted-80);
+}
+
+.cat-block__total b {
+  font-weight: 600;
+  color: var(--c-ink);
+}
+
+.cat-block__actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.cat-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 2px 24px 24px;
+}
+
+.cat-chips--empty {
+  padding-top: 0;
+  padding-bottom: 24px;
+}
+
+.cat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--c-hairline);
+  border-radius: var(--r-pill);
+  background: var(--c-canvas);
+  color: var(--c-ink);
+  font-size: 13px;
+  transition: border-color var(--d-state) var(--e-standard),
+    background var(--d-state) var(--e-standard),
+    transform var(--d-press) var(--e-standard);
+}
+
+.cat-chip:active {
+  transform: scale(0.95);
+}
+
+.cat-chip .lucide {
+  color: var(--c-ink-muted-48);
+  flex: none;
+}
+
+.cat-chip__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cat-chip__count {
+  flex: none;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 5px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: var(--r-full);
+  background: var(--c-parchment);
+  color: var(--c-ink-muted-80);
+  font-size: 11px;
+}
+
+.cat-chip.is-archived {
+  border-style: dashed;
+  color: var(--c-ink-muted-48);
+  background: var(--c-parchment);
+}
+
+.cat-chip__flag {
+  font-size: 11px;
+  color: var(--c-ink-muted-48);
+}
+
+/* --------- 图标选择器 --------- */
+.icon-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));
+  gap: 6px;
+  max-height: 192px;
+  overflow-y: auto;
+  padding: 2px;
+}
+
+.icon-grid__item {
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  background: var(--c-parchment);
+  color: var(--c-ink-muted-80);
+  transition: border-color var(--d-state) var(--e-standard),
+    color var(--d-state) var(--e-standard),
+    transform var(--d-press) var(--e-standard);
+}
+
+.icon-grid__item:active {
+  transform: scale(0.95);
+}
+
+.icon-grid__item.is-on {
+  border-color: var(--c-primary-focus);
+  color: var(--c-primary);
+  background: var(--c-accent-2);
+}
+
+/* 图标基类：内联 svg 与旧 emoji 共用同一行高 */
+.lucide {
+  display: inline-block;
+  vertical-align: -0.15em;
+  flex: none;
+}
+
+.emoji-icon {
+  font-size: 1.1em;
+  line-height: 1;
+}
+
+/* --------- 复选框行 --------- */
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.check input {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  margin: 0;
+  accent-color: var(--c-primary);
+  cursor: pointer;
+}
+
+.select {
+  cursor: pointer;
+  padding-right: 32px;
+}
+
+.list-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 0 4px;
+  margin-bottom: 8px;
+}
+
+/* --------- 对账 --------- */
+.recon-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0;
+  border-top: 1px solid var(--c-divider-soft);
+}
+
+.recon-line:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.recon {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.recon__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.recon__diff {
+  display: flex;
+  flex-direction: column;
+  padding: 4px 16px;
+  border-radius: var(--r-md);
+  background: var(--c-parchment);
+}
+
+/**
+ * 期初余额口径变更提示（docs/14）。
+ *
+ * 刻意**不用 danger 语义** —— 它不是错误，是一个需要用户去核对的**口径变更**。
+ * 用 `--c-primary` 作左侧标记（可点击/可操作的信号），文字走 ink-muted。
+ */
+.recon__boundary {
+  padding: 10px 12px;
+  border-left: 2px solid var(--c-primary);
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+  background: var(--c-parchment);
+}
+
+.recon__boundary .tt-fine-print {
+  margin: 0;
+  line-height: 1.6;
+}
+
+.recon__boundary strong {
+  font-weight: 600;
+  color: var(--c-ink);
+}
+
+.recon__diff-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0;
+  font-size: 14px;
+  border-top: 1px solid var(--c-divider-soft);
+}
+
+.recon__diff-row:first-child {
+  border-top: 0;
+}
+
+.recon__diff-row--total {
+  font-weight: 600;
+  border-top: 1px solid var(--c-hairline);
+}
+
+.recon__balanced {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 16px;
+  border-radius: var(--r-md);
+  background: var(--c-success-bg);
+  border: 1px solid var(--c-success-line);
+}
+
+.recon__balanced-mark {
+  width: 26px;
+  height: 26px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-full);
+  background: var(--c-success);
+  color: var(--c-on-dark);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+/* --------- 对账历史页（/reconciliations） --------- */
+
+/**
+ * 这一页三块内容以前各自为政，症状不同、病根是同一个 —— **没有人定义「列」**：
+ *   · 排期用 `.recon-line`（flex 两端对齐）：每行是一条**独立**的 flex，
+ *     列宽由该行自身内容决定，于是同一列在上下行必然落在不同的 x 上；
+ *   · 指标卡直接堆裸 `<p>`：标题 / 数值 / 说明没有层级，卡片高度随内容伸缩；
+ *   · 记录行用 flex 两栏：有「原因」的行比没有的高一截，列表锯齿。
+ *
+ * 统一收口成三条纪律（改其中任何一处，都必须连着看另外两处）：
+ *   ① **一张栅格贯穿表头与数据行**：列定义写进 `--*-cols` 变量，表头与行
+ *      引用同一个变量 —— 二者物理上无法错位，改列只需改一处、不会只改一半。
+ *      这是「列不对齐」的根治办法（逐行校对宽度是治标，下一行内容一变就复发）。
+ *   ② **列的角色由 CSS 决定，不由视图决定**：文本列左对齐，金额 / 日期 /
+ *      天数等数值类右对齐并配 `tnum` 等宽数字；视图里不写任何对齐样式。
+ *   ③ **卡片语法统一**：圆角 `--r-lg`（00-DESIGN 的 utility-card 档，与本页
+ *      健康度指示条同模数）、内边距 24px（spacing.lg）、1px hairline、零投影
+ *      —— 层次交给面色切换（00-DESIGN Elevation 表），不加第二枚圆角。
+ */
+
+/* ===================== 一、对账排期：表头 + 数据行共用一套列 ===================== */
+
+/**
+ * 列宽取**固定值**而不是 fr —— 排期表是扫描型阅读：眼睛从上往下扫一列，
+ * 列宽一旦随内容浮动，「状态」「下次到期」就会在不同行落在不同的 x 上。
+ * 只有账户名列给 `minmax(0, 1fr)`：账户名长短差最大，由它吸收剩余空间。
+ *   账户 minmax(0,1fr) · 状态 108px · 上次对账 96px · 下次到期 116px · 操作 96px
+ */
+.recon-sched {
+  --sched-cols: minmax(0, 1fr) 108px 96px 116px 96px;
+  --sched-gap: 16px;
+}
+
+.recon-sched__head,
+.recon-sched__row {
+  display: grid;
+  grid-template-columns: var(--sched-cols);
+  align-items: center;
+  gap: var(--sched-gap);
+  padding: 12px var(--s-lg);
+}
+
+/**
+ * 表头：`fine-print` 档（12px / 600 / -0.12px）压 muted-48。
+ *
+ * ⚠️ 线用 `--c-hairline`（结构描边）而不是 `--c-divider-soft`（面内软分隔）——
+ * 表头与数据之间是一条**结构边界**，不是两个并列的列表行：
+ * 用软分隔线会让一条本该明确的边界几乎看不见，看起来就是「列没对齐」。
+ */
+.recon-sched__head {
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--c-hairline);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.45;
+  letter-spacing: -0.12px;
+  color: var(--c-ink-muted-48);
+}
+
+.recon-sched__row {
+  border-top: 1px solid var(--c-divider-soft);
+  transition: background var(--d-state) var(--e-standard);
+}
+
+/* 紧贴表头的那一行不必再画分隔线（否则与表头自身的下边框叠成 2px） */
+.recon-sched__head + .recon-sched__row {
+  border-top: 0;
+}
+
+/**
+ * 第 3 列起是「天数 / 日期 / 操作」—— 一律右对齐。
+ *
+ * 用 `nth-child` 而不是逐单元格加类，是为了让**表头与数据行共用同一条规则**：
+ * 加类就得在两处各加一遍，漏掉一遍就是一次静默错位 —— 正是这次要修的病。
+ */
+.recon-sched__head > :nth-child(n + 3),
+.recon-sched__row > :nth-child(n + 3) {
+  text-align: right;
+}
+
+/* 栅格轨道已定宽，但内容仍可能把格子顶宽 —— `min-width:0` 让省略号能生效 */
+.recon-sched__head > *,
+.recon-sched__row > *,
+.recon-hist__row > * {
+  min-width: 0;
+}
+
+.recon-sched__acct {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.5;
+  letter-spacing: -0.224px;
+  color: var(--c-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 状态列：徽标是这个单元格的主角，不同文案宽度不同 → 左对齐让它们从同一条 x 起排 */
+.recon-sched__state {
+  display: flex;
+  align-items: center;
+}
+
+.recon-sched__num {
+  font-size: 14px;
+  line-height: 1.5;
+  letter-spacing: -0.224px;
+  color: var(--c-ink-muted-80);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.recon-sched__act {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* 没有任何账户时只有一句话，而外层是 `card--flush`（0 内边距）—— 得自己补回来 */
+.recon-sched__empty {
+  padding: 16px var(--s-lg);
+}
+
+/* ===================== 二、四张对账指标卡 ===================== */
+
+/**
+ * `auto-fit` 负责列数自适应，**`align-items: stretch` 负责等高** ——
+ * 四张卡内容长短差一倍以上，按内容高度排布必然高低不齐。
+ */
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(232px, 1fr));
+  gap: 16px;
+  align-items: stretch;
+}
+
+.metric {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--s-lg);
+  background: var(--c-canvas);
+  border: 1px solid var(--c-hairline);
+  border-radius: var(--r-lg);
+}
+
+/**
+ * 信息层级（自上而下四层，字号单调递减、颜色单调变淡）：
+ *   ① 标题 14/600 + 状态徽标   → ② 数值 28/600 展示档
+ *   ③ 状态说明 14/400          → ④ 辅助文案 12/400（顶到卡底）
+ * ③ 与 ④ 字号挨着但分工不同：③ 说「现在是什么情况」，
+ * ④ 说「它是怎么算出来的 / 接下来该怎么办」。缺标题或缺数值都不算指标卡。
+ */
+.metric__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 22px;
+}
+
+.metric__title {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.29;
+  letter-spacing: -0.224px; /* caption-strong 档 */
+  color: var(--c-ink-muted-80);
+}
+
+.metric__value {
+  margin-top: 4px;
+  font-family: var(--f-display);
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.28px; /* hero-display 的 tracking，「Apple tight」同值 */
+  font-variant-numeric: tabular-nums;
+  color: var(--c-ink);
+}
+
+.metric__state {
+  font-size: 14px;
+  line-height: 1.5;
+  letter-spacing: -0.224px;
+  color: var(--c-ink-muted-48);
+}
+
+/**
+ * 辅助文案用 `margin-top: auto` 顶到卡底。
+ *
+ * 这样即使某张卡**没有**状态说明，它的辅助文案也落在对面那张卡同样的基线上
+ * —— 等高只是让边框齐了，底部对齐才让**内容**看起来是一排卡片。
+ */
+.metric__hint {
+  margin-top: auto;
+  padding-top: 4px;
+  font-size: 12px;
+  line-height: 1.45;
+  letter-spacing: -0.12px;
+  color: var(--c-ink-muted-48);
+}
+
+/* 卡内明细行（重复扣费的订阅清单）：标签左 + 金额右，沿用本页同一套角色分工 */
+.metric__list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--c-divider-soft);
+}
+
+.metric__item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 14px;
+  line-height: 1.5;
+  letter-spacing: -0.224px;
+}
+
+.metric__item-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--c-ink-muted-80);
+}
+
+.metric__item-value {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+  color: var(--c-ink);
+}
+
+/* ===================== 三、对账记录行 ===================== */
+
+/**
+ * 记录行的四列：**标签 / 状态 / 金额 / 时间**，各占独立列。
+ *
+ * 为什么必须是四列而不是继续「左叙述 + 右数字」两栏：两栏意味着右栏的起始 x
+ * 由**左栏有多长**决定 —— 只要某一行账户名长一点、或者多了一行「原因」，
+ * 右栏整体就被推出去，账面与实际对不齐；而这两个数正是核对型页面唯一
+ * 必须逐行对齐的东西。
+ *
+ * 固定列宽的理由同排期：金额给 168px（放得下 ¥ + 千分位到千万级），
+ * 时间给 172px，状态给 116px，剩下的宽度全给标签列。
+ */
+.recon-hist {
+  --hist-cols: minmax(0, 1fr) 116px 168px 172px;
+  --hist-gap: 16px;
+  /**
+   * 行高锁 —— 「消除行间高低不齐」的实际落点。
+   *
+   * 列已经对齐了，但**行**还会被内容顶高：金额列最多三行
+   * （账面 / 实际 / 查看调整单 或 未生成调整单），于是有差额的记录比
+   * 账实相符的记录高出一行 —— 列表看起来还是锯齿的。
+   *
+   * 这个数字的算法（改任何一行律高都必须连它一起改）：
+   *   最高的那一列 = 金额列 20 + 20 + 18（三行文本）+ 2×2（gap）= 62px
+   *   + 上下各 16px 内边距 = 94px → 向上取到 8px 网格 = 96px
+   * 探针的「记录行统一行高」在盯着这条线（它不是审美，是断言）。
+   */
+  --hist-row-h: 96px;
+  /**
+   * 窄屏（≤833px）折成两行卡片后的行高锁。算法同理：
+   *   第 1 行 = 金额列三行 62px · 第 2 行 = 状态列两枚徽标 48px
+   *   + 行间 gap 8px + 上下各 12px 内边距 = 142px → 向上取到 8px 网格 = 144px
+   */
+  --hist-row-h-sm: 144px;
+  display: flex;
+  flex-direction: column;
+}
+
+/**
+ * `align-items: center` + 固定上下内边距 16px。
+ * 以前是 `flex-start`，长文本的行被内容顶起来 —— 这是列表锯齿的直接来源。
+ * `min-height` 补齐内容不足的行，短行的内容垂直居中，行的边框因此整齐。
+ */
+.recon-hist__row {
+  display: grid;
+  grid-template-columns: var(--hist-cols);
+  align-items: center;
+  gap: var(--hist-gap);
+  min-height: var(--hist-row-h);
+  padding: 16px var(--s-lg);
+  border-top: 1px solid var(--c-divider-soft);
+  transition: background var(--d-state) var(--e-standard);
+}
+
+.recon-hist__row:first-child {
+  border-top: 0;
+}
+
+/* 悬停：`--c-soft-fill` 是「比所在面暗一档」的软填充。不给描边、不给投影 */
+.recon-hist__row:hover {
+  background: var(--c-soft-fill);
+}
+
+/* 第 3 列起（金额 / 时间）右对齐 —— 与排期表同样的理由，同样一处规则 */
+.recon-hist__row > :nth-child(n + 3) {
+  text-align: right;
+}
+
+/* ① 标签列：账户名 + 归因说明。
+   说明再长也只占一行（超出省略），绝不让它把行撑高 ——
+   「行高统一」能否成立，全押在这一处。 */
+.recon-hist__label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.recon-hist__acct {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 22px; /* 行高锁的一部分：整行像素值，见 --hist-row-h 的算法 */
+  letter-spacing: -0.374px; /* tt-body-strong 档 */
+  color: var(--c-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/**
+ * ⚠️ 归因说明刻意**不用** `.tt-fine-print`：探针与核对逻辑都按
+ * 「行内第一个 `.tt-fine-print` 就是日期行」取值，多一个同类的兄弟节点
+ * 就会让「日期」取值错位（且不报错 —— 只是读到了别的句子）。
+ */
+.recon-hist__reason {
+  font-size: 12px;
+  line-height: 18px;
+  letter-spacing: -0.12px;
+  color: var(--c-ink-muted-48);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ② 状态列：徽标可能 1~2 枚（账实相符 / 差额 / 旧口径），竖向堆叠 + 左对齐 */
+.recon-hist__status {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+/* ③ 金额列：账面 / 实际 + 调整单入口 */
+.recon-hist__nums {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  font-size: 13px;
+  text-align: right;
+}
+
+/**
+ * 标签定宽 28px 是关键：标签与数值都是 `flex: none`，于是每行的
+ * 「账面」「实际」两枚标签占同样宽、两组数字都贴到同一条右边界。
+ * `tnum` 在此是刚需 —— 两行账面余额逐数位上下对齐，差一位就能看出来，
+ * 这是翻历史时最常见的核对动作。
+ */
+.recon-hist__num {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  line-height: 20px;
+  white-space: nowrap;
+}
+
+.recon-hist__num-label {
+  flex: none;
+  width: 28px;
+  text-align: left;
+  font-size: 12px;
+  line-height: 1.45;
+  letter-spacing: -0.12px;
+  color: var(--c-ink-muted-48);
+}
+
+.recon-hist__amt {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+  color: var(--c-ink);
+}
+
+.recon-hist__adj {
+  font-size: 12px;
+  line-height: 18px;
+  letter-spacing: -0.12px;
+  color: var(--c-primary);
+}
+
+/* ④ 时间列：对账日 / 录入时间 · 操作人 */
+.recon-hist__when {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.recon-hist__date {
+  font-size: 13px;
+  line-height: 20px;
+  font-variant-numeric: tabular-nums;
+  color: var(--c-ink);
+  white-space: nowrap;
+}
+
+.recon-hist__sub {
+  font-size: 12px;
+  line-height: 18px;
+  letter-spacing: -0.12px;
+  color: var(--c-ink-muted-48);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ===================== 四、加载态 / 空态 ===================== */
+
+/**
+ * 加载态画**三根递减的骨架**而不是一根：一根条给不出「这是一个列表」的信息，
+ * 用户看到的是「啥也没有」而不是「正在加载」。
+ * 宽度写在 CSS 里 —— 以前是视图行内 `style="width:50%"`，
+ * 那是把样式决策搬出样式层，改造时最容易漏掉的一处。
+ */
+.recon-hist__loading {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: var(--s-lg);
+}
+
+.recon-hist__loading .skeleton:nth-child(1) {
+  width: 38%;
+  height: 18px;
+}
+
+.recon-hist__loading .skeleton:nth-child(2) {
+  width: 66%;
+}
+
+.recon-hist__loading .skeleton:nth-child(3) {
+  width: 52%;
+}
+
+/* ===================== 五、筛选器与页级辅助 ===================== */
+
+/**
+ * 「该对账了」清单：沿用本页统一的列语法（标签左 / 结论右、固定对齐）。
+ *
+ * 以前用 `.recon-line`（flex space-between）。两列时 space-between 恰好也对齐，
+ * 但它是「碰巧」对齐而不是「被约束」对齐 —— 一旦往某一行加第三个元素，
+ * 中间那个就会按两侧内容浮动。这里改成显式两列，语义写死在 CSS 里。
+ */
+.recon-todo {
+  display: flex;
+  flex-direction: column;
+}
+
+/* 待办卡里的「去对账」是一个动作，不是一条横幅 —— 卡片宽 900px 时
+   通栏胶囊会读成「页脚」，而不是「点这里」。收成常规宽度靠左。 */
+.recon-todo + .btn {
+  align-self: flex-start;
+}
+
+.recon-todo__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--c-divider-soft);
+}
+
+.recon-todo__row:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.recon-todo__row > :last-child {
+  text-align: right;
+}
+
+.recon-todo__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recon-hist__select {
+  width: auto;
+  min-width: 148px;
+  max-width: 220px;
+}
+
+/**
+ * 健康度条的上边距。
+ *
+ * `.stat-strip` 自身是纯 grid，**不带外边距** —— tags 页把它放进 `.section`
+ * 里，间距由那一层提供；本页它在页面顶层，得自己补 16px。
+ * ⚠️ 改这行时注意它必须**和 `.stat-strip` 同时**挂在同一个元素上：
+ * 只留本类会丢掉 grid，四个指标会竖着排成四行。
+ */
+.recon-hist__health {
+  margin-top: 16px;
+}
+
+/**
+ * 「旧口径」总说明。
+ *
+ * 刻意**不用 danger 语义** —— 它不是错误，是一次需要用户知晓的口径变更
+ * （同 `.recon__boundary` 的理由，见上）。
+ */
+.recon-hist__legacy {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px var(--s-lg);
+  background: var(--c-parchment);
+}
+
+.recon-hist__legacy .tt-fine-print {
+  margin: 0;
+  line-height: 1.6;
+}
+
+.recon-hist__legacy strong {
+  font-weight: 600;
+  color: var(--c-ink);
+}
+
+/* ===================== 六、断点降级 ===================== */
+
+/**
+ * 统一的降级原则：**先减列、再折行**，且每个断点只删/改一处列定义
+ * （感谢 `--*-cols` 变量 —— 断点里改的是同一个变量，表头跟着一起变，不会错位）。
+ * 结构上照抄账单列表 `.tx-row` 的「卡片式两行」做法（docs/13 §9.3）。
+ */
+@media (max-width: 1023px) {
+  /* 内容变窄：先把固定列压到最小值，保住四列不丢 */
+  .recon-sched {
+    --sched-cols: minmax(0, 1fr) 96px 84px 104px 88px;
+    --sched-gap: 12px;
+  }
+
+  .recon-sched__head,
+  .recon-sched__row {
+    padding: 12px 16px;
+  }
+
+  .recon-hist {
+    --hist-cols: minmax(0, 1fr) 104px 148px 152px;
+    --hist-gap: 12px;
+  }
+
+  .recon-hist__row {
+    padding: 16px;
+  }
+}
+
+@media (max-width: 833px) {
+  /**
+   * 排期：账户独占一行，状态与日期并排在下（操作按钮归到行尾）。
+   * 触屏放不下 5 列，硬塞会让账户名被压成省略号 —— 而这一页
+   * 认账户是第一步，名字必须完整可读。
+   */
+  /**
+   * 排期：账户行独占一行（右侧挂操作），状态一行，两个日期各占半行。
+   *
+   * ⚠️ 表头在窄屏是 `display: none` 而不是留着 —— 卡片式布局已经没有
+   * 「列」的概念，留着一份与实际排布不符的表头等于指错了格子。
+   * 触屏放不下 5 列，硬塞会把账户名压成省略号，而这一页认账户是第一步。
+   */
+  /**
+   * 排期：表头必须**连一起隐藏**。
+   *
+   * 折成卡片式后已经没有「列」的概念，留着一份与实际排布不符的表头
+   * 等于指错了格子 —— 而且它自己的网格还是桌面那套五列（窄屏下会被挤成省略号），
+   * 看起来就像「表头和数据没对齐」。这是最容易被截图放过去的一类 bug。
+   */
+  .recon-sched__head {
+    display: none;
+  }
+
+  .recon-sched__row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'acct  act'
+      'state state'
+      'last  next';
+    align-items: center;
+    /* 行高锁之外的空档要**收在整体上下**，不能让它把行与行之间抻开 */
+    align-content: center;
+    gap: 8px 12px;
+    padding: 12px 16px;
+    border-top: 1px solid var(--c-divider-soft);
+  }
+
+  .recon-sched__head + .recon-sched__row {
+    border-top: 0;
+  }
+
+  .recon-sched__acct {
+    grid-area: acct;
+    white-space: normal; /* 不再争同一行的宽度，名字该换行就换行 */
+  }
+
+  .recon-sched__state {
+    grid-area: state;
+  }
+
+  .recon-sched__last {
+    grid-area: last;
+  }
+
+  .recon-sched__next {
+    grid-area: next;
+  }
+
+  .recon-sched__act {
+    grid-area: act;
+  }
+
+  /* 折行后「第 3 列起右对齐」指向的已不是金额/日期列 —— 显式关掉。
+     此刻的右对齐由 `-area` 自身的位置决定（next 本来就在右侧格子里）。 */
+  .recon-sched__row > :nth-child(n + 3) {
+    text-align: left;
+  }
+
+  /**
+   * 记录行：第 1 行 标签 + 金额，第 2 行 状态 + 时间。
+   * 金额**不缩字号**（沿用既有纪律：这是核对型页面，缩字号等于削弱它的用途）。
+   */
+  .recon-hist {
+    --hist-cols: none;
+  }
+
+  .recon-hist__row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'label  nums'
+      'status when';
+    align-items: center;
+    /* 同上：多出来的高度居中消化，不要让两行卡片内部的间距被抻大 */
+    align-content: center;
+    gap: 8px 12px;
+    min-height: var(--hist-row-h-sm);
+    padding: 12px 16px;
+  }
+
+  .recon-hist__label {
+    grid-area: label;
+  }
+
+  .recon-hist__status {
+    grid-area: status;
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .recon-hist__nums {
+    grid-area: nums;
+  }
+
+  .recon-hist__when {
+    grid-area: when;
+  }
+}
+
+/* --------- 标签 --------- */
+.tag-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 12px;
+}
+
+.tag-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--c-canvas);
+  border: 1px solid var(--c-hairline);
+  border-radius: var(--r-lg);
+}
+
+.tag-card__dot {
+  width: 12px;
+  height: 12px;
+  flex: none;
+  border-radius: var(--r-full);
+  /* 深色页面上深色圆点会消失，用一圈亮环保证色板始终可见。
+     用真 border 而非 inset box-shadow —— 00-DESIGN 的 elevation 体系里
+     box-shadow 只属于浮层，描边一律走 border 语法。 */
+  border: 1px solid var(--c-swatch-ring);
+}
+
+.tag-card__main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.tag-card__actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.swatch-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.swatch {
+  width: 32px;
+  height: 32px;
+  padding: 4px;
+  border: 1px solid transparent;
+  border-radius: var(--r-full);
+  background: transparent;
+  display: grid;
+  place-items: center;
+  transition: border-color var(--d-state) var(--e-standard),
+    transform var(--d-press) var(--e-standard);
+}
+
+.swatch:hover {
+  border-color: var(--c-hairline);
+}
+
+.swatch__fill {
+  width: 100%;
+  height: 100%;
+  border-radius: var(--r-full);
+  background: var(--swatch, var(--c-hairline));
+  /* 同 .tag-card__dot：描边用 border，不用 inset box-shadow */
+  border: 1px solid var(--c-swatch-ring);
+}
+
+.swatch[aria-checked='true'] {
+  border-color: var(--c-ink);
+}
+
+/* --------- 空态 --------- */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 32px 24px;
+  text-align: center;
+}
+
+.empty-state .btn {
+  margin-top: 12px;
+}
+
+.empty-state__icon {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 4px;
+  border-radius: var(--r-full);
+  background: var(--c-parchment);
+  font-size: 19px;
+}
+
+/* ==========================================================================
+   十三·补充二、记账页（docs/13 §4）
+   容器形态（P4 = A：单页表单，两端同构）——
+     ≥1068px：内容区居中卡片，--r-lg，max-width 720px，操作栏贴卡片底部常驻
+     ≤833px ：全屏页（无 TabBar），单列，操作栏 position: sticky 落底
+   字段与顺序两端必须一致，差异只允许出现在容器与选择器形态。
+   ========================================================================== */
+
+.compose {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.compose__head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.compose__head h1 {
+  margin-right: auto;
+  font-size: 24px;
+  line-height: 1.2;
+  font-weight: 600;
+  letter-spacing: -0.011em;
+}
+
+.compose__form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.compose__card {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* 区块：主区 / 次区 / 更多区共用，靠一条软分隔线切分而非换卡片 */
+.compose__block {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.compose__block + .compose__block {
+  padding-top: 20px;
+  border-top: 1px solid var(--c-divider-soft);
+}
+
+.compose__block-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.compose__legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 10px;
+  border-radius: var(--r-pill);
+  background: var(--c-parchment);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  color: var(--c-ink-muted-80);
+}
+
+/* 收付方向（产生 / 结算）：只在应收 / 应付下出现 */
+.direction-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.direction-row[hidden] {
+  display: none;
+}
+
+/* --------- 金额与实时预览 --------- */
+.amount-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.amount-input {
+  height: 64px;
+  padding: 0 20px;
+  border: 1px solid var(--c-hairline);
+  border-radius: var(--r-lg);
+  background: var(--c-canvas);
+  font-family: var(--f-display);
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: -0.011em;
+  font-variant-numeric: tabular-nums;
+  color: var(--c-ink);
+  text-align: right;
+  transition: border-color var(--d-state) var(--e-standard), outline-color var(--d-state) var(--e-standard);
+}
+
+.amount-input::placeholder {
+  color: var(--c-placeholder);
+  font-weight: 400;
+}
+
+.amount-input:focus {
+  outline: 2px solid var(--c-primary-focus);
+  outline-offset: 1px;
+  border-color: var(--c-primary-focus);
+}
+
+.amount-input[aria-invalid='true'] {
+  border-color: var(--c-danger);
+}
+
+.amount-input[aria-invalid='true']:focus {
+  outline-color: var(--c-danger);
+}
+
+/* 货币前缀靠在输入框左上，不参与数字右对齐的视觉流 */
+.amount-wrap {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.amount-wrap__sign {
+  position: absolute;
+  left: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-family: var(--f-display);
+  font-size: 22px;
+  color: var(--c-ink-muted-48);
+  pointer-events: none;
+}
+
+/* 预览区高度恒定（无内容时也占位），避免打字时下方表单跳动（docs/13 §6.3） */
+.preview {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 40px;
+  padding: 10px 14px;
+  border-radius: var(--r-md);
+  background: var(--c-parchment);
+}
+
+.preview[data-hidden='true'] {
+  visibility: hidden;
+}
+
+.preview__line {
+  font-size: 13px;
+  color: var(--c-ink-muted-80);
+  font-variant-numeric: tabular-nums;
+}
+
+.preview__line--lead {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.preview__line.is-neg {
+  color: var(--c-danger);
+}
+
+.preview__line.is-pos {
+  color: var(--c-success);
+}
+
+.preview__note {
+  font-size: 11px;
+  color: var(--c-ink-muted-48);
+}
+
+/* --------- chips 行（分类二级 / 标签共用同一套横向排布语法） --------- */
+.cat-pick__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* 选中态统一语法：2px primary-focus 描边 + accent-2 淡蓝底（docs/13 §4.5） */
+.option-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--c-hairline);
+  border-radius: var(--r-pill);
+  background: var(--c-canvas);
+  color: var(--c-ink);
+  font-size: 13px;
+  transition: border-color var(--d-state) var(--e-standard),
+    background var(--d-state) var(--e-standard),
+    transform var(--d-press) var(--e-standard);
+}
+
+.option-chip:hover {
+  border-color: var(--c-ink-muted-48);
+}
+
+.option-chip:active {
+  transform: scale(var(--press-scale));
+}
+
+.option-chip[aria-checked='true'] {
+  border: 2px solid var(--c-primary-focus);
+  background: var(--c-accent-2);
+  color: var(--c-primary);
+  font-weight: 600;
+}
+
+.option-chip__dot {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: var(--r-full);
+  background: var(--tag-color, var(--c-hairline));
+  border: 1px solid var(--c-swatch-ring);
+}
+
+.option-chip__badge {
+  flex: none;
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: var(--r-pill);
+  background: var(--c-parchment);
+  color: var(--c-ink-muted-48);
+}
+
+.option-chip[aria-checked='true'] .option-chip__badge {
+  background: var(--c-accent-4);
+  color: var(--c-primary);
+}
+
+/* --------- 日期快捷 --------- */
+.date-quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* --------- 计数与提示 --------- */
+.char-count {
+  font-size: 11px;
+  color: var(--c-ink-muted-48);
+  font-variant-numeric: tabular-nums;
+}
+
+.char-count[data-over='true'] {
+  color: var(--c-danger);
+}
+
+/* --------- 校验汇总条（≥3 个字段出错时出现，docs/13 §8） --------- */
+.form-summary {
+  display: none;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 16px;
+  border-radius: var(--r-md);
+  background: var(--c-danger-bg);
+  border: 1px solid var(--c-danger-line);
+  color: var(--c-danger);
+  font-size: 13px;
+}
+
+.form-summary[data-visible='true'] {
+  display: flex;
+}
+
+.form-summary__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+
+.form-summary__link {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--c-danger);
+  font-size: 12px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* 失败横幅（期间关闭 / 乐观锁 / 网络）：比字段错误更重，单独一条 */
+/* --------- 回访横幅（本地草稿，docs/13 §10.1） ---------
+   刻意**不复用** .form-banner：那条是 danger 底 + danger 字，是「出错了」的语气；
+   「上次有一笔没记完」是邀请，用红色会让人以为出了什么事故。
+   底色取淡蓝（与三级面板的「建议」条同源 —— 都是「帮你少打几个字」一类的东西）。 */
+.form-draft {
+  display: none;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  padding: 12px 16px;
+  border-radius: var(--r-md);
+  background: var(--c-accent-1);
+  border: 1px solid var(--c-hairline);
+  color: var(--c-ink);
+  font-size: 13px;
+}
+
+.form-draft[data-visible='true'] {
+  display: flex;
+}
+
+.form-draft__icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  color: var(--c-primary);
+}
+
+.form-draft__msg {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.form-draft__act {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.form-banner {
+  display: none;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  padding: 12px 16px;
+  border-radius: var(--r-md);
+  background: var(--c-danger-bg);
+  border: 1px solid var(--c-danger-line);
+  color: var(--c-danger);
+  font-size: 13px;
+}
+
+.form-banner[data-visible='true'] {
+  display: flex;
+}
+
+.form-banner__msg {
+  margin-right: auto;
+}
+
+/* --------- 操作栏（移动端 sticky 落底，键盘弹出时上移） --------- */
+.action-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: var(--r-lg);
+  background: var(--c-canvas);
+  border: 1px solid var(--c-hairline);
+}
+
+.action-bar__summary {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  margin-right: auto;
+}
+
+.action-bar__label {
+  font-size: 11px;
+  color: var(--c-ink-muted-48);
+}
+
+.action-bar__value {
+  font-size: 15px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --------- 无账户引导（docs/13 §13 场景 12） --------- */
+.compose-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 48px 24px;
+  text-align: center;
+}
+
+/* --------- 附件占位（后端附件路由未上线前不放假入口） --------- */
+.attachment-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-radius: var(--r-md);
+  background: var(--c-parchment);
+  font-size: 12px;
+  color: var(--c-ink-muted-48);
+}
+
+/* ==========================================================================
+   十三·补充三、账单列表页与详情页（docs/13 §9）
+   结构（列表页）：
+     hero（标题 + 记一笔）
+     .tx-toolbar   磨砂浮条：汇总条 + 筛选行 + 展开的筛选面板（sticky）
+     .tx-day*      日期分组：日期头 + 当日小计 + 行列表
+     .tx-row       一套 DOM 服务三档断点（列显隐交给 CSS）
+     .tx-foot      加载更多 / 已全部加载
+   金额取色一律走既有的 .is-pos / .is-neg / .is-zero，不新增语义色类。
+   ========================================================================== */
+
+/* --------- 工具栏（sticky 浮层：用磨砂 + hairline-soft，与顶栏/TabBar 同源） --------- */
+.tx-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 15;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 20px;
+  border: 1px solid var(--c-hairline);
+  border-radius: var(--r-lg);
+  background: var(--c-frost-bg);
+  -webkit-backdrop-filter: var(--frost-blur);
+  backdrop-filter: var(--frost-blur);
+}
+
+/* --------- 汇总条（meta.summary，随筛选实时变） --------- */
+.tx-sum {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.tx-sum__cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.tx-sum__label {
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  color: var(--c-ink-muted-48);
+}
+
+.tx-sum__value {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.022em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* --------- 筛选行 --------- */
+.tx-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tx-filters__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.tx-pill {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  height: 34px;
+  max-width: 200px;
+  padding: 0 14px;
+  border: 1px solid var(--c-hairline);
+  border-radius: var(--r-pill);
+  background: var(--c-canvas);
+  color: var(--c-ink-muted-80);
+  font-size: 13px;
+  letter-spacing: -0.016em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background var(--d-state) var(--e-standard),
+    border-color var(--d-state) var(--e-standard),
+    transform var(--d-press) var(--e-standard);
+}
+
+.tx-pill:hover {
+  background: var(--c-parchment);
+}
+
+/* 有生效值的 pill 必须一眼看出来 —— 否则「筛选后空列表」会被当成数据丢了 */
+.tx-pill.is-on {
+  border-color: var(--c-primary-focus);
+  background: var(--c-accent-2);
+  color: var(--c-primary);
+  font-weight: 600;
+}
+
+.tx-pill[aria-expanded='true'] {
+  border-color: var(--c-ink-muted-48);
+}
+
+.tx-search {
+  flex: 1 1 180px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  height: 34px;
+  padding: 0 14px;
+  border: 1px solid var(--c-hairline);
+  border-radius: var(--r-pill);
+  background: var(--c-canvas);
+  color: var(--c-ink-muted-48);
+}
+
+.tx-search:focus-within {
+  outline: 2px solid var(--c-primary-focus);
+  outline-offset: 1px;
+}
+
+.tx-search__input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font-size: 13px;
+  letter-spacing: -0.016em;
+}
+
+.tx-search__input::placeholder {
+  color: var(--c-placeholder);
+}
+
+.tx-search__input::-webkit-search-cancel-button {
+  cursor: pointer;
+}
+
+/* --------- 筛选面板 --------- */
+.tx-panel {
+  padding-top: 12px;
+  border-top: 1px solid var(--c-hairline-soft);
+}
+
+.tx-panel__body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tx-panel__title {
+  font-size: 12px;
+  letter-spacing: -0.01em;
+  color: var(--c-ink-muted-48);
+}
+
+.tx-panel__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tx-panel__sub {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tx-panel__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.tx-panel__foot .input {
+  width: auto;
+  min-width: 148px;
+  flex: 0 1 auto;
+}
+
+/* 面板里的紧凑胶囊：横向内容、可换行，不复用 .chip 的纵向大块形态 */
+.chip--mini {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  width: auto;
+  min-height: 32px;
+  padding: 6px 12px;
+  border-radius: var(--r-pill);
+  font-size: 13px;
+  letter-spacing: -0.016em;
+}
+
+.chip--mini .chip__sub {
+  font-size: 11px;
+}
+
+.chip__dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--r-full);
+  background: var(--tag, var(--c-ink-muted-48));
+  border: 1px solid var(--c-swatch-ring);
+}
+
+/* --------- 日期分组 --------- */
+.tx-day + .tx-day {
+  margin-top: 24px;
+}
+
+.tx-day__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  padding: 0 4px;
+  margin-bottom: 8px;
+}
+
+.tx-day__date {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.004em;
+  color: var(--c-ink-muted-80);
+}
+
+.tx-day__wd {
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  color: var(--c-ink-muted-48);
+}
+
+.tx-day__sum {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+  letter-spacing: -0.01em;
+}
+
+.tx-day__count {
+  color: var(--c-ink-muted-48);
+}
+
+/* --------- 账单行（列顺序：时间·分类·名称·账户·商家对象·金额） --------- */
+.tx-row {
+  position: relative;
+  display: grid;
+  grid-template-columns:
+    28px 48px minmax(0, 1.1fr) minmax(0, 1.4fr)
+    minmax(0, 1fr) minmax(0, 1fr) auto auto 44px;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  border-top: 1px solid var(--c-divider-soft);
+  transition: background var(--d-state) var(--e-standard);
+}
+
+.tx-row:first-child {
+  border-top: 0;
+}
+
+.tx-row:hover {
+  background: var(--c-soft-fill);
+}
+
+.tx-row.is-picked {
+  background: var(--c-accent-1);
+}
+
+.tx-row.is-menu {
+  background: var(--c-soft-fill);
+}
+
+.tx-row__pick {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* 桌面是精度操作：默认隐形，hover / 已选时出现，避免每行都挂一个复选框把列表弄噪 */
+  opacity: 0;
+  transition: opacity var(--d-state) var(--e-standard);
+}
+
+.tx-row:hover .tx-row__pick,
+.tx-row.is-picked .tx-row__pick,
+.tx-list.is-selecting .tx-row__pick {
+  opacity: 1;
+}
+
+.tx-row__pick input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--c-primary);
+  cursor: pointer;
+}
+
+.tx-row__time {
+  font-size: 12px;
+  color: var(--c-ink-muted-48);
+}
+
+.tx-row__subject {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.tx-row__icon {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-sm);
+  background: var(--c-parchment);
+  color: var(--c-ink-muted-80);
+  overflow: hidden;
+}
+
+.tx-row__cat {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.016em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tx-row__tags {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.tx-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--r-full);
+  background: var(--tag, var(--c-ink-muted-48));
+  border: 1px solid var(--c-swatch-ring);
+}
+
+.tx-row__tags-more {
+  font-size: 11px;
+  color: var(--c-ink-muted-48);
+}
+
+/* 桌面：三个子元素各自成一列（display:contents 而非再套一层 grid） */
+.tx-row__meta {
+  display: contents;
+}
+
+.tx-row__name,
+.tx-row__acct,
+.tx-row__extra {
+  min-width: 0;
+  font-size: 13px;
+  letter-spacing: -0.016em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tx-row__name {
+  color: var(--c-ink-muted-80);
+}
+
+.tx-row__acct,
+.tx-row__extra {
+  color: var(--c-ink-muted-48);
+}
+
+.tx-row__badges {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.tx-row__amt {
+  justify-self: end;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.022em;
+  white-space: nowrap;
+}
+
+.tx-row__more {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--c-ink-muted-48);
+  transition: background var(--d-state) var(--e-standard), transform var(--d-press) var(--e-standard);
+}
+
+.tx-row__more:hover {
+  background: var(--c-parchment);
+  color: var(--c-ink);
+}
+
+/* 浮动动作菜单：这是**真·浮层**（脱离行流、压住内容），所以允许用 --shadow-overlay */
+.tx-row__menu {
+  position: absolute;
+  top: calc(100% - 8px);
+  right: 20px;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  min-width: 156px;
+  padding: 4px;
+  border: 1px solid var(--c-hairline);
+  border-radius: var(--r-md);
+  background: var(--c-canvas);
+  box-shadow: var(--shadow-overlay);
+}
+
+/**
+ * 菜单向上展开的变体：行的下方放不下整张菜单时由视图加上（见 rowNode 的点击处理）。
+ * `bottom: calc(100% - 8px)` 是向下那套的镜像 —— 同样与行边重叠 8px，
+ * 视觉上仍然是「从按钮旁边长出来」，而不是飘在远处。
+ */
+.tx-row__menu--up {
+  top: auto;
+  bottom: calc(100% - 8px);
+}
+
+/**
+ * 行容器**不能裁切**。
+ *
+ * `card--flush` 的 `overflow: hidden` 本意只是裁圆角，但它同时会把
+ * 行内绝对定位的动作菜单一起切掉：当天只有一笔或几笔记录时，行贴着
+ * 卡片底边，菜单向下展开的部分正好被卡片下边框切走 ——
+ * 表现就是「只弹出一点点卡片」。
+ *
+ * 这里把裁切去掉，圆角改由**最后一行自己**承担（下圆角对齐卡片内圆角
+ * = 卡片圆角 − 1px 边框），悬停底色因此仍被收在圆角内，视觉无变化。
+ */
+.tx-day__body {
+  overflow: visible;
+}
+
+.tx-day__body > .tx-row:last-child {
+  border-bottom-left-radius: calc(var(--r-lg) - 1px);
+  border-bottom-right-radius: calc(var(--r-lg) - 1px);
+}
+
+.tx-row__menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  font-size: 13px;
+  letter-spacing: -0.016em;
+  color: var(--c-ink-muted-80);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.tx-row__menu-item:hover {
+  background: var(--c-parchment);
+  color: var(--c-ink);
+}
+
+/* 销毁性动作只上文字色，不做危险色填充（语义色纪律） */
+.tx-row__menu-item--danger {
+  color: var(--c-danger);
+}
+
+.tx-row__menu-item--danger:hover {
+  background: var(--c-danger-bg);
+  color: var(--c-danger);
+}
+
+/* --------- 批量选择条（落底浮条，与记账页操作栏同源语法） --------- */
+.tx-selectbar {
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 12px 20px;
+  border: 1px solid var(--c-hairline-soft);
+  border-radius: var(--r-lg);
+  background: var(--c-frost-bg-strong);
+  -webkit-backdrop-filter: var(--frost-blur);
+  backdrop-filter: var(--frost-blur);
+}
+
+.tx-selectbar__count {
+  margin-right: auto;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.016em;
+}
+
+.tx-batchtag {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+/* --------- 底部分页 / 空态 / 错误 --------- */
+.tx-foot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.tx-foot__sentinel {
+  display: block;
+  width: 100%;
+  height: 1px;
+}
+
+.tx-foot__end {
+  margin-top: 24px;
+  text-align: center;
+  font-size: 12px;
+  letter-spacing: -0.01em;
+  color: var(--c-ink-muted-48);
+}
+
+.tx-skel {
+  padding: 20px 24px;
+}
+
+.tx-error {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.tx-error__icon {
+  flex: none;
+  color: var(--c-danger);
+}
+
+.tx-error__main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* ==========================================================================
+   十三·补充四、账单详情页（/transactions/:id）
+   ========================================================================== */
+
+.txd {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+
+.txd__card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* 金额构成 + 凭证附件 作为一组：两张卡纵向堆叠，保持标准卡片间距
+   `{spacing.lg}`=24px（与 .txd 网格、其他页面的卡片 Gutter 一致，00-DESIGN「Gutters 20–24px」），
+   凭证附件始终紧贴金额构成下方，不会因桌面端明细并排而下沉到页面底部。 */
+.txd__pair {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-lg);
+  min-width: 0;
+}
+
+.txd__amount {
+  font-family: var(--f-display);
+  font-size: 32px;
+  line-height: 1.1;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.txd__lines {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 16px;
+  border-radius: var(--r-sm);
+  background: var(--c-parchment);
+}
+
+.txd__delta-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.txd__delta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0;
+  border-top: 1px solid var(--c-divider-soft);
+}
+
+.txd__delta:first-child {
+  border-top: 0;
+}
+
+.txd__delta-label {
+  font-size: 14px;
+  letter-spacing: -0.016em;
+  color: var(--c-ink-muted-80);
+}
+
+.txd__delta-value {
+  flex: none;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.txd__fields {
+  display: flex;
+  flex-direction: column;
+}
+
+.txd__fields .kv {
+  align-items: flex-start;
+  gap: 24px;
+}
+
+/* 详情里的值比列表长得多（备注、对象名），必须能换行而不是撑破卡片 */
+.txd__fields .kv__v,
+.txd__fields .kv > .txd__tags {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin-left: auto;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.txd__tags {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.txd__tags .badge {
+  gap: 6px;
+  padding: 0 10px;
+}
+
+/* ==========================================================================
+   十三·补充四、记账页改版
+   —— 类型 / 分类改 Mega Menu、智能建议条、账户与金额同行、就地新建标签。
+
+   为什么浮层可以用投影：`00-DESIGN` 的 「Don't add shadows to cards」针对的是
+   **静态卡片**（层次由 hairline + 面色切换承担，见 tokens.css 的注释）。
+   这里是真正「浮在内容之上」的菜单，文档本身没有覆盖菜单形态（Known Gaps），
+   沿用本项目已确立的浮层先例（`.tx-row__menu`）：`--shadow-overlay` + 1px hairline。
+   ========================================================================== */
+
+/* --------- 选择触发器（类型 / 分类共用） ---------
+   两行结构：主值（选了什么）+ 副值（它意味着什么）。副值让用户在**不展开**面板
+   的情况下就知道「应收款项 = 借出或收回」，减少一次试错点击。 */
+.pick-trigger {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 56px;
+  padding: 8px 16px;
+  border: 1px solid var(--c-hairline);
+  border-radius: var(--r-md);
+  background: var(--c-canvas);
+  text-align: left;
+  transition: border-color var(--d-state) var(--e-standard),
+    background var(--d-state) var(--e-standard);
+}
+
+.pick-trigger:hover {
+  border-color: var(--c-ink-muted-48);
+}
+
+.pick-trigger[aria-expanded='true'] {
+  border-color: var(--c-primary-focus);
+  background: var(--c-accent-1);
+}
+
+.pick-trigger__icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--r-sm);
+  background: var(--c-accent-2);
+  color: var(--c-primary);
+}
+
+.pick-trigger__text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.pick-trigger__label {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.016em;
+  color: var(--c-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pick-trigger__sub {
+  font-size: 12px;
+  letter-spacing: -0.01em;
+  color: var(--c-ink-muted-48);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 未选择态：整枚控件降一档，别让空值看起来像已填 */
+.pick-trigger.is-empty .pick-trigger__label {
+  font-weight: 400;
+  color: var(--c-placeholder);
+}
+
+.pick-trigger.is-empty .pick-trigger__icon {
+  background: var(--c-parchment);
+  color: var(--c-ink-muted-48);
+}
+
+.pick-trigger__chev {
+  flex: none;
+  display: grid;
+  place-items: center;
+  color: var(--c-ink-muted-48);
+  transition: transform var(--d-state) var(--e-standard);
+}
+
+.pick-trigger[aria-expanded='true'] .pick-trigger__chev {
+  transform: rotate(180deg);
+}
+
+/* --------- 浮层：锚点容器 / 遮罩 / 面板 --------- */
+.mega-host {
+  position: relative;
+}
+
+/* 打开时抬到遮罩之上，否则「再点一次触发器收起」的点击会被遮罩吃掉 */
+.mega-host.is-open {
+  z-index: 26;
+}
+
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 25;
+  /* 桌面端只做点击捕获，不压暗：菜单压在表单上，页面其余部分仍需可读 */
+  background: transparent;
+}
+
+.scrim[hidden] {
+  display: none;
+}
+
+.mega {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-height: min(60vh, 460px);
+  padding: 8px;
+  border: 1px solid var(--c-hairline);
+  border-radius: var(--r-lg);
+  background: var(--c-canvas);
+  box-shadow: var(--shadow-overlay);
+}
+
+/* 三级面板：内部「建议 / 搜索 / 三列」各自管滚动，外壳不滚 */
+.mega--pick {
+  overflow: hidden;
+  padding: 0;
+  /* 三列 + 建议条 + 搜索 + 底栏，比标签浮层高得多；上限跟着视口走 */
+  max-height: min(70vh, 540px);
+}
+
+.mega--tag {
+  max-width: 340px;
+}
+
+.mega[hidden] {
+  display: none;
+}
+
+/* --------- 第一列：类型（分组 + 图标 + 名称 + 一句解释） --------- */
+.mega__group + .mega__group {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--c-divider-soft);
+}
+
+/* 三列的列标题共用一套字（与 `.mega__navitem-count` 同族的 tabular 小字） */
+.mega__col-title {
+  padding: 0 4px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--c-ink-muted-48);
+}
+
+.mega__item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  text-align: left;
+  transition: background var(--d-state) var(--e-standard);
+}
+
+.mega__item:hover {
+  background: var(--c-parchment);
+}
+
+.mega__item.is-on {
+  background: var(--c-accent-2);
+}
+
+.mega__item-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--r-sm);
+  background: var(--c-parchment);
+  color: var(--c-ink-muted-80);
+}
+
+.mega__item.is-on .mega__item-icon {
+  background: var(--c-canvas);
+  color: var(--c-primary);
+}
+
+.mega__item-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.mega__item-name {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.016em;
+  color: var(--c-ink);
+}
+
+.mega__item-hint {
+  font-size: 12px;
+  color: var(--c-ink-muted-48);
+}
+
+.mega__item-mark {
+  flex: none;
+  color: var(--c-primary);
+}
+
+/* --------- 分类面板：搜索 + 一级导航（左）/ 二级 chips（右） --------- */
+.mega__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--c-divider-soft);
+}
+
+.mega__head:focus-within {
+  border-bottom-color: var(--c-primary-focus);
+}
+
+.mega__search-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  color: var(--c-ink-muted-48);
+}
+
+.mega__search {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-size: 14px;
+  color: var(--c-ink);
+}
+
+.mega__search:focus {
+  outline: none;
+}
+
+.mega__search::placeholder {
+  color: var(--c-placeholder);
+}
+
+/* --------- 三列：类型 / 一级分类 / 二级分类（同屏，各自滚动） ---------
+   一个决策链摊成一屏：定了类型才有分类树，定了大类才有子类。
+   列宽给的是「最长的那一项刚好不折行」的宽度（一级分类最长 6 字）。 */
+.mega__panes {
+  display: grid;
+  grid-template-columns: minmax(190px, 226px) minmax(146px, 182px) minmax(0, 1fr);
+  /* 行高锁死在这一格上，三列各自滚，滚动条就不会长短不一 */
+  grid-template-rows: minmax(0, 1fr);
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* 转账：没有第二、三级，第三列让给一句解释 */
+.mega__panes[data-mode='leaf-less'] {
+  grid-template-columns: minmax(190px, 226px) minmax(0, 1fr);
+}
+
+/* 搜索态：三列让位，整幅宽度交给命中结果 */
+.mega__panes[data-mode='search'] {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.mega__col {
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 10px;
+}
+
+.mega__col + .mega__col {
+  border-left: 1px solid var(--c-divider-soft);
+}
+
+.mega__list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mega__navitem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 40px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  font-size: 13px;
+  letter-spacing: -0.016em;
+  color: var(--c-ink-muted-80);
+  text-align: left;
+  transition: background var(--d-state) var(--e-standard);
+}
+
+.mega__navitem:hover {
+  background: var(--c-parchment);
+}
+
+.mega__navitem.is-on {
+  background: var(--c-accent-2);
+  color: var(--c-primary);
+  font-weight: 600;
+}
+
+.mega__navitem-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 18px;
+}
+
+.mega__navitem-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mega__navitem-count {
+  flex: none;
+  font-size: 11px;
+  color: var(--c-ink-muted-48);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 该一级分类下已有选中项：左栏留一个点，收起面板后也知道「选在哪一支」 */
+.mega__navitem.has-pick .mega__navitem-count::after {
+  content: '·';
+  margin-left: 3px;
+  font-weight: 700;
+  color: var(--c-primary);
+}
+
+.mega__grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.mega__empty {
+  padding: 4px 4px 12px;
+  font-size: 13px;
+  color: var(--c-ink-muted-48);
+}
+
+.mega__foot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--c-divider-soft);
+}
+
+.mega__hint {
+  flex: 1 1 auto;
+  font-size: 11px;
+  color: var(--c-ink-muted-48);
+}
+
+.mega__clear {
+  flex: none;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  font-size: 12px;
+  color: var(--c-primary);
+}
+
+.mega__clear[hidden] {
+  display: none;
+}
+
+/* --------- 建议条（面板最前，用户指定） ---------
+   内容是「最近 9 笔支出的二级分类」，所以它不是一个「推荐结果」，而是一段
+   **用户自己的历史**：用淡蓝底把它和下面三列区分开，但不给强调色边框 ——
+   强调色在这个界面里是「可点击」的信号，整条都是可点击的，反而该收着用。 */
+.mega__suggest {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--c-divider-soft);
+  background: var(--c-accent-1);
+}
+
+.mega__suggest[hidden] {
+  display: none;
+}
+
+.mega__suggest-badge {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 30px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--c-primary);
+}
+
+.mega__suggest-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.suggest-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--c-hairline);
+  border-radius: var(--r-pill);
+  background: var(--c-canvas);
+  font-size: 13px;
+  letter-spacing: -0.016em;
+  color: var(--c-ink);
+  transition: border-color var(--d-state) var(--e-standard),
+    background var(--d-state) var(--e-standard);
+}
+
+.suggest-chip:hover {
+  border-color: var(--c-primary-focus);
+  background: var(--c-accent-2);
+}
+
+.suggest-chip__icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  color: var(--c-primary);
+}
+
+.suggest-chip__name {
+  white-space: nowrap;
+}
+
+/* 搜索态跨类型：chip 尾部补一枚类型标签，否则「午餐」出现在两种类型下无法区分 */
+.option-chip__type {
+  margin-left: 2px;
+  padding: 0 6px;
+  border-radius: var(--r-pill);
+  background: var(--c-parchment);
+  font-size: 11px;
+  color: var(--c-ink-muted-80);
+}
+
+.option-chip--tagged {
+  padding-right: 4px;
+}
+
+/* --------- 账户 + 金额同行 ---------
+   两个控件的**高度必须一致**，否则标签一高一低（金额框比下拉高 20px）。
+   账户框因此也抬到 64px —— 它是记账里第二常用的字段，给足点击面积不吃亏。 */
+.field-row--money {
+  align-items: flex-end;
+}
+
+.field-row--money > .field {
+  flex: 1 1 170px;
+}
+
+.field-row--money > .field.amount-field {
+  flex: 1.25 1 220px;
+}
+
+.field-row--money .input.select {
+  height: 64px;
+  font-size: 15px;
+}
+
+.field-row--fee > .field {
+  flex: 1 1 140px;
+}
+
+/* 日期 + 时间同行：顶对齐，让两个「标签 → 输入框」在同一水平线上；
+   日期格的快捷 chips 挂在输入框下方，不参与两格的基线竞争 */
+.field-row--when {
+  align-items: flex-start;
+}
+
+/* --------- 带后缀的输入框（手续费/折扣的「元」、时间的清空按钮） --------- */
+.suffix-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 10px 0 20px;
+  border: 1px solid var(--c-hairline);
+  border-radius: var(--r-md);
+  background: var(--c-canvas);
+  transition: border-color var(--d-state) var(--e-standard);
+}
+
+.suffix-wrap:focus-within {
+  border-color: var(--c-primary-focus);
+  outline: 2px solid var(--c-primary-focus);
+  outline-offset: 1px;
+}
+
+.suffix-wrap:has(.input[aria-invalid='true']) {
+  border-color: var(--c-danger);
+}
+
+/* 内层输入框把描边交还给容器，避免出现「框中框」；
+   高度取满 44px 而不是留 2px 内缩 —— 触控目标量的是**输入框自己**，
+   容器再高也不能替它达标（与列表页搜索框同一个坑）。 */
+.suffix-wrap .input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.suffix-wrap .input:focus {
+  outline: none;
+}
+
+.suffix-wrap__unit {
+  flex: none;
+  font-size: 12px;
+  color: var(--c-ink-muted-48);
+}
+
+.suffix-x {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: var(--r-full);
+  background: transparent;
+  color: var(--c-ink-muted-48);
+}
+
+.suffix-x:hover {
+  background: var(--c-parchment);
+  color: var(--c-ink);
+}
+
+/* --------- 「+ 新建标签」幽灵 chip ---------
+   不做虚线边框：`00-DESIGN` 的边框语汇只有「1px 实线 hairline」一种，
+   加入虚线就是在已定的语法外自造第二种。用交互色文字 + 淡蓝底表达「可新建」。 */
+.option-chip--new {
+  color: var(--c-primary);
+}
+
+.option-chip--new:hover {
+  border-color: var(--c-primary);
+  background: var(--c-accent-1);
+}
+
+/* --------- 新建标签浮层内的表单 --------- */
+.tag-new {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tag-new .swatch-row {
+  margin-top: 0;
+}
+
+.tag-new__err {
+  font-size: 12px;
+  color: var(--c-danger);
+}
+
+.tag-new__err[hidden] {
+  display: none;
+}
+
+.tag-new__foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* ==========================================================================
+   十三·补充五、往来页（债权债务未结清视图 · docs/12 §六 D9/D10）
+
+   语义纪律：待收 / 待付 是**台账口径**，`--c-danger` / `--c-success` 在这里是
+   状态色（欠着 = 要还 = 正向提醒），**不做**按钮填充 —— 可点的是「结清 / 核销」
+   两个动作，它们用中性按钮，避免把 danger 涂成一个可点的色块。
+   ========================================================================== */
+
+.debts {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.debt-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.debt-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px;
+  border: 1px solid var(--c-hairline);
+  border-radius: var(--r-lg);
+  background: var(--c-canvas);
+}
+
+.debt-card__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--c-ink-muted-80);
+}
+
+.debt-card__value {
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.022em;
+  color: var(--c-ink);
+}
+
+.debt-card--net .debt-card__value {
+  color: var(--c-ink-muted-80);
+}
+
+.debt-card__sub {
+  font-size: 12px;
+  color: var(--c-ink-muted-48);
+}
+
+/* 未归属冲销：不藏起来，但语气要轻 —— 它是「信息」不是「错误」 */
+.debt-unalloc {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: var(--r-md);
+  background: var(--c-parchment);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--c-ink-muted-80);
+}
+
+.debt-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.debt-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  border: 1px solid var(--c-hairline);
+  border-radius: var(--r-lg);
+  background: var(--c-canvas);
+}
+
+.debt-row.is-cleared {
+  background: var(--c-parchment);
+}
+
+.debt-row__main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.debt-row__icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--r-sm);
+  background: var(--c-accent-2);
+  color: var(--c-primary);
+}
+
+.debt-row__text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.debt-row__name {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.016em;
+  color: var(--c-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.debt-row__meta {
+  font-size: 12px;
+  color: var(--c-ink-muted-48);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.debt-row__amount {
+  flex: none;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--c-ink);
+}
+
+.debt-row__bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  padding-top: 8px;
+  border-top: 1px solid var(--c-divider-soft);
+}
+
+.debt-row__stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 13px;
+}
+
+.debt-row__out {
+  font-weight: 600;
+  color: var(--c-ink);
+}
+
+.debt-row__done {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--c-success);
+}
+
+.debt-row__done-n {
+  font-size: 12px;
+  color: var(--c-ink-muted-48);
+}
+
+.debt-row__age {
+  flex: none;
+  padding: 0 8px;
+  border-radius: var(--r-pill);
+  background: var(--c-parchment);
+  font-size: 11px;
+  color: var(--c-ink-muted-48);
+}
+
+/* 超过 90 天：最接近「逾期」的代理指标（目前没有到期日字段） */
+.debt-row__age.is-old {
+  background: var(--c-danger-bg);
+  color: var(--c-danger);
+}
+
+.debt-row__act {
+  display: flex;
+  gap: 8px;
+  flex: none;
+}
+
+.debt-row__hist {
+  font-size: 12px;
+  color: var(--c-ink-muted-48);
+}
+
+.debt-row__hist > summary {
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.debt-row__hist-item {
+  display: block;
+  padding: 6px 0;
+  border-top: 1px solid var(--c-divider-soft);
+  color: var(--c-ink-muted-80);
+  text-decoration: none;
+}
+
+.debt-row__hist-item:hover {
+  color: var(--c-primary);
+}
+
+.debt-more {
+  text-align: center;
+}
+
+/* ==========================================================================
+   十三·补充五、模板（docs/05 §十）
+   ========================================================================== */
+
+/* --------- 模板提示条（记账页顶部） ---------
+   与 .form-draft（邀请）、.form-banner（danger 错误）三足鼎立：
+   模板提示是「提醒但不妨碍继续」，所以是中性底 + info 图标。 */
+.form-note {
+  display: none;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 14px;
+  border: 1px solid var(--c-hairline);
+  border-radius: var(--r-md);
+  background: var(--c-parchment);
+  color: var(--c-ink-muted-80);
+  font-size: 13px;
+}
+
+.form-note[data-visible='true'] {
+  display: flex;
+}
+
+.form-note__icon {
+  flex: none;
+  margin-top: 1px;
+  color: var(--c-ink-muted-48);
+}
+
+.form-note__body {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.form-note__title {
+  font-weight: 600;
+  color: var(--c-ink);
+}
+
+.form-note__list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.form-note__item {
+  position: relative;
+  padding-left: 10px;
+  color: var(--c-ink-muted-80);
+}
+
+.form-note__item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 7px;
+  width: 3px;
+  height: 3px;
+  border-radius: var(--r-full);
+  background: var(--c-ink-muted-48);
+}
+
+.form-note > .btn {
+  flex: none;
+}
+
+/* --------- 模板面板：锚定在 TabBar 动作位上方 --------- */
+.mega--tpl {
+  top: auto;
+  bottom: calc(100% + 10px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(92vw, 420px);
+  /* 高度按「8 个预置模板 + 头 + 底栏」能整屏放下取值（8×57 + 46 + 38 ≈ 540），
+     否则最后一项会被截成半截，看起来像没加载完。 */
+  max-height: min(72vh, 560px);
+  padding: 0;
+  overflow: hidden;
+}
+
+.tpl-panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 8px 12px 16px;
+  border-bottom: 1px solid var(--c-divider-soft);
+}
+
+.tpl-panel__title {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.016em;
+}
+
+.tpl-panel__x {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: var(--r-full);
+  background: transparent;
+  color: var(--c-ink-muted-48);
+}
+
+.tpl-panel__x:hover {
+  background: var(--c-parchment);
+  color: var(--c-ink);
+}
+
+.tpl-panel__body {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.tpl-panel__foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  border-top: 1px solid var(--c-divider-soft);
+  font-size: 12px;
+  color: var(--c-ink-muted-48);
+}
+
+.tpl-panel__empty {
+  padding: 24px 16px;
+  text-align: center;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--c-ink-muted-80);
+}
+
+.tpl-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tpl-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 48px;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: var(--r-md);
+  background: transparent;
+  text-align: left;
+  transition: background var(--d-state) var(--e-standard);
+}
+
+.tpl-row:hover {
+  background: var(--c-parchment);
+}
+
+.tpl-row:disabled {
+  opacity: 0.5;
+}
+
+.tpl-row__icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--r-full);
+  background: var(--c-accent-1);
+  color: var(--c-primary);
+}
+
+.tpl-row__text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tpl-row__name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.016em;
+  color: var(--c-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tpl-row__sub {
+  font-size: 12px;
+  color: var(--c-ink-muted-48);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tpl-row__amt {
+  flex: none;
+  font-size: 13px;
+  color: var(--c-ink-muted-80);
+}
+
+.tpl-row__pin {
+  flex: none;
+  padding: 1px 6px;
+  border-radius: var(--r-pill);
+  background: var(--c-accent-1);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--c-primary);
+}
+
+/* warning 分两级：error（引用没了，红色）/ warn（还能用，只是提醒） */
+.tpl-row__warn {
+  flex: none;
+  display: grid;
+  place-items: center;
+  color: var(--c-danger);
+}
+
+.tpl-row__warn--soft {
+  color: var(--c-ink-muted-48);
+}
+
+.tpl-skel {
+  height: 48px;
+  margin-bottom: 8px;
+  border-radius: var(--r-md);
+  background: linear-gradient(
+    90deg,
+    var(--c-parchment) 25%,
+    var(--c-canvas) 37%,
+    var(--c-parchment) 63%
+  );
+  background-size: 400% 100%;
+  animation: tpl-shimmer 1.4s ease infinite;
+}
+
+@keyframes tpl-shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: 0 0;
+  }
+}
+
+/* ==========================================================================
+   十三·补充六、模板管理页
+   ========================================================================== */
+
+.tplm-group {
+  margin: 20px 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--c-ink-muted-48);
+}
+
+.tplm-group:first-child {
+  margin-top: 4px;
+}
+
+.tplm-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tplm-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border: 1px solid var(--c-hairline);
+  border-radius: var(--r-lg);
+  background: var(--c-canvas);
+}
+
+.tplm-row.is-pinned {
+  background: var(--c-accent-1);
+  border-color: var(--c-hairline);
+}
+
+.tplm-row__icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--r-full);
+  background: var(--c-parchment);
+  color: var(--c-primary);
+}
+
+.tplm-row__main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tplm-row__main .tt-body-strong {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tplm-row__main .tt-fine-print {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tplm-row__pin {
+  padding: 1px 6px;
+  border-radius: var(--r-pill);
+  background: var(--c-primary);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--c-canvas);
+}
+
+.tplm-row__warn {
+  flex: none;
+  display: grid;
+  place-items: center;
+  color: var(--c-danger);
+}
+
+.tplm-row__acts {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* 侧栏 / 顶栏的「记一笔」：面板向下向右展开（向上会顶出视口） */
+.mega-host--side .mega--tpl {
+  top: calc(100% + 8px);
+  bottom: auto;
+  left: 0;
+  transform: none;
+  width: min(92vw, 400px);
+}
+
+/* 侧栏「记一笔」下方的长按提示：常驻一行细字。
+   长按属于「知道才会用」的功能，但用户得先知道它存在，所以不做隐藏。 */
+.sidebar__cta-hint {
+  display: block;
+  margin-top: 6px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--c-ink-muted-48);
+}
+
+/* ==========================================================================
+   十三·补充七、周期账单
+   ========================================================================== */
+
+.rcm-group {
+  margin: 20px 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--c-ink-muted-48);
+}
+
+.rcm-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.rcm-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border: 1px solid var(--c-hairline);
+  border-radius: var(--r-lg);
+  background: var(--c-canvas);
+}
+
+.rcm-row.is-paused {
+  background: var(--c-parchment);
+}
+
+.rcm-row__main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.rcm-row__main .tt-body-strong {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.rcm-row__main .tt-fine-print {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rcm-row__amount {
+  flex: none;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.011em;
+  color: var(--c-ink);
+}
+
+/* 「下次 11-01」是这张行最重要的信息 —— 比金额还重要，所以给它一点强调 */
+.rcm-row__next {
+  flex: none;
+  padding: 3px 10px;
+  border-radius: var(--r-pill);
+  background: var(--c-accent-1);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--c-primary);
+  white-space: nowrap;
+}
+
+.rcm-row__next--none {
+  background: var(--c-parchment);
+  color: var(--c-ink-muted-48);
+}
+
+.rcm-row__warn {
+  flex: none;
+  display: grid;
+  place-items: center;
+  color: var(--c-danger);
+}
+
+.rcm-row__warn--soft {
+  color: var(--c-ink-muted-48);
+}
+
+.rcm-row__acts {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* --------- 预览 / 已生成 面板 --------- */
+.rcm-panel__cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-top: 12px;
+}
+
+.rcm-panel__h {
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--c-ink);
+}
+
+.rcm-panel__list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rcm-panel__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: var(--r-md);
+  background: var(--c-parchment);
+  font-size: 13px;
+}
+
+.rcm-panel__item > span:first-child {
+  flex: none;
+  font-weight: 600;
+}
+
+.rcm-panel__item .btn {
+  margin-left: auto;
+}
+
+.rcm-panel__item.is-deleted {
+  opacity: 0.6;
+  text-decoration: line-through;
+}
+
+/* ==========================================================================
+   十四、响应式
+   ========================================================================== */
+
+/* --------- 桌面（≥1024px）：左侧导航栏承担品牌 / 导航 / 用户 --------- */
+@media (min-width: 1024px) {
+  .shell .app-bar {
+    display: none;
+  }
+}
+
+/* --------- 平板与手机（≤1023px）：收起侧栏，改顶栏 + 底部 TabBar --------- */
+@media (max-width: 1023px) {
+  .shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sidebar {
+    display: none;
+  }
+
+  .tabbar {
+    display: block;
+  }
+
+  .page {
+    max-width: calc(var(--w-content) + var(--gutter) * 2);
+    padding: 24px var(--gutter) calc(64px + var(--tabbar-h));
+  }
+
+  /* 记账页不挂 TabBar，也就不该给底部导航留位（docs/13 §4.1「全屏页」） */
+  .page--compose {
+    padding-bottom: 24px;
+  }
+
+  .compose {
+    max-width: 100%;
+  }
+
+  .page__hero h1 {
+    font-size: 26px;
+  }
+
+  /* 页脚也要让出底部导航的高度 */
+  .footer-min {
+    padding-bottom: calc(20px + var(--tabbar-h));
+  }
+
+  .flow-cell {
+    padding: 16px;
+  }
+
+  .flow-cell__value {
+    font-size: 19px;
+  }
+}
+
+@media (max-width: 900px) {
+  .auth-card {
+    grid-template-columns: 0.85fr 1fr;
+  }
+
+  .auth-card__aside {
+    padding: 32px 24px;
+  }
+
+  .auth-card__form {
+    padding: 32px 24px;
+  }
+}
+
+/* --------- 触控设备（≤833px，平板纵向及以下）：交互控件抬到 44px 底线 ---------
+   00-DESIGN：交互目标 Minimum 44×44px。桌面上的密集选择器可走「precision desktop
+   action」例外，触屏不行 —— 这里把所有低于 44 的选择器统一提到 44。 */
+@media (max-width: 833px) {
+  .segmented__item,
+  .cat-chip {
+    height: 44px;
+  }
+
+  .chip {
+    min-height: 44px;
+  }
+
+  .swatch {
+    width: 44px;
+    height: 44px;
+  }
+
+  /* 记账页：单列 + 操作栏落底。
+     键盘弹出时由 JS 写 --keyboard-height（docs/09 §3.3），
+     操作栏整体上移，保证金额框与提交键同时在视口内。
+     用 sticky 而非 fixed —— iOS Safari 的 fixed 在键盘弹出时会错位。 */
+  .compose {
+    gap: 16px;
+  }
+
+  .compose__head h1 {
+    font-size: 21px;
+  }
+
+  .compose__card {
+    border-radius: var(--r-lg);
+    padding: 20px 16px;
+  }
+
+  .amount-input {
+    height: 56px;
+    font-size: 26px;
+  }
+
+  .option-chip {
+    min-height: 44px;
+  }
+
+  /* 回访横幅的两个动作在触屏上并列铺满，别把「丢弃」做成一个 30px 的小目标 */
+  .form-draft__act {
+    flex: 1 1 100%;
+  }
+
+  .form-draft__act .btn {
+    flex: 1 1 auto;
+    min-height: 44px;
+  }
+
+  .action-bar {
+    position: sticky;
+    bottom: 0;
+    z-index: 10;
+    margin: 0 -16px calc(-1 * var(--keyboard-height, 0px));
+    padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+    border-radius: var(--r-lg) var(--r-lg) 0 0;
+    border-bottom: 0;
+    /* 落底的操作栏要「压住」滚动内容：用磨砂浮层语法，与顶栏/TabBar 同源 */
+    background: var(--c-frost-bg-strong);
+    -webkit-backdrop-filter: var(--frost-blur);
+    backdrop-filter: var(--frost-blur);
+    border-top: 1px solid var(--c-hairline-soft);
+    transition: margin-bottom var(--d-state) var(--e-standard);
+  }
+}
+
+@media (max-width: 734px) {
+  /* 往来页：三张卡竖排（数字太长，横排会被压到看不清） */
+  .debt-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .debt-row__act {
+    flex: 1 1 100%;
+  }
+
+  .debt-row__act .btn {
+    flex: 1 1 auto;
+    min-height: 44px;
+  }
+
+  .debt-row__hist > summary {
+    min-height: 44px;
+  }
+
+  .auth-card {
+    grid-template-columns: 1fr;
+    max-width: 460px;
+    border-radius: var(--r-lg);
+  }
+
+  .auth-card__aside {
+    display: none;
+  }
+
+  .auth-brand-sm {
+    display: inline-flex;
+  }
+
+  .auth-card__form {
+    padding: 32px 24px 32px;
+    gap: 20px;
+  }
+
+  .user-chip__name {
+    display: none;
+  }
+
+  .networth {
+    padding: var(--s-md);
+  }
+
+  .networth__value {
+    font-size: 32px;
+  }
+
+  .flow-cell__value {
+    font-size: 17px;
+  }
+
+  .segmented {
+    width: 100%;
+  }
+
+  .segmented__item {
+    flex: 1;
+    padding: 0 8px;
+  }
+
+  /* 移动端：名称至少占一半宽度，放不下时动作整行右对齐，避免名称被截断 */
+  .acct-row__actions {
+    flex-basis: 100%;
+    justify-content: flex-end;
+    margin-left: 0;
+  }
+
+  .tag-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* --------- 手机（≤640px）：工具网格按文档阶梯显式塌成单列 ---------
+   00-DESIGN 折叠策略：工具网格 5 → 4(1440) → 3(1068) → 2(834) → 1(640)。
+   601–833 交给自适应出 2 列，640 以下不再依赖自适应、显式单列。 */
+@media (max-width: 640px) {
+  .grid-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .stat-strip {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* --------- 小手机（≤480px，与 00-DESIGN 结构断点同源） --------- */
+@media (max-width: 480px) {
+  .tt-display-lg {
+    font-size: 26px;
+  }
+
+  .page__hero h1 {
+    font-size: 23px;
+  }
+
+  .card {
+    padding: var(--s-md);
+  }
+
+  .auth-card__form {
+    padding: 24px 16px 24px;
+  }
+
+  .networth__value {
+    font-size: 28px;
+  }
+
+  .flow-cell {
+    padding: 12px;
+  }
+
+  .flow-cell__value {
+    font-size: 16px;
+  }
+
+  .acct-row {
+    padding: 12px 16px;
+  }
+
+  .cat-chip {
+    max-width: 100%;
+  }
+
+  .cat-block__actions .btn {
+    padding: 0 12px;
+  }
+}
+
+/* --------- 账单列表 / 详情：断点对应的列裁剪与触控目标 ---------
+   docs/13 §9.3 的行内信息分档：
+     ≥1068px  6 列（时间·分类·名称·账户·商家对象·金额）
+     834–1067 4 列（时间与商家对象收进日期组 / 名称列）
+     ≤833px   两行卡片（第 1 行 分类 + 金额，第 2 行 名称·账户·商家） */
+@media (max-width: 1067px) {
+  .tx-row {
+    grid-template-columns:
+      28px minmax(0, 1.2fr) minmax(0, 1.4fr) minmax(0, 1fr) auto auto 44px;
+  }
+
+  .tx-row__time,
+  .tx-row__extra {
+    display: none;
+  }
+
+  .txd {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 1023px) {
+  /* 顶栏在移动端是 sticky 的（z-index 20），工具栏必须让开它的高度 */
+  .tx-toolbar {
+    top: var(--nav-h);
+  }
+
+  /* 批量选择条要让开底部 TabBar，否则按钮被压住点不到 */
+  .tx-selectbar {
+    bottom: var(--tabbar-h);
+  }
+}
+
+@media (max-width: 833px) {
+  .tx-toolbar {
+    padding: 12px 16px;
+  }
+
+  /* 触屏：所有可点元素抬到 44px 底线（00-DESIGN Min 44×44）。
+     注意抬的是**输入框本身**而不只是外框 —— input 若保持自然行高（约 22px），
+     点搜索框上下留白不会聚焦，光标也落在 22px 的窄条里，触屏体验是错的。 */
+  .tx-pill,
+  .tx-search,
+  .chip--mini {
+    height: 44px;
+  }
+
+  .tx-search__input {
+    min-height: 44px;
+  }
+
+  .tx-row__more {
+    width: 44px;
+    height: 44px;
+  }
+
+  .tx-row__pick input {
+    width: 20px;
+    height: 20px;
+  }
+
+  /* 两行卡片式：分类 + 金额 在上，名称·账户·商家 在下 */
+  .tx-row {
+    grid-template-columns: auto minmax(0, 1fr) auto 44px;
+    grid-template-areas:
+      'pick subject amt more'
+      'pick meta    meta meta';
+    align-items: start;
+    gap: 8px 12px;
+    padding: 12px 16px;
+  }
+
+  .tx-row__pick {
+    display: none;
+    grid-area: pick;
+    align-self: center;
+    opacity: 1;
+  }
+
+  .tx-list.is-selecting .tx-row__pick {
+    display: flex;
+  }
+
+  .tx-row__subject {
+    grid-area: subject;
+  }
+
+  .tx-row__amt {
+    grid-area: amt;
+  }
+
+  .tx-row__more {
+    grid-area: more;
+  }
+
+  .tx-row__meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 8px;
+    grid-area: meta;
+    min-width: 0;
+  }
+
+  /* 两行式把「商家/对象」重新放出来（第二行有三个位置，比桌面/平板宽裕） */
+  .tx-row__extra {
+    display: inline;
+  }
+
+  .tx-row__name,
+  .tx-row__acct {
+    max-width: 100%;
+  }
+
+  .tx-row__menu {
+    right: 16px;
+  }
+
+  .tx-sum__value {
+    font-size: 14px;
+  }
+
+  .tx-selectbar {
+    flex-wrap: wrap;
+  }
+
+  .tx-selectbar__count {
+    flex: 1 1 100%;
+  }
+
+  .txd__amount {
+    font-size: 26px;
+  }
+}
+
+@media (max-width: 480px) {
+  .tx-toolbar {
+    padding: 8px 12px;
+  }
+
+  .tx-filters__row {
+    flex-wrap: wrap;
+  }
+
+  .tx-search {
+    flex: 1 1 100%;
+    order: -1;
+  }
+
+  .tx-day__head {
+    align-items: flex-start;
+  }
+}
+
+/* --------- 记账页改版：≤833px 的形态切换 ---------
+   浮层从「触发器下方的下拉」变成「底部 Sheet」。这是移动端记账的实际需求：
+   拇指在屏幕下半部，下拉面板会跑到键盘/拇指上方，Sheet 才在够得着的范围里。
+   （与 docs/13 §4.5 对分类选择器「移动端底部 Sheet」的原始规定一致。） */
+@media (max-width: 833px) {
+  /* 遮罩从「透明捕获层」变成真暗底 —— Sheet 需要有背景分离 */
+  .scrim:not([hidden]) {
+    background: rgba(0, 0, 0, 0.28);
+  }
+
+  .mega {
+    position: fixed;
+    top: auto;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 31;
+    width: auto;
+    max-width: none;
+    max-height: 78dvh;
+    padding: 16px 20px calc(20px + env(safe-area-inset-bottom, 0px));
+    border: 0;
+    border-radius: var(--r-lg) var(--r-lg) 0 0;
+  }
+
+  /* 三列改三段竖排：390px 放不下 226px 的类型列。
+     第 1、2 段变成可横滑的 pill 带（与 TabBar 的横向语义同源），
+     第 3 段（二级分类）保持换行平铺 —— 它才是真正要「挑一个」的地方。 */
+  .mega--pick {
+    padding: 0 0 env(safe-area-inset-bottom, 0px);
+  }
+
+  .mega__panes,
+  .mega__panes[data-mode='leaf-less'],
+  .mega__panes[data-mode='search'] {
+    grid-template-columns: minmax(0, 1fr);
+    overflow-y: auto;
+  }
+
+  .mega__col {
+    max-height: none;
+    overflow: visible;
+    padding: 12px 16px;
+  }
+
+  .mega__col + .mega__col {
+    border-left: 0;
+    border-top: 1px solid var(--c-divider-soft);
+  }
+
+  /* 第 1 段（类型）：两组并成一条横滑带，分组标题在带子里只会挡路 */
+  .mega__col--type {
+    display: flex;
+    flex-direction: row;
+    gap: 6px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .mega__col--type .mega__col-title,
+  .mega__col--type .mega__item-hint {
+    display: none;
+  }
+
+  .mega__col--type .mega__group {
+    display: flex;
+    flex-direction: row;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+
+  /* 第 2 段（一级分类）：竖列表 → 横滑 pill 带 */
+  .mega__panes[data-mode='cascade'] .mega__col--parent {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .mega__panes[data-mode='cascade'] .mega__col--parent .mega__col-title {
+    display: none;
+  }
+
+  .mega__col--parent .mega__list {
+    flex-direction: row;
+    gap: 6px;
+  }
+
+  .mega__item,
+  .mega__navitem {
+    flex: none;
+    width: auto;
+    min-height: 44px;
+    padding: 0 14px;
+    border: 1px solid var(--c-hairline);
+    border-radius: var(--r-pill);
+  }
+
+  .mega__item.is-on,
+  .mega__navitem.is-on {
+    border-color: var(--c-primary-focus);
+  }
+
+  /* 建议条：chip 改成一条横滑带，9 个 chip 铺满会吃掉半个屏幕 */
+  .mega__suggest {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+    padding: 10px 16px;
+  }
+
+  .mega__suggest-badge {
+    height: auto;
+  }
+
+  .mega__suggest-chips {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .suggest-chip {
+    flex: none;
+    height: 44px;
+  }
+
+  .mega__head {
+    padding: 6px 16px;
+  }
+
+  .mega__search {
+    height: 44px;
+  }
+
+  .mega__foot {
+    padding: 10px 16px;
+  }
+
+  .mega__clear {
+    min-height: 44px;
+    padding: 0 8px;
+  }
+
+  /* 触控底线 44×44（00-DESIGN Min 44×44） */
+  .suffix-x {
+    width: 44px;
+    height: 44px;
+  }
+
+  .tag-new__foot .btn {
+    flex: 1 1 auto;
+  }
+
+  /* 账户 + 金额小屏堆叠：390px 挤一行会把账户名截成「招商银行…」，
+     而账户名与余额正是「这笔记在哪张卡上」的唯一凭据，不能省 */
+  .field-row--money {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .field-row--money > .field,
+  .field-row--money > .field.amount-field {
+    flex: 1 1 auto;
+    width: 100%;
+  }
+
+  .field-row--money .input.select {
+    height: 48px;
+  }
+
+  /* 日期与时间同理：日期格里的「今天/昨天/前天」快捷 chips 需要整行宽度 */
+  .field-row--when {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .field-row--when > .field {
+    flex: 1 1 auto;
+    width: 100%;
+  }
+}
+
+@media (max-width: 833px) {
+  /* 模板面板在移动端是**底部 Sheet**，不是 TabBar 上方的小浮层：
+     触发器在屏幕最底部，向上弹的浮层会被拇指挡住，且可选范围只有 420px 宽。
+     Sheet 铺满宽度、贴底、上圆角，与记账页的分类 / 标签 Sheet 同一套语法。 */
+  .mega--tpl {
+    top: auto;
+    bottom: 0;
+    left: 0;
+    transform: none;
+    width: 100%;
+    max-width: none;
+    max-height: min(70vh, 520px);
+    border-radius: var(--r-lg) var(--r-lg) 0 0;
+    border-bottom: 0;
+  }
+
+  /* 触控底线 44×44（00-DESIGN Min 44×44） */
+  .tpl-panel__x {
+    width: 44px;
+    height: 44px;
+  }
+
+  .tpl-row {
+    min-height: 56px;
+  }
+
+  .form-note > .btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+/* 周期账单在窄屏改为纵向堆叠：行内五个动作横排会挤爆，筛选与金额各占一行 */
+@media (max-width: 833px) {
+  .rcm-row {
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+
+  .rcm-row__main {
+    flex-basis: 100%;
+  }
+
+  .rcm-row__acts {
+    flex-basis: 100%;
+    overflow-x: auto;
+  }
+
+  /* 触控底线 44×44 */
+  .rcm-row__acts .btn {
+    min-height: 44px;
+  }
+
+  .rcm-panel__cols {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ==========================================================================
+   十三·补充八、分期账单
+   ========================================================================== */
+
+/* 概览条在页面顶层，自己补上边距（`.stat-strip` 是纯 grid，不带外部间距） */
+.inst__strip {
+  margin-top: 16px;
+}
+
+.inst-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.inst-group {
+  margin: 24px 0 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--c-ink-muted-48);
+}
+
+.inst-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* 已结清 / 已取消的分期不参与「还要操心」的视觉竞争，压到羊皮纸底 */
+.inst-card.is-done {
+  background: var(--c-parchment);
+}
+
+.inst-card__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.inst-card__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.inst-card__grand {
+  flex: none;
+  font-size: 21px;
+  font-weight: 600;
+  letter-spacing: -0.022em;
+  color: var(--c-ink);
+}
+
+.inst-card__warn {
+  flex: none;
+  display: grid;
+  place-items: center;
+  color: var(--c-danger);
+}
+
+.inst-card__warn--soft {
+  color: var(--c-ink-muted-48);
+}
+
+/* 进度条：只表达「还到第几期」，不承担金额比例含义，所以不需要数字标签 */
+.inst-card__bar {
+  height: 6px;
+  margin-top: 4px;
+  border-radius: var(--r-pill);
+  background: var(--c-hairline);
+  overflow: hidden;
+}
+
+.inst-card__bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: var(--r-pill);
+  background: var(--c-primary);
+}
+
+.inst-card.is-done .inst-card__bar-fill {
+  background: var(--c-success);
+}
+
+/* 包一层：让内部第一条 `.recon-line` 成为 `:first-child`，从而丢掉自己的 border-top */
+.inst-card__lines {
+  display: flex;
+  flex-direction: column;
+  margin-top: 4px;
+}
+
+/* --------- 期明细 --------- */
+
+.inst-sched {
+  display: flex;
+  flex-direction: column;
+  margin-top: 12px;
+  border-top: 1px solid var(--c-hairline);
+}
+
+.inst-sched__row {
+  display: grid;
+  grid-template-columns: 64px 88px 1fr auto auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--c-hairline);
+}
+
+.inst-sched__row:last-child {
+  border-bottom: 0;
+}
+
+.inst-sched__row.is-paid {
+  color: var(--c-ink-muted-48);
+}
+
+.inst-sched__seq {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.inst-sched__due {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.011em;
+  color: var(--c-ink);
+  /* 金额永远不断行：窄屏上被折成两行的「¥1,000.00」读起来像两个数字 */
+  white-space: nowrap;
+}
+
+.inst-sched__row.is-paid .inst-sched__due {
+  color: var(--c-ink-muted-48);
+}
+
+.inst-sched__state {
+  justify-self: end;
+}
+
+@media (max-width: 833px) {
+  /**
+   * 窄屏把五列压成两行四列：
+   *
+   *   第 3 期     2026-12-01              ¥1,000.00
+   *   本金 ¥1,000.00                        标记已还
+   *
+   * 第一版是按 `nth-child` 硬塞行号、没写列号，于是自动布局把「应还」和
+   * 「标记已还」都丢进第 1 行，而金额列只剩不到 60px —— 金额被折成两行、
+   * 序号跑到右边。这个组合里**每一项都必须在同一时刻指明行与列**，
+   * 让 grid 没有机会自己猜。
+   */
+  .inst-sched__row {
+    grid-template-columns: auto auto 1fr auto;
+    row-gap: 2px;
+    padding: 12px 0;
+  }
+
+  .inst-sched__row > :nth-child(1) {
+    grid-area: 1 / 1 / 2 / 2;
+  }
+
+  .inst-sched__row > :nth-child(2) {
+    grid-area: 1 / 2 / 2 / 4;
+  }
+
+  .inst-sched__row > :nth-child(3) {
+    grid-area: 2 / 1 / 3 / 4;
+  }
+
+  .inst-sched__row > :nth-child(4) {
+    grid-area: 1 / 4 / 2 / 5;
+  }
+
+  .inst-sched__row > :nth-child(5) {
+    grid-area: 2 / 4 / 3 / 5;
+    justify-self: end;
+  }
+
+  .inst-sched__state .btn {
+    min-height: 44px;
+  }
+}
+
+/* ==========================================================================
+   十三·补充九、预算
+   ========================================================================== */
+
+/* 月份选择器：宽度固定，别让「2026 年 10 月」把 hero 行的按钮挤走 */
+.bdg__month {
+  min-height: 36px;
+  padding: 0 28px 0 12px;
+  font-size: 13px;
+}
+
+.bdg__summary {
+  margin-top: 16px;
+}
+
+.bdg-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.bdg__foot {
+  margin-top: 16px;
+}
+
+.bdg-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.bdg-card.is-over {
+  border-color: var(--c-danger);
+}
+
+.bdg-card__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.bdg-card__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.bdg-card__amt {
+  flex: none;
+  font-size: 21px;
+  font-weight: 600;
+  letter-spacing: -0.022em;
+  color: var(--c-ink);
+}
+
+.bdg-card__bar {
+  height: 6px;
+  margin-top: 4px;
+  border-radius: var(--r-pill);
+  background: var(--c-hairline);
+  overflow: hidden;
+}
+
+.bdg-card__bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: var(--r-pill);
+  background: var(--c-primary);
+}
+
+.bdg-card__bar-fill.is-over {
+  background: var(--c-danger);
+}
+
+/**
+ * 时间进度线：一条**细**的、发丝级的线，画在预算进度条**上方**。
+ *
+ * 为什么是两条而不是一条：单看「已用 50%」无法判断是超前还是落后 ——
+ * 月中用掉一半，既可能刚好按节奏也可能超前。两条线并排才看得出节奏，
+ * 而「节奏」才是用户唯一需要做决策的东西。
+ *
+ * 用 muted 而非强调色：它不是可点击的东西，不该有交互色的权重。
+ */
+.bdg-card__time {
+  height: 2px;
+  margin-top: 4px;
+  border-radius: var(--r-pill);
+  background: var(--c-hairline);
+  overflow: hidden;
+}
+
+.bdg-card__time > span {
+  display: block;
+  height: 100%;
+  border-radius: var(--r-pill);
+  background: var(--c-ink-muted-48);
+}
+
+/* 节奏结论：这一句是本页最可行动的信息，字号给 body 而不是 caption */
+.bdg-card__pace {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--c-ink);
+}
+
+.bdg__alloc {
+  margin: 8px 0 0;
+  font-size: 13px;
+}
+
+.bdg-transfers {
+  margin-top: 12px;
+  border-top: 1px solid var(--c-hairline);
+}
+
+.bdg-transfer-note {
+  margin: -4px 0 8px;
+}
+
+/* ==========================================================================
+   十三·补充十、统计
+   ========================================================================== */
+
+.st-trend {
+  padding-top: 8px;
+  color: var(--c-ink-muted-48);
+}
+
+/* 两列各占一半；≤833px 叠成一列（此时 SVG 的 preserveAspectRatio 会拉扁，可读性优先） */
+.st-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+.st-bar {
+  height: 4px;
+  margin: -6px 0 2px;
+  border-radius: var(--r-pill);
+  background: var(--c-hairline);
+  overflow: hidden;
+}
+
+.st-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: var(--r-pill);
+  background: var(--c-ink-muted-48);
+}
+
+/* --------- 环形图（S-02） --------- */
+
+.st-donut-wrap {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.st-donut-wrap > svg {
+  flex: none;
+  color: var(--c-ink);
+}
+
+.st-legend {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+/** 图例行可点（下钻入口）。触控底线 44px 由下面的 media query 兜住 */
+.st-legend .recon-line {
+  cursor: pointer;
+  border-radius: var(--r-sm);
+}
+
+.st-legend .recon-line.is-clickable:hover {
+  background: var(--c-parchment);
+}
+
+.st-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--r-full);
+}
+
+/* --------- 预算执行（S-05）：上细下实，两条线一起看才有节奏 --------- */
+
+.st-budget + .st-budget {
+  margin-top: 12px;
+}
+
+.st-budget__time {
+  height: 2px;
+  margin-bottom: 3px;
+  border-radius: var(--r-pill);
+  background: var(--c-hairline);
+  overflow: hidden;
+}
+
+.st-budget__time > span {
+  display: block;
+  height: 100%;
+  background: var(--c-ink-muted-48);
+}
+
+.st-budget__act {
+  height: 6px;
+  border-radius: var(--r-pill);
+  background: var(--c-hairline);
+  overflow: hidden;
+}
+
+.st-budget__act > span {
+  display: block;
+  height: 100%;
+  border-radius: var(--r-pill);
+  background: var(--c-primary);
+}
+
+.st-budget__act > span.is-over {
+  background: var(--c-danger);
+}
+
+/* --------- 下钻（S-06） --------- */
+
+.st-drill {
+  margin-top: 12px;
+  border-top: 1px solid var(--c-hairline);
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+/* --------- 日历热力图（S-14） --------- */
+
+/**
+ * 分级用**中性色的透明度阶梯**而不是红绿：
+ * 「花得多」不是负面语义（可能是计划内的房租），
+ * 染红会让用户在看到正常支出时产生负罪感 —— 那是情绪，不是信息。
+ */
+.st-heat-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+
+.st-heat {
+  aspect-ratio: 1 / 1;
+  border-radius: 3px;
+  background: var(--c-hairline);
+}
+
+.st-heat--pad {
+  background: transparent;
+}
+
+.st-heat[data-level="1"] { background: var(--c-hairline-dark); }
+.st-heat[data-level="2"] { background: var(--c-ink-muted-48); }
+.st-heat[data-level="3"] { background: var(--c-ink-muted-80); }
+.st-heat[data-level="4"] { background: var(--c-ink); }
+
+/* 环比那行：把「日均 / 总额」两个口径并排说清楚 */
+.st-compare {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: baseline;
+  margin: 8px 0 0;
+}
+
+@media (max-width: 833px) {
+  .st-legend .recon-line {
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 833px) {
+  .st-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ==========================================================================
+   十三·补充十一、数据导入
+   ========================================================================== */
+
+/* --- 导入① 文件选择区（00-DESIGN：单一 Action Blue、parchment 浅底、18px 卡片圆角、44px 触控）---
+   原生 file input 无法样式化，把它收进按钮里（.visually-hidden），
+   外层做成可点击 / 可拖拽的落区：默认 hairline 虚线 + 羊皮纸底，
+   悬停 / 拖拽 / 已选 一律转 Action Blue 实线描边 —— 唯一的强调色承担「可点击」语义。
+   无装饰阴影、无渐变（遵循文档：阴影只给产品图，UI 靠面色与描边分层）。 */
+.dropzone {
+  -webkit-appearance: none;
+  appearance: none;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  min-height: 88px;
+  padding: 20px 24px;
+  background: var(--c-parchment);
+  border: 1px dashed var(--c-hairline);
+  border-radius: var(--r-lg);
+  color: var(--c-ink);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color var(--d-state) var(--e-standard),
+    background var(--d-state) var(--e-standard);
+}
+
+.dropzone:hover,
+.dropzone:focus-visible {
+  border-color: var(--c-primary);
+  border-style: solid;
+  background: var(--c-accent-1);
+  outline: none;
+}
+
+.dropzone:focus-visible {
+  outline: 2px solid var(--c-primary-focus);
+  outline-offset: 2px;
+}
+
+/* 拖拽悬停：比 hover 更亮一档，给明确的「松手即放入」反馈 */
+.dropzone.is-drag {
+  border-color: var(--c-primary);
+  border-style: solid;
+  background: var(--c-accent-2);
+}
+
+/* 已选文件：保持蓝边，让用户知道「这一份就是待导入的」 */
+.dropzone.is-filled {
+  border-color: var(--c-primary);
+  border-style: solid;
+  background: var(--c-accent-1);
+}
+
+.dropzone__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  flex: none;
+  border-radius: var(--r-full);
+  background: var(--c-accent-2);
+  color: var(--c-primary);
+}
+
+.dropzone__body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+
+.dropzone__title {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.374px;
+  line-height: 1.24;
+  color: var(--c-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dropzone__hint {
+  font-size: 14px;
+  line-height: 1.43;
+  letter-spacing: -0.224px;
+  color: var(--c-ink-muted-48);
+}
+
+.dropzone__check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  border-radius: var(--r-full);
+  background: var(--c-accent-3);
+  color: var(--c-primary);
+}
+
+.dropzone__check[hidden] {
+  display: none;
+}
+
+/* 已选文件后的「移除」：安静的描边胶囊，文字用强调色但不抢主操作。
+   圆角走 pill —— 与文档「可点击 = pill」一致，但用透底 + 描边压低重量。 */
+.dropzone__remove {
+  -webkit-appearance: none;
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 44px;
+  margin-top: 8px;
+  padding: 8px 14px;
+  background: transparent;
+  border: 1px solid var(--c-hairline);
+  border-radius: var(--r-pill);
+  color: var(--c-primary);
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.29;
+  letter-spacing: -0.224px;
+  cursor: pointer;
+  transition:
+    background var(--d-state) var(--e-standard),
+    border-color var(--d-state) var(--e-standard);
+}
+
+.dropzone__remove:hover {
+  background: var(--c-accent-1);
+  border-color: var(--c-primary);
+}
+
+.dropzone__remove:focus-visible {
+  outline: 2px solid var(--c-primary-focus);
+  outline-offset: 2px;
+}
+
+.dropzone__remove[hidden] {
+  display: none;
+}
+
+.imp-preview {
+  margin-top: 4px;
+}
+
+/* 预览表要能横向滚：列数由用户文件决定，窄屏下挤成 0 列比滚一下糟糕得多 */
+.imp-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--c-hairline);
+  border-radius: var(--r-md);
+}
+
+.imp-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.imp-table th,
+.imp-table td {
+  padding: 8px 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--c-hairline);
+}
+
+.imp-table th {
+  position: sticky;
+  top: 0;
+  background: var(--c-parchment);
+  font-weight: 600;
+  color: var(--c-ink);
+}
+
+.imp-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.imp-table tr.is-bad td {
+  background: var(--c-danger-bg);
+}
+
+/* 导入报告失败行：竖向（多行）与横向（超宽原值/原因）都可滚动，
+   overflow:auto 同时开启两轴 —— 修掉「仅能上下滚、超宽内容被截断」的问题。 */
+.imp-errors {
+  margin-top: 8px;
+  max-height: 360px;
+  overflow: auto;
+}
+
+/* 报告表的「原因」列允许换行（其余列 nowrap，超宽时整体横向滚动） */
+.imp-report td:last-child {
+  white-space: normal;
+  min-width: 220px;
+}
+
+/* --- 映射表单：必填 / 可折叠可选 / 导入设置 ---
+   为什么不用 `.field-row` 排：它是 `align-items: flex-end` 的 flex，
+   而每个字段底部的提示文字行数不同 → 标签高低错落（截图里就是那个样子）。
+   映射项本来就该「标签对齐标签、控件对齐控件」，所以用 grid + `align-items: start`。 */
+.map-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.map-block__head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.map-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+/* ⚠️ 必须显式写：作者样式的 `.map-grid{display:grid}` 会盖掉 UA 的
+   `[hidden]{display:none}`，于是 `hidden` 属性**完全失效**，折叠区永远展开。 */
+.map-grid[hidden] {
+  display: none;
+}
+
+.map-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--c-hairline);
+  border-radius: var(--r-card);
+  background: var(--c-canvas);
+}
+
+.map-item__head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 20px;
+}
+
+.map-item__hint {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--c-ink-muted-48);
+}
+
+/* 已映射：左侧一条强调色细边 + 浅底。
+   用「结构差异」而不是只改文字色 —— 一屏 6 个下拉，只改颜色扫不出来。 */
+.map-item.is-mapped {
+  border-color: var(--c-primary);
+  background: var(--c-accent-3);
+}
+
+.map-item__flag {
+  display: none;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--c-primary);
+}
+
+.map-item.is-mapped .map-item__flag {
+  display: inline-flex;
+}
+
+.map-item__flag[hidden] {
+  display: none;
+}
+
+/* 必填未映射：整块换危险色边 + 标签变色，配一个「未映射」标签。
+   这是唯一需要"喊"的状态，其余一律克制。 */
+.map-item.is-missing {
+  border-color: var(--c-danger);
+  background: var(--c-danger-bg);
+}
+
+.map-item.is-missing .field__label {
+  color: var(--c-danger);
+}
+
+.map-more {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px dashed var(--c-hairline);
+  border-radius: var(--r-card);
+  background: transparent;
+  color: var(--c-ink-muted-80);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.map-more:hover {
+  background: var(--c-parchment);
+  border-color: var(--c-ink-muted-48);
+}
+
+.map-more:focus-visible {
+  outline: 2px solid var(--c-primary);
+  outline-offset: -2px;
+}
+
+.map-more__label {
+  flex: 1;
+}
+
+/* 折叠区里已有映射项时的提示点：收起状态下唯一能看出来的信号 */
+.map-more__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--c-primary);
+  flex: none;
+}
+
+.map-more__dot[hidden] {
+  display: none;
+}
+
+.map-more__chev {
+  display: inline-flex;
+  color: var(--c-ink-muted-48);
+  transition: transform 0.18s ease;
+}
+
+.map-more[aria-expanded='true'] .map-more__chev {
+  transform: rotate(180deg);
+}
+
+/* --- 文件字段对照（导入页②） ---
+   逐列交代文件里每一列的顺序 / 类型 / 取值域 / 必填 / 去向。
+   用 <details> 收纳：17 列全展开会把 20 行预览挤到折叠线以下，
+   而这恰恰是导入前最该被看见的信息 —— 所以识别为本系统格式时默认展开。 */
+.col-ref {
+  margin-top: 4px;
+}
+
+.col-ref > summary {
+  padding: 12px 16px;
+  border: 1px solid var(--c-hairline);
+  border-radius: var(--r-card);
+  background: var(--c-canvas);
+  cursor: pointer;
+  list-style: none;
+}
+
+.col-ref > summary::-webkit-details-marker {
+  display: none;
+}
+
+.col-ref > summary::before {
+  content: '▸';
+  display: inline-block;
+  margin-right: 8px;
+  color: var(--c-ink-muted-80);
+  transition: transform 0.15s ease;
+}
+
+.col-ref[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.col-ref .imp-table-wrap {
+  margin-top: 8px;
+}
+
+/* 说明列要能换行：这列是整张表唯一承载「为什么不读」的地方，
+   nowrap 会把它拉成一条几百像素的长条，把其它列全推出视口。 */
+.col-ref__table td:last-child {
+  white-space: normal;
+  min-width: 240px;
+}
+
+/* 被读取的列底色略深，让「17 列里读了哪几列」一眼可见 */
+.col-ref__row--used td {
+  background: var(--c-parchment);
+}
+
+.badge.is-req {
+  border-color: var(--c-primary);
+  color: var(--c-primary);
+}
+
+/* ==========================================================================
+   十三·补充十二、R-02 差异归因
+   ========================================================================== */
+
+.recon__attr {
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--c-divider-soft);
+}
+
+.recon__attr-item {
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 0;
+}
+
+.recon__attr-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* 金额输入宽度固定，别让「勾选框 + 文案 + 输入框」把 check 撑成整行 */
+.recon__attr-amt {
+  flex: none;
+  width: 96px;
+  min-height: 36px;
+  text-align: right;
+}
+
+/* ==========================================================================
+   十三·补充十三、R-13 凭证附件
+   ========================================================================== */
+
+.txd__thumb {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  object-fit: cover;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--c-hairline);
+}
+
+.txd__fileicon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  color: var(--c-ink-muted-48);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ==========================================================================
+   十四、触控目标补齐（00-DESIGN §Responsive › Touch Targets）
+   ========================================================================== */
+
+/**
+ * 文档：最小 44 × 44px；例外只有「全局导航的精度操作（~32×80，桌面专用）」。
+ *
+ * 桌面端 `.segmented__item`(34) / `.cat-chip`(32) / `.chip`(~40) / `.swatch`(32)
+ * 属**密集选择器**，保留小尺寸是文档允许的「precision action」精神 ——
+ * 但**移动端没有鼠标**，这条豁免不成立，必须提到 44。
+ *
+ * 所以只在 ≤833px（侧栏已收、TabBar 已出）统一提上来，
+ * 桌面观感完全不变。这是「分级处理」而不是一刀切把界面撑大。
+ */
+@media (max-width: 833px) {
+  .swatch {
+    width: 44px;
+    height: 44px;
+  }
+
+  .segmented__item,
+  .cat-chip,
+  .chip {
+    min-height: 44px;
+  }
+}
+
+/**
+ * ≥1441px：内容锁定 1440px，多出来的宽度由页边吸收（文档 Wide desktop 一行）。
+ * 当前内容列本来就是 1120，这条是显式兜底 —— 防止将来放宽列宽后在大屏上无限拉伸。
+ */
+@media (min-width: 1441px) {
+  .shell {
+    max-width: 1440px;
+  }
+}
+
+/* ==========================================================================
+   十五、往来页细节（空态 / 超长文本 / 金额对齐 / 超额结清）
+   ========================================================================== */
+
+/**
+ * 超长名称省略。`debt-row__text` 是 flex 子项，
+ * 只给 `min-width: 0` 才能真正让 ellipsis 生效 ——
+ * 少了这一行，`text-overflow` 会被 flex 的 min-content 撑开而完全不起作用。
+ */
+.debt-row__text {
+  min-width: 0;
+}
+
+.debt-row__name {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 16em;
+}
+
+/** 金额列：等宽数字 + 右对齐，保证纵向逐位可比 */
+.debt-row__amount,
+.debt-row__out,
+.debt-row__done-n,
+.debt-card__value {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/**
+ * 超额结清：语义色只出现在**文字与描边**上，不作填充
+ * （`docs/11 §1.2` 扩充 A 的纪律）。视觉警示由文字与左侧描边承担。
+ */
+.debt-row.is-over {
+  border-left: 2px solid var(--c-danger);
+}
+
+.debt-row__out.is-over {
+  color: var(--c-danger);
+}
+
+/* ==========================================================================
+   十六、统计页筛选区 + 图表可点（任务 3）
+   ========================================================================== */
+
+/**
+ * 筛选区栅格：`auto-fit minmax(160px, 1fr)`。
+ *
+ * 为什么不是固定三列：筛选项的**文字长度差异极大**
+/**
+ * 筛选工具条（模块 1）：一行，不是一张表单。
+ *
+ *   分段账期 │ 来源 · 类型 · 分类 │ 搜索 │ 导出 · 导入
+ *
+ * 为什么不给控件挂 label：旧版 8 个带 label 的下拉排满两行、吃掉 200px+ 高度，
+ * 而筛选是「改一下就看结果」的高频微调，不该占据报表页的主视觉高度。
+ * 控件少且自述性强（「全部来源」「全部类型」本身就是说明），
+ * 占位文本就是标签 —— 这是主流记账 App 的通行做法。
+ */
+.st-filter__card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-sm);
+}
+
+/**
+ * 横向 8px、纵向 12px。
+ *
+ * 同一行内的控件彼此更近（它们是一次筛选动作的几个部分），
+ * 换行之后的两行则更远 —— 间距必须能表达这个亲疏差异，
+ * 用同一个 gap 会让「掉到第二行的按钮组」看起来还属于第一行。
+ */
+.st-filter__bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-sm) var(--s-xs);
+}
+
+.st-filter__seg {
+  flex: none;
+}
+
+/** 分段项比通用 .segmented__item 紧凑：工具条里它是高频控件，且旁边还有三个下拉 */
+.st-filter__segitem {
+  height: 32px;
+  padding: 0 10px;
+  font-size: 13px;
+  letter-spacing: -0.016em;
+}
+
+.st-filter__div {
+  flex: none;
+  width: 1px;
+  height: 20px;
+  background: var(--c-hairline);
+}
+
+.st-filter__picks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-xs);
+}
+
+/**
+ * 下拉 = 紧凑实用控件 → {rounded.sm}(8px)。
+ *
+ * 高度 32px 是桌面精密控件（00-DESIGN：全局导航的精密操作同样用更小的目标，
+ * 触屏时由汉堡菜单代替）；≤833px 时这里抬到 44px 触控底线（见下方媒体查询）。
+ */
+/**
+ * 下拉用**定宽**而不是 `min-width`。
+ *
+ * `<select>` 的固有宽度取自**最宽的那个 option**（不是当前选中的那个），
+ * 所以只要有一个「招商银行储蓄卡（工资卡）」，三个下拉就会各自撑到那个宽度，
+ * 工具条被迫换行。定宽后超长的选项在收起状态下由浏览器截断 ——
+ * 展开后的列表仍显示全部文本，信息没丢。
+ */
+.st-filter__pick {
+  width: 112px;
+  height: 32px;
+  padding: 0 26px 0 12px;
+  border: 1px solid var(--c-hairline);
+  border-radius: var(--r-sm);
+  background: var(--c-canvas);
+  font-size: 13px;
+  letter-spacing: -0.016em;
+  color: var(--c-ink);
+  cursor: pointer;
+  transition: border-color var(--d-state) var(--e-standard);
+}
+
+.st-filter__pick:hover {
+  border-color: var(--c-ink-muted-48);
+}
+
+.st-filter__pick:focus-visible {
+  outline: 2px solid var(--c-primary-focus);
+  outline-offset: 1px;
+}
+
+/** 分类下拉最宽：它的选项文本是「一级 › 二级」，短了会被裁 */
+.st-filter__pick--cat {
+  width: 148px;
+}
+
+/**
+ * 搜索框：00-DESIGN 的 search-input 是**胶囊**形（与 CTA 同一套语法），
+ * 前置 14px 静音图标。桌面这里取 32px 高与相邻下拉等高，
+ * ≤833px 抬到 44px。
+ */
+/**
+ * 搜索框**不参与伸缩**（flex-grow: 0）。
+ *
+ * 给它 grow 的话它会把按钮组挤到第二行 —— 而按钮组是这一排里
+ * 唯一「必须一直可见」的东西（导出/导入是主动作），
+ * 搜索框短一点用户还有 placeholder 兜着。
+ */
+.st-filter__search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 0 1 176px;
+  min-width: 148px;
+}
+
+.st-filter__search-ico {
+  position: absolute;
+  left: 12px;
+  display: flex;
+  color: var(--c-ink-muted-48);
+  pointer-events: none;
+}
+
+.st-filter__kw {
+  height: 32px;
+  padding: 0 14px 0 34px;
+  border-radius: var(--r-pill);
+  font-size: 13px;
+}
+
+.st-filter__acts {
+  display: flex;
+  align-items: center;
+  gap: var(--s-xs);
+  margin-left: auto;
+}
+
+/* --------- 自定义账期行 --------- */
+
+.st-filter__range {
+  display: flex;
+  align-items: center;
+  gap: var(--s-xs);
+}
+
+.st-filter__range-label {
+  font-size: 12px;
+  letter-spacing: -0.12px;
+  color: var(--c-ink-muted-48);
+}
+
+.st-filter__date {
+  width: auto;
+  height: 32px;
+  padding: 0 12px;
+  font-size: 13px;
+}
+
+.st-filter__tilde {
+  color: var(--c-ink-muted-48);
+}
+
+/* --------- 条件芯片 --------- */
+
+/**
+ * 条件芯片。
+ *
+ * 为什么必须有它：筛选是**不可见**的状态 ——
+ * 界面上只显示「你选了某几个下拉」，而**当前实际生效的区间与类型**
+ * 只存在于数据里。用户截图给客服时，对方看到的是一个
+ * 「看起来没筛选」的页面 —— 这是最常见的「统计数字不对」工单来源。
+ *
+ * 为什么是芯片而不是一句话：一句话里想去掉其中一条，得回到对应下拉去改；
+ * 芯片点一下就摘掉那一条，少一次「找到控件在哪」的搜索。
+ */
+.st-filter__chips,
+.st-filter-sum {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-xs);
+  padding-top: var(--s-sm);
+  border-top: 1px solid var(--c-divider-soft);
+}
+
+.st-chip {
+  letter-spacing: -0.016em;
+}
+
+/** 账期不可摘（它是这一页的前提），所以它用虚线边框 + 静音色，且不是按钮态 */
+.st-chip--fixed {
+  border-style: dashed;
+  color: var(--c-ink-muted-48);
+  cursor: default;
+}
+
+.st-chip__x {
+  margin-left: 2px;
+  color: var(--c-ink-muted-48);
+}
+
+/**
+ * 悬停时整个芯片转成**强调色**（00-DESIGN：所有可点元素用同一个强调色）。
+ * 可摘 = 可点，所以用强调色说出「这个能点」。
+ */
+.st-chip:hover {
+  border-color: var(--c-primary);
+  color: var(--c-primary);
+}
+
+.st-chip:hover .st-chip__x {
+  color: var(--c-primary);
+}
+
+.st-chip:focus-visible {
+  outline: 2px solid var(--c-primary-focus);
+  outline-offset: 1px;
+}
+
+/* --------- 窄屏 --------- */
+
+/**
+ * ≤833px：工具条控件全部抬到 44px 触控底线，按钮组不再靠右（换行后就地排列）。
+ * 00-DESIGN 的触屏底线是 44×44，且「触屏没有精密操作豁免」。
+ */
+@media (max-width: 833px) {
+  .st-filter__segitem,
+  .st-filter__pick,
+  .st-filter__kw,
+  .st-filter__date {
+    height: 44px;
+  }
+
+  .st-filter__acts {
+    margin-left: 0;
+  }
+
+  .st-filter__search,
+  .st-filter__picks {
+    flex: 1 1 100%;
+  }
+
+  .st-filter__pick,
+  .st-filter__pick--cat {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+}
+
+/**
+ * 扇形可点态。
+ *
+ * 只改 `stroke-width`（由内联属性给出）与 `opacity`，**不改颜色** ——
+ * PALETTE 是中性色阶梯，颜色即分类身份；把可点项染成强调色会让
+ * 「这个分类特别重要」变成一个假信息。
+ */
+.st-arc {
+  transition: opacity var(--d-state) var(--e-standard);
+}
+
+.st-arc.is-clickable {
+  cursor: pointer;
+}
+
+.st-arc.is-clickable:hover,
+.st-arc.is-clickable:focus-visible {
+  opacity: 0.78;
+}
+
+.st-arc.is-clickable:focus-visible {
+  outline: none;
+}
+
+/**
+ * 焦点可见性不能靠 `outline`（SVG `<circle>` 的 outline 支持不稳），
+ * 改用一层等大的透明描边 —— 它在所有浏览器里都稳定，
+ * 且视觉上就是「这条弧被描了边」。
+ */
+.st-arc.is-clickable:focus-visible {
+  stroke-dasharray: none;
+  filter: drop-shadow(0 0 0 var(--c-primary));
+}
+
+/* 「按账户」行也可点 */
+.card .recon-line[role='link'] {
+  cursor: pointer;
+  border-radius: var(--r-sm);
+}
+
+.card .recon-line[role='link']:hover {
+  background: var(--c-parchment);
+}
+
+.card .recon-line[role='link']:focus-visible {
+  outline: 2px solid var(--c-primary-focus);
+  outline-offset: -2px;
+}
+
+/**
+ * 窄屏：筛选区塌成单列，搜索框不再单独跨列（已经是 1 列）。
+ * 触控底线 44px 由全局 ≤833px 规则兜住（.input 已在其中）。
+ */
+
+/* ==========================================================================
+   十七、记账形态 modal（周期 / 分期补充，任务 5）
+   ========================================================================== */
+
+/**
+ * 遮罩用 `backdrop-filter: blur(2px)` 而不是纯黑半透明。
+ *
+ * 纯黑 40% 会让表单「沉下去」，用户不确定自己还在不在记账页；
+ * 轻模糊 + 12% 黑仍然读得出背景内容，注意力留在 modal 上，
+ * 同时满足 `00-DESIGN › Elevation` 的 backdrop blur 层级（parchment 80% + blur）。
+ */
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.modal__scrim {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.12);
+  backdrop-filter: saturate(160%) blur(2px);
+  -webkit-backdrop-filter: saturate(160%) blur(2px);
+}
+
+.modal__panel {
+  position: relative;
+  width: min(560px, 100%);
+  max-height: min(80vh, 720px);
+  display: flex;
+  flex-direction: column;
+  background: var(--c-canvas);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-overlay);
+  /* 全系统唯一投影：00-DESIGN 规定 shadow 只给「产品影像」，
+     这里的使用登记为受控扩展 —— modal 是真正脱离文档流的浮层 */
+  animation: modal-in var(--d-state) var(--e-standard);
+}
+
+/**
+ * 入场动画：只做位移 + 透明度，不做 scale。
+ * scale 会让文字在动画途中被重排（subpixel 抖动），而这是表单 ——
+ * 用户在读字段名，不能让它抖。
+ */
+@keyframes modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.modal__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 20px 24px 12px;
+  border-bottom: 1px solid var(--c-divider-soft);
+}
+
+.modal__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 20px 24px;
+}
+
+.modal__foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 24px 20px;
+  border-top: 1px solid var(--c-divider-soft);
+}
+
+/** 动效降级：prefers-reduced-motion 下不要入场动画 */
+@media (prefers-reduced-motion: reduce) {
+  .modal__panel {
+    animation: none;
+  }
+}
+
+/** 窄屏：贴底 Sheet（拇指可达），而不是居中悬浮 */
+@media (max-width: 640px) {
+  .modal {
+    place-items: end center;
+    padding: 0;
+  }
+
+  .modal__panel {
+    width: 100%;
+    max-height: 88vh;
+    border-radius: var(--r-lg) var(--r-lg) 0 0;
+  }
+}
+
+/**
+ * 弹窗标题：display-lg 是 40px 的「页面 hero」尺度，放在 560px 弹窗里过重。
+ * 保留 display 字族 + 600 字重，只把字号收到 tagline 档（21px）。
+ */
+.modal__title {
+  font-family: var(--f-display);
+  font-size: 21px;
+  line-height: 1.3;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+/**
+ * 弹窗表单两列栅格（周期 / 分期补充）。
+ *
+ * ⚠️ 必须写成 `.grid.grid--two`（特异性 0,2,0）压过 `.grid` 的 12 列基线。
+ * 只写 `.grid--two` 与 `.grid` 同为 0,1,0，而 `.grid` 在文件里更靠后 ——
+ * 「后来居上」会把它还原成 12 列，每个 .field 只占 1/12 列（约 46px），
+ * 标签与提示逐字竖排（本仓已复发多次、audit 抓不到的静默错）。
+ */
+.grid.grid--two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+/* Sheet 形态（≤640）再塌成单列：两列各约 150px 时提示文字过窄 */
+@media (max-width: 640px) {
+  .grid.grid--two {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ==========================================================================
+   十八、报表页栅格与图表（对标主流记账 App）
+   ========================================================================== */
+
+/**
+ * Bento 栅格（12 列）。
+ *
+ * 为什么是 12 而不是 auto-fit：报表页的区块**宽度是有语义的**
+ * （趋势图要宽才看得清 12 个月，排行榜窄一点反而好读），
+ * auto-fit 会让区块宽度随数量浮动，同一张图在不同数据下宽窄不一。
+ * 12 栅格 + span-* 让每个区块的宽度是**声明**出来的，不是算出来的。
+ *
+ * 列间距 8px / 卡片间距 20px 的分工：
+ *   同一排内相邻卡片只隔 8px（它们读起来是一个整体 —— 一张图的续篇），
+ *   排与排之间隔 20px（那是换段）。
+ * 这个「横向紧、纵向松」的关系不能用同一个 gap 表达，否则要么
+ * 同排卡片散得太开、要么上下两排粘在一起分不出段落。
+ */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.report-grid {
+  column-gap: var(--s-xs);
+  row-gap: var(--gutter);
+}
+
+.span-3 { grid-column: span 3; }
+.span-4 { grid-column: span 4; }
+.span-5 { grid-column: span 5; }
+.span-6 { grid-column: span 6; }
+.span-7 { grid-column: span 7; }
+.span-8 { grid-column: span 8; }
+.span-12 { grid-column: span 12; }
+
+/**
+ * 同排卡片**顶边严格对齐、整行高度一致**。
+ *
+ * `<section>` 是栅格项（默认 stretch，已经等高），但里面的 `.card` 不会
+ * 自动撑满 —— 不加 flex:1 的话矮的那张卡下面会留一截空白，
+ * 一排卡片的底边就参差了，那是「看起来没对齐但说不出哪里怪」的典型来源。
+ */
+.report-grid > .section > .card {
+  flex: 1;
+}
+
+/**
+ * ⚠️ 标题行里放 44px 高的按钮，会把整个 `.section` 的「卡片起点」推低。
+ *
+ * `.section` 是 `flex-direction: column`，第一行（`.section__head`）多高，
+ * 下面的卡片就晚多少像素开始。净资产趋势那张卡头上有「补拍历史快照」按钮
+ * （44px 触控底线），而旁边的成员消费卡头只有 22px 文字 ——
+ * 于是**同排两张卡的顶边差 22px**，卡片本身还各自等高，顶边却对不齐。
+ *
+ * 触控底线不能为了让位而降到 44 以下（那是 00-DESIGN 的硬约束），
+ * 所以反过来给标题行定一个**统一行高**：有按钮的那排和没按钮的那排，
+ * 卡片都从同一条线上开始。用 `max()` 保证纯文字行的 22px 不会被压掉。
+ */
+.report-grid > .section > .section__head {
+  min-height: 44px;
+}
+
+/**
+ * 卡片样式全站统一：圆角 12px（--r-card，登记受控扩展）、
+ * 1px 细边框、内边距 24px、无重投影（00-DESIGN：卡片从不加阴影）。
+ */
+.report-grid .card,
+.st-filter__card,
+.st-kpi-row > .kpi-card {
+  border-radius: var(--r-card);
+  padding: var(--s-lg);
+}
+
+/**
+ * 卡内表格：卡片已经有 24px 内边距，单元格再叠 16px 就成了 40px 缩进。
+ * 首末列归零，让表格从卡片内边距那条线起排 ——
+ * 卡片内边距是全站统一的 24px，表格不额外叠一层缩进。
+ */
+.report-grid .tbl th:first-child,
+.report-grid .tbl td:first-child {
+  padding-left: 0;
+}
+
+.report-grid .tbl th:last-child,
+.report-grid .tbl td:last-child {
+  padding-right: 0;
+}
+
+.report-grid .rank-row {
+  padding: 10px 0;
+}
+
+.rank-row__bar {
+  position: relative;
+  display: block;
+  height: 6px;
+  border-radius: var(--r-full);
+  background: var(--c-divider-soft);
+  overflow: hidden;
+}
+
+.rank-row__fill {
+  display: block;
+  height: 100%;
+  border-radius: var(--r-full);
+}
+
+/* 表头那一格没有条，别留一段灰底 */
+.rank-row--head .rank-row__bar {
+  background: transparent;
+}
+
+/* --------- 饼图 / 环形图的「图 + 右侧图例」 --------- */
+
+/**
+ * 图例**一律靠右**（需求 2）。
+ *
+ * 图区固定 160px（SVG 的固有尺寸），剩余宽度全部给图例；
+ * 图例条目多时只往下长，图的形状不变 —— 形状稳定才好横向比较。
+ */
+.chart-figure {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 20px;
+  align-items: center;
+}
+
+.chart-figure__plot {
+  display: flex;
+  justify-content: center;
+}
+
+/* --------- 折线趋势图：SVG 只管几何，日期轴在 HTML 层 --------- */
+
+/**
+ * 为什么日期轴要单独一层：绘图区用 `preserveAspectRatio="none"` 填满卡片
+ * （宽跟随容器、高固定），横轴被非等比拉伸 —— 放进去的文字会被压扁，
+ * 在窄卡里几乎不可辨（用户会以为「日期轴没显示」）。
+ * 文字挪到 HTML 层后按真实字号渲染，任意卡宽都清晰。
+ */
+.chart-trend {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.chart-trend__plot {
+  position: relative;
+}
+
+.chart-trend__axis {
+  position: relative;
+  height: 16px;
+}
+
+/**
+ * 刻度：绝对定位到对应数据点的水平位置（left 为百分比，与 SVG 的线性拉伸一致）。
+ * 中间的刻度以自身中心对齐；首/末刻度分别左/右对齐，避免文字从卡片边缘溢出。
+ */
+.chart-trend__tick {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  font-size: 11px;
+  line-height: 16px;
+  letter-spacing: -0.12px;
+  color: var(--c-ink-muted-48);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.chart-trend__tick.is-first {
+  transform: none;
+}
+
+.chart-trend__tick.is-last {
+  transform: translateX(-100%);
+}
+
+.chart-legend {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 2px;
+}
+
+.chart-legend__total {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 6px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--c-hairline);
+  font-size: 12px;
+  letter-spacing: -0.12px;
+  color: var(--c-ink-muted-48);
+}
+
+.chart-legend__total-val {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--c-ink);
+}
+
+/**
+ * 条目三格：色点 · 名称 · 金额。
+ * 名称列 `minmax(0, 1fr)` 才能被省略号裁 —— 用 `auto` 时长名字会把
+ * 金额挤出卡片（第一版就是这么溢出 8px 的）。
+ */
+.chart-legend__item {
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 6px;
+  margin: 0 -6px;
+  border-radius: var(--r-sm);
+  font-size: 12px;
+  letter-spacing: -0.12px;
+  color: var(--c-ink-muted-80);
+  transition: background var(--d-state) var(--e-standard);
+}
+
+.chart-legend__item.is-clickable:hover {
+  background: var(--c-parchment);
+}
+
+.chart-legend__item.is-clickable:focus-visible {
+  outline: 2px solid var(--c-primary-focus);
+  outline-offset: -2px;
+}
+
+.chart-legend__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--r-full);
+}
+
+.chart-legend__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chart-legend__extra {
+  color: var(--c-ink-muted-48);
+}
+
+.chart-legend__val {
+  font-weight: 600;
+  color: var(--c-ink);
+  white-space: nowrap;
+}
+
+.chart-legend__note {
+  margin: 6px 0 0;
+}
+
+/* --------- 图表提示（Tooltip） --------- */
+
+/**
+ * 提示框是**浮层**，用 `position: fixed` + 视口坐标定位。
+ *
+ * 为什么不用绝对定位挂进卡片：卡片里任何一个 `overflow: hidden`
+ * 都会把提示裁掉，而图表恰恰经常贴着卡片边缘。
+ * 投影用 `--shadow-overlay`（与登录卡 / Toast / Modal 同一档）——
+ * 00-DESIGN 规定卡片不加投影，但浮层是「真正浮起来」的那一类。
+ *
+ * `pointer-events: none` 是关键：提示跟着指针走，
+ * 如果它自己能接收指针事件，指针移到提示上就会触发图元的 pointerout，
+ * 于是提示开始在「显示 → 隐藏」之间抖动（第一版实测会闪）。
+ */
+.chart-tip {
+  position: fixed;
+  z-index: 70;
+  max-width: 240px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--c-canvas);
+  border: 1px solid var(--c-hairline);
+  border-radius: var(--r-sm);
+  box-shadow: var(--shadow-overlay);
+  font-size: 12px;
+  letter-spacing: -0.12px;
+  color: var(--c-ink-muted-80);
+  pointer-events: none;
+}
+
+.chart-tip__title {
+  font-weight: 600;
+  color: var(--c-ink);
+}
+
+.chart-tip__line {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/**
+ * 账户一览表：**固定表格布局 + 定宽数值列**。
+ *
+ * 它只有 4 列，但排在 4 栅格的窄卡里（可用宽约 318px）。
+ * 自动布局会把超出部分按 max-content 分配，总额不够时就把数值列压到
+ * min-content —— 而「¥50,000.00」的 min-content 允许在「¥」之后断行，
+ * 于是金额被折成「¥」/「50,000.00」两行，一张表里数字高高低低。
+ * 固定布局 + nowrap 让金额永远是完整的一行，超长的账户名自己走省略号。
+ */
+/**
+ * 账户表：**固定表格布局 + 百分比列宽**（需求 6：多列字段均分 / 自适应）。
+ *
+ * 它现在独占一行（12 栅格），宽度从 318px 变成 ~1300px。
+ * 这时若还用固定像素列宽，多出来的空间会全部堆到名称列，
+ * 金额被推到最右边、中间空一大片 —— 失衡留白。
+ * 百分比列宽让四列**按比例一起变宽**，任何宽度下都均匀。
+ *
+ * ⚠️ 选择器写成 `.report-grid .tbl--acct`：基础 `.tbl` 定义在本文件更靠后的
+ * 位置，只写单类会被它按「后来居上」压掉（同特异性时源码顺序决定胜负）。
+ */
+.report-grid .tbl--acct {
+  table-layout: fixed;
+}
+
+.report-grid .tbl--acct th:nth-child(1),
+.report-grid .tbl--acct td:nth-child(1) {
+  width: 30%;
+}
+
+.report-grid .tbl--acct th:nth-child(2),
+.report-grid .tbl--acct td:nth-child(2) {
+  width: 16%;
+}
+
+.report-grid .tbl--acct th:nth-child(n + 3),
+.report-grid .tbl--acct td:nth-child(n + 3) {
+  width: 18%;
+  white-space: nowrap;
+  text-align: right;
+}
+
+/**
+ * 账户表的两行式姓名格。
+ *
+ * 名字用 `min-width: 0` + 省略号：账户名可以很长（「招商银行储蓄卡（工资）」），
+ * 而它旁边的三列金额是**定宽**的 —— 不定宽的话金额列的千分位会随名字长短
+ * 左右跳动，一张表里数字不对齐是最难读的。
+ */
+/* --------- KPI 通栏 --------- */
+
+/**
+ * `display: contents` 让 4 张 KPI 卡**直接**成为父栅格的栅格项。
+ *
+ * 不这么做就得再套一层 12 列嵌套栅格，而嵌套栅格要重复算一遍列宽：
+ * 父级改列间距时子级必须同步改，漏改一次 KPI 卡就与下面的卡片错开半列。
+ * 而半列（约 45px）的错位在视觉上很轻 —— 不对照栅格线看不出来，
+ * 但整页会「发飘」，用户说不出哪里不对。
+ */
+.st-kpi-row {
+  display: contents;
+}
+
+/**
+ * 4 张 KPI 卡**各自跨 3 列**。
+ *
+ * 跨列是必须的：`display: contents` 让它们成为父栅格的栅格项，
+ * 而栅格项默认 `grid-column: auto` → 每张只占**一列**，
+ * 于是第一排变成「4 张 KPI + 对比表」挤在一起、后面的卡片整排错位。
+ * 这种错位不会报错，看上去只是「KPI 卡怎么这么窄」。
+ */
+.st-kpi-row > .kpi-card {
+  grid-column: span 3;
+}
+
+/**
+ * KPI 卡整体可点（下钻到对应流水明细）。
+ * 用 `<a>` 而不是 div+click：中键新标签、读屏、Tab 全部免费拿到。
+ */
+.kpi-card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border: 1px solid var(--c-hairline);
+  background: var(--c-canvas);
+  transition: background var(--d-state) var(--e-standard), border-color var(--d-state) var(--e-standard);
+}
+
+.kpi-card:hover {
+  background: var(--c-parchment);
+  border-color: var(--c-ink-muted-48);
+}
+
+.kpi-card:focus-visible {
+  outline: 2px solid var(--c-primary-focus);
+  outline-offset: 2px;
+}
+
+/** 00-DESIGN {typography.caption} 14px —— 用途标签不是标题，不上 17px */
+.kpi-card__label {
+  font-size: 14px;
+  letter-spacing: -0.224px;
+  color: var(--c-ink-muted-48);
+}
+
+/** {typography.tagline} 21px / 600。宽度够放千分位金额，又不至于撑破 3 列的卡 */
+.kpi-card__value {
+  margin-top: 2px;
+  font-size: 21px;
+  font-weight: 600;
+  letter-spacing: 0.231px;
+}
+
+/** {typography.fine-print} 12px */
+.kpi-card__sub {
+  font-size: 12px;
+  letter-spacing: -0.12px;
+  color: var(--c-ink-muted-48);
+}
+
+/**
+ * 响应式塌缩：1024px 起 2 列（834–1023 是平板），833px 起单列。
+ *
+ * 00-DESIGN 的塌缩节点是 5→4→3→2(834)→1(640)，这里在 640 之前就转单列：
+ * 那套节点是为**商品图卡**定的，而报表卡里是图表与表格 ——
+ * 700px 宽屏上并排放两张 12 个月的柱状图，柱子会细到看不出趋势。
+ * 图表的可读性优先于密度，所以提前塌。
+ */
+@media (max-width: 1023px) {
+  .report-grid > .span-3,
+  .report-grid > .span-4,
+  .st-kpi-row > .kpi-card {
+    grid-column: span 6;
+  }
+
+  .report-grid > .span-5,
+  .report-grid > .span-6,
+  .report-grid > .span-7,
+  .report-grid > .span-8,
+  .report-grid > .span-12 {
+    grid-column: span 12;
+  }
+}
+
+@media (max-width: 833px) {
+  .report-grid {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: var(--s-sm);
+  }
+
+  /**
+   * ⚠️ 选择器必须写成 `.report-grid > .span-4`，与 1023px 那条**同特异性**。
+   *
+   * 只写 `.span-4` 的话特异性是 (0,1,0)，会**输给**更早出现的
+   * `.report-grid > .span-4`（(0,2,0)）—— 特异性压倒顺序。
+   * 于是窄屏下区块仍跨 6 列，栅格被迫生成 11 条**隐式列**去放它，
+   * 隐式列按内容取宽，整个页面就横向溢出了 60px+。
+   * 而这条链路上没有任何报错：栅格看起来是「单列」（只有 1 条显式列），
+   * 实际渲染却有 12 条轨道。
+   */
+  .report-grid > .span-3,
+  .report-grid > .span-4,
+  .report-grid > .span-5,
+  .report-grid > .span-6,
+  .report-grid > .span-7,
+  .report-grid > .span-8,
+  .report-grid > .span-12,
+  .st-kpi-row > .kpi-card {
+    grid-column: span 1;
+  }
+
+  .report-grid .card,
+  .st-filter__card,
+  .st-kpi-row > .kpi-card {
+    padding: var(--s-sm);
+  }
+
+  /**
+   * 窄屏的账户一览表：表格改成**两列卡片行**。
+   *
+   * 为什么不让它横向滚动：报表页最忌讳左右滑着看数字 ——
+   * 用户滑到右边就忘了左边是哪家银行，账户名与金额必须同屏可见。
+   * 所以隐藏表头、单元格改用 data-label 自带标签，摊成 3 行 × 2 列。
+   *
+   * ⚠️ 轨道数必须与单元格数一致：这里声明 2 列，下面的 nth-child 也只用到
+   * 第 2 列。写少一列会逼栅格生成隐式列，页面就又横向溢出了。
+   */
+  .report-grid .tbl thead {
+    display: none;
+  }
+
+  .report-grid .tbl,
+  .report-grid .tbl tbody,
+  .report-grid .tbl td {
+    display: block;
+    width: 100%;
+  }
+
+  .report-grid .tbl tr {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 4px 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--c-divider-soft);
+  }
+
+  .report-grid .tbl tbody tr:last-child {
+    border-bottom: 0;
+  }
+
+  .report-grid .tbl td {
+    padding: 0;
+    border-bottom: 0;
+  }
+
+  .report-grid .tbl td[data-label]::before {
+    content: attr(data-label) ' ';
+    font-size: 11px;
+    letter-spacing: -0.08px;
+    color: var(--c-ink-muted-48);
+  }
+
+  .report-grid .tbl td:nth-child(1) {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .report-grid .tbl td:nth-child(2) {
+    grid-column: 2;
+    grid-row: 1;
+    text-align: right;
+  }
+
+  .report-grid .tbl td:nth-child(3) {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .report-grid .tbl td:nth-child(4) {
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  .report-grid .tbl td:nth-child(5) {
+    grid-column: 1;
+    grid-row: 3;
+  }
+
+  /* 窄屏图 + 图例改成上下排（左右并排时图只占 160px，图例被压到读不了） */
+  .chart-figure {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .chart-legend__item {
+    padding: 6px;
+  }
+
+  /* 翻页按钮回到 44 触控底线 */
+  .st-filter__stepper .btn {
+    width: 44px;
+    height: 44px;
+  }
+}
+
+/* --------- 账期切换器 --------- */
+
+/**
+ * 账期前后翻页（模块 2）。
+ *
+ * 它原来是**独占一行的居中切换器**，现在并进筛选工具条 ——
+ * 三个元素占满一整行是纯浪费，而「当前是哪个账期」这件事
+ * 条件芯片已经写明了，那一条独立行没有承载任何别的东西。
+ *
+ * 尺寸：桌面 32×32（精密控件，与相邻下拉等高），
+ * ≤833px 抬回 44 触控底线（见下方媒体查询）。
+ */
+.st-filter__stepper {
+  display: flex;
+  align-items: center;
+  flex: none;
+  gap: 2px;
+}
+
+.st-filter__stepper .btn {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  font-size: 16px;
+  line-height: 1;
+}
+
+/** 账期标签：定宽是为了让「翻页按钮」不随月份宽度左右跳动 */
+.st-filter__period {
+  min-width: 84px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* --------- 周期对比表 --------- */
+
+.cmp-table {
+  display: flex;
+  flex-direction: column;
+}
+
+/**
+ * 3 列而不是 6 列。
+ *
+ * 这张卡只跨 4 栅格（可用宽约 318px），6 列平铺时每列只有 53px，
+ * 而「¥4,102.00」要 68px —— 金额会**互相盖住**，页面上看到的是
+ * 「¥4,102.001,310.00+¥2,792.00」，像数字算错了。
+ * 所以主行只留「本周期 + 环比」，上期/去年同期/同比下沉到副行（小字）。
+ *
+ * ⚠️ 轨道数必须与 `.cmp-row` 里的单元格数严格相等：`.cmp-row` 只有 3 个子元素，
+ * 这里就声明 3 列。写 6 列会多出 3 条空轨道，把金额挤到左边半张卡里。
+ */
+.cmp-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(96px, auto) minmax(120px, auto);
+  gap: 12px;
+  align-items: baseline;
+  font-size: 13px;
+}
+
+/** 表头贴一条实线（比行间的浅分隔线重一档，它是这一块的「栏」） */
+.cmp-row--head {
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--c-hairline);
+  font-size: 12px;
+  color: var(--c-ink-muted-48);
+}
+
+/** 每条指标 = 主行 + 副行；指标之间才画分隔线 */
+.cmp-item {
+  padding: 10px 0;
+}
+
+.cmp-item + .cmp-item {
+  border-top: 1px solid var(--c-divider-soft);
+}
+
+.cmp-row__label {
+  min-width: 0;
+}
+
+.cmp-row__num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.cmp-row__sub {
+  margin: 2px 0 0;
+  font-size: 12px;
+  letter-spacing: -0.12px;
+  color: var(--c-ink-muted-48);
+  font-variant-numeric: tabular-nums;
+}
+
+/* --------- 排行榜表 --------- */
+
+.rank-table {
+  display: flex;
+  flex-direction: column;
+}
+
+/**
+ * 列数 = 8：序号 · 色点 · 名称 · 占比条 · 金额 · 笔数 · 占比 · 小计。
+ *
+ * ⚠️ 列数必须与 `rankTable()` 生成的单元格数**严格相等**，
+ *    少一列时最后一个单元格会静默换到下一行 —— 表头和表体错位，
+ *    而页面不报任何错（第一版写成 repeat(3)，小计列整列掉到第二行；
+ *    后来加占比条时又差点在别处写第二份定义 —— 同特异性下
+ *    源码顺序决定胜负，两份定义相隔上千行时谁生效完全看不出来）。
+ *
+ * 为什么数值列给**定宽**而不是 `auto`：
+ *   每一行都是**独立的 grid**（`.rank-table` 只是 flex 列），`auto` 会让每行
+ *   按自身内容各自算宽 —— 于是「金额 / 笔数 / 占比 / 小计」的列边界逐行漂移，
+ *   数字看似都靠右、其实中间三列并没有对齐（读起来很乱，却查不出是哪条规则）。
+ *   定宽 + 右对齐 + 等宽数字（tnum）之后，所有行的列线严格一致。
+ *
+ * 为什么名称列**封顶**、把剩余宽度交给占比条：
+ *   早先名称列是 `1fr`，整宽卡里它吃掉几乎全部余量，把占比条推到卡片中部
+ *   （用户反馈「进度条太靠右」）。名称本身只有几个字，多出来的宽度全是隐形空白。
+ *   现在名称 `minmax(88px, 128px)`，占比条 `1fr` 紧接名称铺开 ——
+ *   条永远贴着名称右侧生长，不再飘到页面中间。
+ */
+.rank-row {
+  display: grid;
+  grid-template-columns:
+    24px                  /* 序号 */
+    8px                   /* 色点 */
+    minmax(88px, 128px)   /* 名称：封顶，给占比条让位 */
+    minmax(56px, 1fr)     /* 占比条：吃掉剩余宽度，紧贴名称 */
+    104px                 /* 金额 */
+    52px                  /* 笔数 */
+    62px                  /* 占比 */
+    64px;                 /* 小计 */
+  gap: 16px;
+  align-items: center;
+  padding: 10px 0;
+  border-top: 1px solid var(--c-divider-soft);
+  font-size: 13px;
+}
+
+.rank-row:first-child {
+  border-top: 0;
+}
+
+.rank-row--head {
+  font-size: 12px;
+  color: var(--c-ink-muted-48);
+}
+
+.rank-row.is-clickable {
+  cursor: pointer;
+  border-radius: var(--r-sm);
+}
+
+.rank-row.is-clickable:hover {
+  background: var(--c-parchment);
+}
+
+.rank-row.is-clickable:focus-visible {
+  outline: 2px solid var(--c-primary-focus);
+  outline-offset: -2px;
+}
+
+.rank-row__idx {
+  color: var(--c-ink-muted-48);
+  font-variant-numeric: tabular-nums;
+}
+
+.rank-row__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rank-row__num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/**
+ * 数值列的三级层次：金额（主指标，加重）> 笔数 / 占比（次要，静音 80）
+ * > 小计（累计占比，最弱，静音 48）。
+ *
+ * 四列若同色同重，扫读时四个数字平铺成一片，读者分不清哪个是「这一项花了多少」。
+ * 拉开层次后，眼睛先落到金额，再按需看笔数与占比。
+ */
+.rank-row__num--amount {
+  font-weight: 600;
+  color: var(--c-ink);
+}
+
+.rank-row__num--count,
+.rank-row__num--ratio {
+  color: var(--c-ink-muted-80);
+}
+
+.rank-row__num--cum {
+  color: var(--c-ink-muted-48);
+}
+
+/* --------- 图表通用 --------- */
+
+.chart-empty {
+  display: grid;
+  place-items: center;
+  min-height: 96px;
+  padding: 16px;
+  text-align: center;
+}
+
+/**
+ * 空态文案：**必须给出「为什么空」与「怎么才会有」**。
+ * 只写「暂无数据」的空态等于把用户留在原地 ——
+ * 他不知道是自己操作错了、还是功能坏了、还是需要等一等。
+ */
+.chart-empty__text {
+  max-width: 34ch;
+}
+
+/**
+ * 标题与正文之间留 4px。
+ *
+ * 两段都用 margin: 0 的排版类（`tt-caption` / `tt-fine-print`），
+ * 段落紧挨着时行盒正好相接 —— 净宽下看成「标题压在正文上」，
+ * 实际上只是差一个间距。间距取结构间距合法集里的最小值 4。
+ */
+.chart-empty__text p + p {
+  margin-top: 4px;
+}
+
+.st-slice.is-clickable,
+.st-bargroup.is-clickable,
+.st-bar.is-clickable,
+.st-point.is-clickable {
+  cursor: pointer;
+}
+
+.st-slice.is-clickable:hover,
+.st-bar.is-clickable:hover,
+.st-bargroup.is-clickable:hover {
+  opacity: 0.82;
+}
+
+.st-slice.is-clickable:focus-visible,
+.st-bar.is-clickable:focus-visible,
+.st-bargroup.is-clickable:focus-visible,
+.st-point.is-clickable:focus-visible {
+  outline: none;
+  opacity: 0.7;
+}
+
+/* --------- 账户一览表 --------- */
+
+.tbl {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.tbl th {
+  padding: 10px 16px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--c-ink-muted-48);
+  border-bottom: 1px solid var(--c-hairline);
+}
+
+.tbl td {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--c-divider-soft);
+}
+
+.tbl tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+/**
+ * 窄屏表格：不横向滚动（需求明确禁止），改为让单元格换行。
+ * 金额列 `nowrap` 保留 —— 数字断行会让「¥1,234.56」变成两行，无法读。
+ */
+/**
+ * ≤833px：报表栅格塌成单列，排行榜仍是整宽，但可用宽度变小。
+ * 收紧名称封顶与列间距，保证占比条仍有一段可读长度、数值列不互相挤压。
+ */
+@media (max-width: 833px) {
+  .rank-row {
+    grid-template-columns:
+      20px 8px minmax(64px, 96px) minmax(32px, 1fr) 88px 40px 50px 52px;
+    gap: 10px;
+  }
+}
+
+@media (max-width: 640px) {
+  /**
+   * 对比表在窄屏**不需要改结构**：它已经是「标签 + 2 个数值」的 3 列布局，
+   * 311px 宽度下仍放得下（数值列各约 75px）。
+   * 早先那条「5 个数值横排在 5 条轨道」的规则是为 6 列版写的，
+   * 留着会让单元格数（3）与轨道数（5）不一致 —— 多出的空轨道把内容挤到左半张卡里。
+   */
+
+  /**
+   * 排行榜：≤640px 只留 序号 · 色点 · 名称 · 占比条 · 金额，
+   * 隐藏「笔数 / 占比 / 小计」三列（第 6、7、8 格）。
+   *
+   * ⚠️ 轨道数（5）必须与**保留的单元格数**（5）相等。
+   * 表头与表体隐藏的格子必须是同一批 ——
+   * 早先表体留 5 格、表头只留 4 格，表体的第 5 格没有轨道可放，
+   * 于是「金额」静默换到第二行，表头与表体对不上，而页面不报任何错。
+   *
+   * 占比条给 `minmax(24px, 40px)` 而不是 `auto`：`auto` 在这一行里
+   * 没有任何内容宽度（`width:%` 的百分比轨道宽度不由内容决定），
+   * 于是轨道被算成 0 宽，条**整条消失** —— 窄屏反而是唯一看不到它的地方。
+   */
+  .rank-row {
+    grid-template-columns: 16px 10px minmax(0, 1fr) minmax(24px, 40px) minmax(0, auto);
+    gap: 4px 8px;
+  }
+
+  .rank-row--head span:nth-child(n + 6),
+  .rank-row > span:nth-child(n + 6) {
+    display: none;
+  }
+}

@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>CC记账</title>
+    <meta name="description" content="CC记账 —— 多人协作的记账系统。金额精确到分，每一笔都能对账。" />
+    <!-- 00-DESIGN：主 canvas 为白/羊皮纸；夜间取页底色 #1d1d1f（文档 ink 的暗面对位） -->
+    <meta name="theme-color" content="#f5f5f7" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="format-detection" content="telephone=no" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230066cc'/%3E%3Ctext x='16' y='22' font-family='system-ui,sans-serif' font-size='16' font-weight='600' fill='white' text-anchor='middle'%3ECC%3C/text%3E%3C/svg%3E"
+    />
+    <!-- PWA：manifest（可安装 + 长按图标快捷指令，docs/09 §4.1）。
+         图标是 PNG 而非 SVG —— Chrome 的安装判定要求 192/512 的 PNG，
+         SVG 能显示但不满足 installability（`npm run icons` 重新生成）。 -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <!-- iOS 不读 manifest 的 shortcuts，但认 apple-touch-icon；系统自行加圆角，故给方图 -->
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="CC记账" />
+    <!-- 主题首屏引导：必须在样式表之前执行，先把 data-theme 落到 <html> 再绘制，
+         否则会「先画亮色再跳暗色」闪一下（FOUC）。取值逻辑与 /assets/theme.js 一致，
+         此处内联是刻意的：外链模块是 defer 的，赶不上首屏。 -->
+    <script>
+      (function () {
+        try {
+          var mode = localStorage.getItem('cc-ledger.theme.v1');
+          if (mode !== 'light' && mode !== 'dark' && mode !== 'auto') mode = 'auto';
+          var dark =
+            mode === 'dark' ||
+            (mode === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          var theme = dark ? 'dark' : 'light';
+          var root = document.documentElement;
+          root.setAttribute('data-theme', theme);
+          root.setAttribute('data-theme-mode', mode);
+          root.style.colorScheme = theme;
+          var meta = document.querySelector('meta[name="theme-color"]');
+          if (meta) meta.setAttribute('content', theme === 'dark' ? '#1d1d1f' : '#f5f5f7');
+        } catch (e) {
+          /* 隐私模式等存储不可用的场景：按日间渲染 */
+        }
+      })();
+    </script>
+    <link rel="stylesheet" href="/assets/tokens.css" />
+    <link rel="stylesheet" href="/assets/app.css" />
+  </head>
+  <body>
+    <div id="app"></div>
+    <div id="toast-root"></div>
+    <noscript>
+      <div style="padding: 40px; font-family: system-ui, sans-serif">
+        CC记账需要启用 JavaScript 才能运行。
+      </div>
+    </noscript>
+    <script type="module" src="/assets/app.js"></script>
+  </body>
+</html>

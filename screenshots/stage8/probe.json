@@ -1,0 +1,2595 @@
+[
+  {
+    "label": "light-1440-list",
+    "want": "list",
+    "theme": "light",
+    "rows": 20,
+    "dayCount": 8,
+    "dayHeads": [
+      "10 月 13 日今天 支出 ¥ 5,712.27 收入 ¥ 88.00 6 笔",
+      "10 月 12 日昨天 支出 ¥ 90.00 3 笔",
+      "10 月 11 日周日 支出 ¥ 68.00 收入 ¥ 12.34 3 笔",
+      "10 月 10 日周六 1 笔",
+      "10 月 9 日周五 支出 ¥ 3,200.00 1 笔",
+      "10 月 8 日周四 1 笔",
+      "10 月 7 日周三 支出 ¥ 49.00 2 笔",
+      "10 月 6 日周二 支出 ¥ 133.00 收入 ¥ 200.00 3 笔"
+    ],
+    "sumExpense": "¥ 9,260.77",
+    "sumIncome": "¥ 300.34",
+    "sumNet": "-¥ 8,960.43",
+    "heroSub": "我的账本 · 全部共 21 笔，已加载 20 笔",
+    "foot": "加载更多（还有 1 笔）",
+    "hasMoreBtn": true,
+    "pills": [
+      "类型",
+      "账户",
+      "分类",
+      "标签",
+      "日期",
+      "排序：时间（新→旧）"
+    ],
+    "clearBtn": null,
+    "panelOpen": false,
+    "menuOpen": false,
+    "selectBar": null,
+    "emptyKind": null,
+    "errBlock": false,
+    "skel": 0,
+    "missingIcons": 0,
+    "sub44": [
+      {
+        "cls": "tx-pill",
+        "w": 56,
+        "h": 34
+      },
+      {
+        "cls": "tx-pill",
+        "w": 56,
+        "h": 34
+      },
+      {
+        "cls": "tx-pill",
+        "w": 56,
+        "h": 34
+      },
+      {
+        "cls": "tx-pill",
+        "w": 56,
+        "h": 34
+      },
+      {
+        "cls": "tx-pill",
+        "w": 56,
+        "h": 34
+      },
+      {
+        "cls": "tx-pill",
+        "w": 158,
+        "h": 34
+      },
+      {
+        "cls": "tx-search__input",
+        "w": 476,
+        "h": 22
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      }
+    ],
+    "hasTabbar": true,
+    "toolbarTop": "0px",
+    "rowCols": 9,
+    "bodyFont": null
+  },
+  {
+    "label": "light-1440-filter-type",
+    "want": "list",
+    "theme": "light",
+    "rows": 20,
+    "dayCount": 8,
+    "dayHeads": [
+      "10 月 13 日今天 支出 ¥ 5,712.27 收入 ¥ 88.00 6 笔",
+      "10 月 12 日昨天 支出 ¥ 90.00 3 笔",
+      "10 月 11 日周日 支出 ¥ 68.00 收入 ¥ 12.34 3 笔",
+      "10 月 10 日周六 1 笔",
+      "10 月 9 日周五 支出 ¥ 3,200.00 1 笔",
+      "10 月 8 日周四 1 笔",
+      "10 月 7 日周三 支出 ¥ 49.00 2 笔",
+      "10 月 6 日周二 支出 ¥ 133.00 收入 ¥ 200.00 3 笔"
+    ],
+    "sumExpense": "¥ 9,260.77",
+    "sumIncome": "¥ 300.34",
+    "sumNet": "-¥ 8,960.43",
+    "heroSub": "我的账本 · 全部共 21 笔，已加载 20 笔",
+    "foot": "加载更多（还有 1 笔）",
+    "hasMoreBtn": true,
+    "pills": [
+      "类型",
+      "账户",
+      "分类",
+      "标签",
+      "日期",
+      "排序：时间（新→旧）"
+    ],
+    "clearBtn": null,
+    "panelOpen": true,
+    "menuOpen": false,
+    "selectBar": null,
+    "emptyKind": null,
+    "errBlock": false,
+    "skel": 0,
+    "missingIcons": 0,
+    "sub44": [
+      {
+        "cls": "tx-pill",
+        "w": 56,
+        "h": 34
+      },
+      {
+        "cls": "tx-pill",
+        "w": 56,
+        "h": 34
+      },
+      {
+        "cls": "tx-pill",
+        "w": 56,
+        "h": 34
+      },
+      {
+        "cls": "tx-pill",
+        "w": 56,
+        "h": 34
+      },
+      {
+        "cls": "tx-pill",
+        "w": 56,
+        "h": 34
+      },
+      {
+        "cls": "tx-pill",
+        "w": 158,
+        "h": 34
+      },
+      {
+        "cls": "tx-search__input",
+        "w": 476,
+        "h": 22
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 52,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 52,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 52,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 52,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 52,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 77,
+        "h": 34
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      }
+    ],
+    "hasTabbar": true,
+    "toolbarTop": "0px",
+    "rowCols": 9,
+    "bodyFont": null
+  },
+  {
+    "label": "light-1440-filter-cat",
+    "want": "list",
+    "theme": "light",
+    "rows": 20,
+    "dayCount": 8,
+    "dayHeads": [
+      "10 月 13 日今天 支出 ¥ 5,712.27 收入 ¥ 88.00 6 笔",
+      "10 月 12 日昨天 支出 ¥ 90.00 3 笔",
+      "10 月 11 日周日 支出 ¥ 68.00 收入 ¥ 12.34 3 笔",
+      "10 月 10 日周六 1 笔",
+      "10 月 9 日周五 支出 ¥ 3,200.00 1 笔",
+      "10 月 8 日周四 1 笔",
+      "10 月 7 日周三 支出 ¥ 49.00 2 笔",
+      "10 月 6 日周二 支出 ¥ 133.00 收入 ¥ 200.00 3 笔"
+    ],
+    "sumExpense": "¥ 9,260.77",
+    "sumIncome": "¥ 300.34",
+    "sumNet": "-¥ 8,960.43",
+    "heroSub": "我的账本 · 全部共 21 笔，已加载 20 笔",
+    "foot": "加载更多（还有 1 笔）",
+    "hasMoreBtn": true,
+    "pills": [
+      "类型",
+      "账户",
+      "分类",
+      "标签",
+      "日期",
+      "排序：时间（新→旧）"
+    ],
+    "clearBtn": null,
+    "panelOpen": true,
+    "menuOpen": false,
+    "selectBar": null,
+    "emptyKind": null,
+    "errBlock": false,
+    "skel": 0,
+    "missingIcons": 0,
+    "sub44": [
+      {
+        "cls": "tx-pill",
+        "w": 56,
+        "h": 34
+      },
+      {
+        "cls": "tx-pill",
+        "w": 56,
+        "h": 34
+      },
+      {
+        "cls": "tx-pill",
+        "w": 56,
+        "h": 34
+      },
+      {
+        "cls": "tx-pill",
+        "w": 56,
+        "h": 34
+      },
+      {
+        "cls": "tx-pill",
+        "w": 56,
+        "h": 34
+      },
+      {
+        "cls": "tx-pill",
+        "w": 158,
+        "h": 34
+      },
+      {
+        "cls": "tx-search__input",
+        "w": 476,
+        "h": 22
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 79,
+        "h": 36
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 101,
+        "h": 36
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 127,
+        "h": 36
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 127,
+        "h": 36
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 101,
+        "h": 36
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 101,
+        "h": 36
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 127,
+        "h": 36
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 114,
+        "h": 36
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 127,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 127,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 127,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 127,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 101,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 127,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 101,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 101,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 101,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 101,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 127,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 101,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 101,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 127,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 101,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 101,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 127,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 101,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 127,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 127,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 127,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 127,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 127,
+        "h": 34
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      }
+    ],
+    "hasTabbar": true,
+    "toolbarTop": "0px",
+    "rowCols": 9,
+    "bodyFont": null
+  },
+  {
+    "label": "light-1440-filtered",
+    "want": "list",
+    "theme": "light",
+    "rows": 2,
+    "dayCount": 2,
+    "dayHeads": [
+      "10 月 13 日今天 支出 ¥ 12.50 1 笔",
+      "10 月 7 日周三 支出 ¥ 30.00 1 笔"
+    ],
+    "sumExpense": "¥ 42.50",
+    "sumIncome": "¥ 0.00",
+    "sumNet": "-¥ 42.50",
+    "heroSub": "我的账本 · 筛选后共 2 笔，已加载 2 笔",
+    "foot": "已全部加载 · 共 2 笔",
+    "hasMoreBtn": false,
+    "pills": [
+      "类型",
+      "账户",
+      "分类：餐饮 › 午餐*",
+      "标签",
+      "日期",
+      "排序：时间（新→旧）"
+    ],
+    "clearBtn": "清除筛选（1）",
+    "panelOpen": true,
+    "menuOpen": false,
+    "selectBar": null,
+    "emptyKind": null,
+    "errBlock": false,
+    "skel": 0,
+    "missingIcons": 0,
+    "sub44": [
+      {
+        "cls": "tx-pill",
+        "w": 56,
+        "h": 34
+      },
+      {
+        "cls": "tx-pill",
+        "w": 56,
+        "h": 34
+      },
+      {
+        "cls": "tx-pill is-on",
+        "w": 131,
+        "h": 34
+      },
+      {
+        "cls": "tx-pill",
+        "w": 56,
+        "h": 34
+      },
+      {
+        "cls": "tx-pill",
+        "w": 56,
+        "h": 34
+      },
+      {
+        "cls": "tx-pill",
+        "w": 158,
+        "h": 34
+      },
+      {
+        "cls": "tx-search__input",
+        "w": 268,
+        "h": 22
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 77,
+        "h": 36
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 101,
+        "h": 36
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 127,
+        "h": 36
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 127,
+        "h": 36
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 103,
+        "h": 36
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 101,
+        "h": 36
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 127,
+        "h": 36
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 114,
+        "h": 36
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 127,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 127,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 127,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 127,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 101,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 127,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 101,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 101,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 101,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 101,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 127,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 101,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 101,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 127,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 101,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 101,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 127,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 101,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 127,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 127,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 127,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 127,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 127,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 103,
+        "h": 36
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 74,
+        "h": 36
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 74,
+        "h": 36
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 74,
+        "h": 36
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 74,
+        "h": 36
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 74,
+        "h": 36
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 74,
+        "h": 36
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 74,
+        "h": 36
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 86,
+        "h": 36
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 74,
+        "h": 36
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      }
+    ],
+    "hasTabbar": true,
+    "toolbarTop": "0px",
+    "rowCols": 9,
+    "bodyFont": null
+  },
+  {
+    "label": "light-1440-empty",
+    "want": "list",
+    "theme": "light",
+    "rows": 0,
+    "dayCount": 0,
+    "dayHeads": [],
+    "sumExpense": "¥ 0.00",
+    "sumIncome": "¥ 0.00",
+    "sumNet": "¥ 0.00",
+    "heroSub": "我的账本 · 筛选后共 0 笔",
+    "foot": null,
+    "hasMoreBtn": false,
+    "pills": [
+      "类型",
+      "账户",
+      "分类：餐饮 › 午餐*",
+      "标签",
+      "日期",
+      "排序：时间（新→旧）"
+    ],
+    "clearBtn": "清除筛选（2）",
+    "panelOpen": true,
+    "menuOpen": true,
+    "selectBar": null,
+    "emptyKind": null,
+    "errBlock": false,
+    "skel": 0,
+    "missingIcons": 0,
+    "sub44": [
+      {
+        "cls": "tx-pill",
+        "w": 56,
+        "h": 34
+      },
+      {
+        "cls": "tx-pill",
+        "w": 56,
+        "h": 34
+      },
+      {
+        "cls": "tx-pill is-on",
+        "w": 131,
+        "h": 34
+      },
+      {
+        "cls": "tx-pill",
+        "w": 56,
+        "h": 34
+      },
+      {
+        "cls": "tx-pill",
+        "w": 56,
+        "h": 34
+      },
+      {
+        "cls": "tx-pill",
+        "w": 158,
+        "h": 34
+      },
+      {
+        "cls": "tx-search__input",
+        "w": 268,
+        "h": 22
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 77,
+        "h": 36
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 101,
+        "h": 36
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 127,
+        "h": 36
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 127,
+        "h": 36
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 103,
+        "h": 36
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 101,
+        "h": 36
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 127,
+        "h": 36
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 114,
+        "h": 36
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 127,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 127,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 127,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 127,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 101,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 127,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 101,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 101,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 101,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 101,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 127,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 101,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 101,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 127,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 101,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 101,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 127,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 101,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 127,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 127,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 127,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 127,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 127,
+        "h": 34
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 103,
+        "h": 36
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 74,
+        "h": 36
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 76,
+        "h": 36
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 74,
+        "h": 36
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 74,
+        "h": 36
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 74,
+        "h": 36
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 74,
+        "h": 36
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 74,
+        "h": 36
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 74,
+        "h": 36
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 86,
+        "h": 36
+      },
+      {
+        "cls": "chip chip--mini",
+        "w": 74,
+        "h": 36
+      }
+    ],
+    "hasTabbar": true,
+    "toolbarTop": "0px",
+    "rowCols": 1,
+    "bodyFont": null
+  },
+  {
+    "label": "light-1440-rowmenu",
+    "want": "list",
+    "theme": "light",
+    "rows": 20,
+    "dayCount": 8,
+    "dayHeads": [
+      "10 月 13 日今天 支出 ¥ 5,712.27 收入 ¥ 88.00 6 笔",
+      "10 月 12 日昨天 支出 ¥ 90.00 3 笔",
+      "10 月 11 日周日 支出 ¥ 68.00 收入 ¥ 12.34 3 笔",
+      "10 月 10 日周六 1 笔",
+      "10 月 9 日周五 支出 ¥ 3,200.00 1 笔",
+      "10 月 8 日周四 1 笔",
+      "10 月 7 日周三 支出 ¥ 49.00 2 笔",
+      "10 月 6 日周二 支出 ¥ 133.00 收入 ¥ 200.00 3 笔"
+    ],
+    "sumExpense": "¥ 9,260.77",
+    "sumIncome": "¥ 300.34",
+    "sumNet": "-¥ 8,960.43",
+    "heroSub": "我的账本 · 全部共 21 笔，已加载 20 笔",
+    "foot": "加载更多（还有 1 笔）",
+    "hasMoreBtn": true,
+    "pills": [
+      "类型",
+      "账户",
+      "分类",
+      "标签",
+      "日期",
+      "排序：时间（新→旧）"
+    ],
+    "clearBtn": null,
+    "panelOpen": false,
+    "menuOpen": true,
+    "selectBar": null,
+    "emptyKind": null,
+    "errBlock": false,
+    "skel": 0,
+    "missingIcons": 0,
+    "sub44": [
+      {
+        "cls": "tx-pill",
+        "w": 56,
+        "h": 34
+      },
+      {
+        "cls": "tx-pill",
+        "w": 56,
+        "h": 34
+      },
+      {
+        "cls": "tx-pill",
+        "w": 56,
+        "h": 34
+      },
+      {
+        "cls": "tx-pill",
+        "w": 56,
+        "h": 34
+      },
+      {
+        "cls": "tx-pill",
+        "w": 56,
+        "h": 34
+      },
+      {
+        "cls": "tx-pill",
+        "w": 158,
+        "h": 34
+      },
+      {
+        "cls": "tx-search__input",
+        "w": 476,
+        "h": 22
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__menu-item",
+        "w": 146,
+        "h": 36
+      },
+      {
+        "cls": "tx-row__menu-item",
+        "w": 146,
+        "h": 36
+      },
+      {
+        "cls": "tx-row__menu-item",
+        "w": 146,
+        "h": 36
+      },
+      {
+        "cls": "tx-row__menu-item tx-row__menu-item--danger",
+        "w": 146,
+        "h": 36
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      }
+    ],
+    "hasTabbar": true,
+    "toolbarTop": "0px",
+    "rowCols": 9,
+    "bodyFont": null
+  },
+  {
+    "label": "dark-1440-list",
+    "want": "list",
+    "theme": "dark",
+    "rows": 20,
+    "dayCount": 8,
+    "dayHeads": [
+      "10 月 13 日今天 支出 ¥ 5,712.27 收入 ¥ 88.00 6 笔",
+      "10 月 12 日昨天 支出 ¥ 90.00 3 笔",
+      "10 月 11 日周日 支出 ¥ 68.00 收入 ¥ 12.34 3 笔",
+      "10 月 10 日周六 1 笔",
+      "10 月 9 日周五 支出 ¥ 3,200.00 1 笔",
+      "10 月 8 日周四 1 笔",
+      "10 月 7 日周三 支出 ¥ 49.00 2 笔",
+      "10 月 6 日周二 支出 ¥ 133.00 收入 ¥ 200.00 3 笔"
+    ],
+    "sumExpense": "¥ 9,260.77",
+    "sumIncome": "¥ 300.34",
+    "sumNet": "-¥ 8,960.43",
+    "heroSub": "我的账本 · 全部共 21 笔，已加载 20 笔",
+    "foot": "加载更多（还有 1 笔）",
+    "hasMoreBtn": true,
+    "pills": [
+      "类型",
+      "账户",
+      "分类",
+      "标签",
+      "日期",
+      "排序：时间（新→旧）"
+    ],
+    "clearBtn": null,
+    "panelOpen": false,
+    "menuOpen": false,
+    "selectBar": null,
+    "emptyKind": null,
+    "errBlock": false,
+    "skel": 0,
+    "missingIcons": 0,
+    "sub44": [
+      {
+        "cls": "tx-pill",
+        "w": 56,
+        "h": 34
+      },
+      {
+        "cls": "tx-pill",
+        "w": 56,
+        "h": 34
+      },
+      {
+        "cls": "tx-pill",
+        "w": 56,
+        "h": 34
+      },
+      {
+        "cls": "tx-pill",
+        "w": 56,
+        "h": 34
+      },
+      {
+        "cls": "tx-pill",
+        "w": 56,
+        "h": 34
+      },
+      {
+        "cls": "tx-pill",
+        "w": 158,
+        "h": 34
+      },
+      {
+        "cls": "tx-search__input",
+        "w": 476,
+        "h": 22
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      }
+    ],
+    "hasTabbar": true,
+    "toolbarTop": "0px",
+    "rowCols": 9,
+    "bodyFont": null
+  },
+  {
+    "label": "light-1024-list",
+    "want": "list",
+    "theme": "light",
+    "rows": 20,
+    "dayCount": 8,
+    "dayHeads": [
+      "10 月 13 日今天 支出 ¥ 5,712.27 收入 ¥ 88.00 6 笔",
+      "10 月 12 日昨天 支出 ¥ 90.00 3 笔",
+      "10 月 11 日周日 支出 ¥ 68.00 收入 ¥ 12.34 3 笔",
+      "10 月 10 日周六 1 笔",
+      "10 月 9 日周五 支出 ¥ 3,200.00 1 笔",
+      "10 月 8 日周四 1 笔",
+      "10 月 7 日周三 支出 ¥ 49.00 2 笔",
+      "10 月 6 日周二 支出 ¥ 133.00 收入 ¥ 200.00 3 笔"
+    ],
+    "sumExpense": "¥ 9,260.77",
+    "sumIncome": "¥ 300.34",
+    "sumNet": "-¥ 8,960.43",
+    "heroSub": "我的账本 · 全部共 21 笔，已加载 20 笔",
+    "foot": "加载更多（还有 1 笔）",
+    "hasMoreBtn": true,
+    "pills": [
+      "类型",
+      "账户",
+      "分类",
+      "标签",
+      "日期",
+      "排序：时间（新→旧）"
+    ],
+    "clearBtn": null,
+    "panelOpen": false,
+    "menuOpen": false,
+    "selectBar": null,
+    "emptyKind": null,
+    "errBlock": false,
+    "skel": 0,
+    "missingIcons": 0,
+    "sub44": [
+      {
+        "cls": "tx-pill",
+        "w": 56,
+        "h": 34
+      },
+      {
+        "cls": "tx-pill",
+        "w": 56,
+        "h": 34
+      },
+      {
+        "cls": "tx-pill",
+        "w": 56,
+        "h": 34
+      },
+      {
+        "cls": "tx-pill",
+        "w": 56,
+        "h": 34
+      },
+      {
+        "cls": "tx-pill",
+        "w": 56,
+        "h": 34
+      },
+      {
+        "cls": "tx-pill",
+        "w": 158,
+        "h": 34
+      },
+      {
+        "cls": "tx-search__input",
+        "w": 132,
+        "h": 22
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      }
+    ],
+    "hasTabbar": true,
+    "toolbarTop": "0px",
+    "rowCols": 7,
+    "bodyFont": null
+  },
+  {
+    "label": "dark-1024-list",
+    "want": "list",
+    "theme": "dark",
+    "rows": 20,
+    "dayCount": 8,
+    "dayHeads": [
+      "10 月 13 日今天 支出 ¥ 5,712.27 收入 ¥ 88.00 6 笔",
+      "10 月 12 日昨天 支出 ¥ 90.00 3 笔",
+      "10 月 11 日周日 支出 ¥ 68.00 收入 ¥ 12.34 3 笔",
+      "10 月 10 日周六 1 笔",
+      "10 月 9 日周五 支出 ¥ 3,200.00 1 笔",
+      "10 月 8 日周四 1 笔",
+      "10 月 7 日周三 支出 ¥ 49.00 2 笔",
+      "10 月 6 日周二 支出 ¥ 133.00 收入 ¥ 200.00 3 笔"
+    ],
+    "sumExpense": "¥ 9,260.77",
+    "sumIncome": "¥ 300.34",
+    "sumNet": "-¥ 8,960.43",
+    "heroSub": "我的账本 · 全部共 21 笔，已加载 20 笔",
+    "foot": "加载更多（还有 1 笔）",
+    "hasMoreBtn": true,
+    "pills": [
+      "类型",
+      "账户",
+      "分类",
+      "标签",
+      "日期",
+      "排序：时间（新→旧）"
+    ],
+    "clearBtn": null,
+    "panelOpen": false,
+    "menuOpen": false,
+    "selectBar": null,
+    "emptyKind": null,
+    "errBlock": false,
+    "skel": 0,
+    "missingIcons": 0,
+    "sub44": [
+      {
+        "cls": "tx-pill",
+        "w": 56,
+        "h": 34
+      },
+      {
+        "cls": "tx-pill",
+        "w": 56,
+        "h": 34
+      },
+      {
+        "cls": "tx-pill",
+        "w": 56,
+        "h": 34
+      },
+      {
+        "cls": "tx-pill",
+        "w": 56,
+        "h": 34
+      },
+      {
+        "cls": "tx-pill",
+        "w": 56,
+        "h": 34
+      },
+      {
+        "cls": "tx-pill",
+        "w": 158,
+        "h": 34
+      },
+      {
+        "cls": "tx-search__input",
+        "w": 132,
+        "h": 22
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      },
+      {
+        "cls": "tx-row__more",
+        "w": 32,
+        "h": 32
+      }
+    ],
+    "hasTabbar": true,
+    "toolbarTop": "0px",
+    "rowCols": 7,
+    "bodyFont": null
+  },
+  {
+    "label": "light-390-list",
+    "want": "list",
+    "theme": "light",
+    "rows": 20,
+    "dayCount": 8,
+    "dayHeads": [
+      "10 月 13 日今天 支出 ¥ 5,712.27 收入 ¥ 88.00 6 笔",
+      "10 月 12 日昨天 支出 ¥ 90.00 3 笔",
+      "10 月 11 日周日 支出 ¥ 68.00 收入 ¥ 12.34 3 笔",
+      "10 月 10 日周六 1 笔",
+      "10 月 9 日周五 支出 ¥ 3,200.00 1 笔",
+      "10 月 8 日周四 1 笔",
+      "10 月 7 日周三 支出 ¥ 49.00 2 笔",
+      "10 月 6 日周二 支出 ¥ 133.00 收入 ¥ 200.00 3 笔"
+    ],
+    "sumExpense": "¥ 9,260.77",
+    "sumIncome": "¥ 300.34",
+    "sumNet": "-¥ 8,960.43",
+    "heroSub": "我的账本 · 全部共 21 笔，已加载 20 笔",
+    "foot": "加载更多（还有 1 笔）",
+    "hasMoreBtn": true,
+    "pills": [
+      "类型",
+      "账户",
+      "分类",
+      "标签",
+      "日期",
+      "排序：时间（新→旧）"
+    ],
+    "clearBtn": null,
+    "panelOpen": false,
+    "menuOpen": false,
+    "selectBar": null,
+    "emptyKind": null,
+    "errBlock": false,
+    "skel": 0,
+    "missingIcons": 0,
+    "sub44": [],
+    "hasTabbar": true,
+    "toolbarTop": "56px",
+    "rowCols": 4,
+    "bodyFont": null
+  },
+  {
+    "label": "light-390-longpress",
+    "want": "probe",
+    "at150ms": false,
+    "after400ms": {
+      "bar": "已选 1 笔",
+      "body": "is-selecting",
+      "picked": 1
+    }
+  },
+  {
+    "label": "light-390-select",
+    "want": "list",
+    "theme": "light",
+    "rows": 20,
+    "dayCount": 8,
+    "dayHeads": [
+      "10 月 13 日今天 支出 ¥ 5,712.27 收入 ¥ 88.00 6 笔",
+      "10 月 12 日昨天 支出 ¥ 90.00 3 笔",
+      "10 月 11 日周日 支出 ¥ 68.00 收入 ¥ 12.34 3 笔",
+      "10 月 10 日周六 1 笔",
+      "10 月 9 日周五 支出 ¥ 3,200.00 1 笔",
+      "10 月 8 日周四 1 笔",
+      "10 月 7 日周三 支出 ¥ 49.00 2 笔",
+      "10 月 6 日周二 支出 ¥ 133.00 收入 ¥ 200.00 3 笔"
+    ],
+    "sumExpense": "¥ 9,260.77",
+    "sumIncome": "¥ 300.34",
+    "sumNet": "-¥ 8,960.43",
+    "heroSub": "我的账本 · 全部共 21 笔，已加载 20 笔",
+    "foot": "加载更多（还有 1 笔）",
+    "hasMoreBtn": true,
+    "pills": [
+      "类型",
+      "账户",
+      "分类",
+      "标签",
+      "日期",
+      "排序：时间（新→旧）"
+    ],
+    "clearBtn": null,
+    "panelOpen": false,
+    "menuOpen": false,
+    "selectBar": "已选 2 笔",
+    "emptyKind": null,
+    "errBlock": false,
+    "skel": 0,
+    "missingIcons": 0,
+    "sub44": [],
+    "hasTabbar": true,
+    "toolbarTop": "56px",
+    "rowCols": 4,
+    "bodyFont": null
+  },
+  {
+    "label": "light-390-swipe",
+    "want": "probe",
+    "revealed": 0,
+    "menuOpen": false
+  },
+  {
+    "label": "dark-390-list",
+    "want": "list",
+    "theme": "dark",
+    "rows": 20,
+    "dayCount": 8,
+    "dayHeads": [
+      "10 月 13 日今天 支出 ¥ 5,712.27 收入 ¥ 88.00 6 笔",
+      "10 月 12 日昨天 支出 ¥ 90.00 3 笔",
+      "10 月 11 日周日 支出 ¥ 68.00 收入 ¥ 12.34 3 笔",
+      "10 月 10 日周六 1 笔",
+      "10 月 9 日周五 支出 ¥ 3,200.00 1 笔",
+      "10 月 8 日周四 1 笔",
+      "10 月 7 日周三 支出 ¥ 49.00 2 笔",
+      "10 月 6 日周二 支出 ¥ 133.00 收入 ¥ 200.00 3 笔"
+    ],
+    "sumExpense": "¥ 9,260.77",
+    "sumIncome": "¥ 300.34",
+    "sumNet": "-¥ 8,960.43",
+    "heroSub": "我的账本 · 全部共 21 笔，已加载 20 笔",
+    "foot": "加载更多（还有 1 笔）",
+    "hasMoreBtn": true,
+    "pills": [
+      "类型",
+      "账户",
+      "分类",
+      "标签",
+      "日期",
+      "排序：时间（新→旧）"
+    ],
+    "clearBtn": null,
+    "panelOpen": false,
+    "menuOpen": false,
+    "selectBar": null,
+    "emptyKind": null,
+    "errBlock": false,
+    "skel": 0,
+    "missingIcons": 0,
+    "sub44": [],
+    "hasTabbar": true,
+    "toolbarTop": "56px",
+    "rowCols": 4,
+    "bodyFont": null
+  },
+  {
+    "label": "light-1440-detail-expense",
+    "want": "detail",
+    "theme": "light",
+    "hasPage": true,
+    "notFound": null,
+    "amount": "−¥ 30.00",
+    "amountClass": "txd__amount tnum is-neg",
+    "heroBadges": [
+      "支出"
+    ],
+    "explain": "支出：实际值 = 32.00 + 0.00 − 2.00 = 30.00，账户减少 30.00",
+    "lines": [
+      "账户将减少 ¥30.00",
+      "¥32.00 + ¥0.00 − ¥2.00"
+    ],
+    "deltas": [
+      "账户余额影响 −¥ 3,000.00"
+    ],
+    "fields": [
+      "记录类型 支出",
+      "分类 餐饮 › 午餐",
+      "账户 招行信用卡(5566)",
+      "金额 ¥ 32.00",
+      "折扣 ¥ 2.00",
+      "实际值 ¥ 30.00",
+      "名称 公司楼下快餐",
+      "商家 真功夫",
+      "对象 —",
+      "备注 工作日午餐",
+      "日期时间 2026-10-07 12:30",
+      "创建时间 2026-10-13 21:10",
+      "记账人 陈小账"
+    ],
+    "actions": [
+      "移入回收站"
+    ],
+    "missingIcons": 0,
+    "sub44": []
+  },
+  {
+    "label": "dark-1440-detail-expense",
+    "want": "detail",
+    "theme": "dark",
+    "hasPage": true,
+    "notFound": null,
+    "amount": "−¥ 30.00",
+    "amountClass": "txd__amount tnum is-neg",
+    "heroBadges": [
+      "支出"
+    ],
+    "explain": "支出：实际值 = 32.00 + 0.00 − 2.00 = 30.00，账户减少 30.00",
+    "lines": [
+      "账户将减少 ¥30.00",
+      "¥32.00 + ¥0.00 − ¥2.00"
+    ],
+    "deltas": [
+      "账户余额影响 −¥ 3,000.00"
+    ],
+    "fields": [
+      "记录类型 支出",
+      "分类 餐饮 › 午餐",
+      "账户 招行信用卡(5566)",
+      "金额 ¥ 32.00",
+      "折扣 ¥ 2.00",
+      "实际值 ¥ 30.00",
+      "名称 公司楼下快餐",
+      "商家 真功夫",
+      "对象 —",
+      "备注 工作日午餐",
+      "日期时间 2026-10-07 12:30",
+      "创建时间 2026-10-13 21:10",
+      "记账人 陈小账"
+    ],
+    "actions": [
+      "移入回收站"
+    ],
+    "missingIcons": 0,
+    "sub44": []
+  },
+  {
+    "label": "light-1440-detail-transfer",
+    "want": "detail",
+    "theme": "light",
+    "hasPage": true,
+    "notFound": null,
+    "amount": "−¥ 5,003.00",
+    "amountClass": "txd__amount tnum is-neg",
+    "heroBadges": [
+      "转账",
+      "转出"
+    ],
+    "explain": "转账：实际值 = 5000.00（手续费 3.00 由转出方承担） = 5000.00，账户减少 5003.00",
+    "lines": [
+      "转出账户 −¥5003.00",
+      "转入账户 +¥5000.00",
+      "净资产 −¥3.00"
+    ],
+    "deltas": [
+      "招商银行储蓄卡(6688) 余额 −¥ 500,300.00",
+      "招行信用卡(5566) 余额 +¥ 500,000.00",
+      "手续费账户（虚拟） −¥ 300.00"
+    ],
+    "fields": [
+      "记录类型 转账",
+      "阶段 转出",
+      "分类 未分类",
+      "账户 招商银行储蓄卡(6688)",
+      "转入 / 目标账户 招行信用卡(5566)",
+      "金额 ¥ 5,000.00",
+      "手续费 ¥ 3.00",
+      "实际值 ¥ 5,000.00",
+      "名称 还招行信用卡",
+      "商家 —",
+      "对象 —",
+      "备注 —",
+      "日期时间 2026-10-08 10:00",
+      "创建时间 2026-10-13 21:10",
+      "记账人 陈小账"
+    ],
+    "actions": [
+      "移入回收站"
+    ],
+    "missingIcons": 0,
+    "sub44": []
+  },
+  {
+    "label": "light-1440-detail-receivable-in",
+    "want": "detail",
+    "theme": "light",
+    "hasPage": true,
+    "notFound": null,
+    "amount": "+¥ 200.00",
+    "amountClass": "txd__amount tnum is-pos",
+    "heroBadges": [
+      "应收",
+      "收回"
+    ],
+    "explain": "应收款项：实际值 = 200.00 − 0.00 = 200.00，账户增加 200.00",
+    "lines": [
+      "账户将增加 ¥200.00",
+      "债权 −¥200.00"
+    ],
+    "deltas": [
+      "招商银行储蓄卡(6688) 余额 +¥ 20,000.00",
+      "债权（借出） 余额 −¥ 20,000.00"
+    ],
+    "fields": [
+      "记录类型 应收",
+      "阶段 收回",
+      "分类 借款 › 借出借款",
+      "账户 招商银行储蓄卡(6688)",
+      "转入 / 目标账户 债权（借出）",
+      "金额 ¥ 200.00",
+      "实际值 ¥ 200.00",
+      "名称 老王还了一部分",
+      "商家 —",
+      "对象 老王",
+      "备注 —",
+      "日期时间 2026-10-12 20:00",
+      "创建时间 2026-10-13 21:10",
+      "记账人 陈小账"
+    ],
+    "actions": [
+      "移入回收站"
+    ],
+    "missingIcons": 0,
+    "sub44": []
+  },
+  {
+    "label": "light-1440-detail-payable",
+    "want": "detail",
+    "theme": "light",
+    "hasPage": true,
+    "notFound": null,
+    "amount": "¥ 0.00",
+    "amountClass": "txd__amount tnum is-zero",
+    "heroBadges": [
+      "应付",
+      "登记欠款"
+    ],
+    "explain": "应付款项：实际值 = 800.00（仅登记债务，不动账户余额） = 800.00，账户余额不变",
+    "lines": [
+      "账户余额不变",
+      "债务 +¥800.00"
+    ],
+    "deltas": [
+      "现金钱包 余额 ¥ 0.00",
+      "债务（欠款） 余额 +¥ 80,000.00"
+    ],
+    "fields": [
+      "记录类型 应付",
+      "阶段 登记欠款",
+      "分类 其他应付 › 其他应付",
+      "账户 现金钱包",
+      "转入 / 目标账户 债务（欠款）",
+      "金额 ¥ 800.00",
+      "实际值 ¥ 800.00",
+      "名称 修车费（欠修理厂）",
+      "商家 —",
+      "对象 城东汽修",
+      "备注 —",
+      "日期时间 2026-10-12 16:20",
+      "创建时间 2026-10-13 21:10",
+      "记账人 陈小账"
+    ],
+    "actions": [
+      "移入回收站"
+    ],
+    "missingIcons": 0,
+    "sub44": []
+  },
+  {
+    "label": "light-1440-detail-adjustment",
+    "want": "detail",
+    "theme": "light",
+    "hasPage": true,
+    "notFound": null,
+    "amount": "+¥ 30.00",
+    "amountClass": "txd__amount tnum is-pos",
+    "heroBadges": [
+      "余额调整",
+      "调增"
+    ],
+    "explain": "余额调整：实际值 = 30.00（对账调增） = 30.00，账户增加 30.00",
+    "lines": [
+      "账户将增加 ¥30.00（对账调整）"
+    ],
+    "deltas": [
+      "账户余额影响 +¥ 3,000.00"
+    ],
+    "fields": [
+      "记录类型 余额调整",
+      "阶段 调增",
+      "分类 未分类",
+      "账户 现金钱包",
+      "金额 ¥ 30.00",
+      "实际值 ¥ 30.00",
+      "名称 对账调整 · 补记零星支出差额",
+      "商家 —",
+      "对象 —",
+      "备注 —",
+      "日期时间 2026-10-11 22:00",
+      "创建时间 2026-10-13 21:10",
+      "记账人 陈小账"
+    ],
+    "actions": [
+      "移入回收站"
+    ],
+    "missingIcons": 0,
+    "sub44": []
+  },
+  {
+    "label": "light-390-detail",
+    "want": "detail",
+    "theme": "light",
+    "hasPage": true,
+    "notFound": null,
+    "amount": "−¥ 5,003.00",
+    "amountClass": "txd__amount tnum is-neg",
+    "heroBadges": [
+      "转账",
+      "转出"
+    ],
+    "explain": "转账：实际值 = 5000.00（手续费 3.00 由转出方承担） = 5000.00，账户减少 5003.00",
+    "lines": [
+      "转出账户 −¥5003.00",
+      "转入账户 +¥5000.00",
+      "净资产 −¥3.00"
+    ],
+    "deltas": [
+      "招商银行储蓄卡(6688) 余额 −¥ 500,300.00",
+      "招行信用卡(5566) 余额 +¥ 500,000.00",
+      "手续费账户（虚拟） −¥ 300.00"
+    ],
+    "fields": [
+      "记录类型 转账",
+      "阶段 转出",
+      "分类 未分类",
+      "账户 招商银行储蓄卡(6688)",
+      "转入 / 目标账户 招行信用卡(5566)",
+      "金额 ¥ 5,000.00",
+      "手续费 ¥ 3.00",
+      "实际值 ¥ 5,000.00",
+      "名称 还招行信用卡",
+      "商家 —",
+      "对象 —",
+      "备注 —",
+      "日期时间 2026-10-08 10:00",
+      "创建时间 2026-10-13 21:10",
+      "记账人 陈小账"
+    ],
+    "actions": [
+      "移入回收站"
+    ],
+    "missingIcons": 0,
+    "sub44": []
+  },
+  {
+    "label": "light-1440-edit",
+    "want": "form",
+    "theme": "light",
+    "title": "编辑账单",
+    "blocked": null,
+    "type": "支出",
+    "amount": "32.00",
+    "fee": "",
+    "discount": "2.00",
+    "name": "公司楼下快餐",
+    "merchant": "真功夫",
+    "date": "2026-10-07",
+    "accountSel": "现金钱包 · -¥ 4,353.77",
+    "archivedPinned": null,
+    "submitLabel": "保存修改",
+    "preview": [
+      "账户将减少 ¥30.00",
+      "¥32.00 + ¥0.00 − ¥2.00"
+    ],
+    "missingIcons": 0
+  },
+  {
+    "label": "dark-1440-edit",
+    "want": "form",
+    "theme": "dark",
+    "title": "编辑账单",
+    "blocked": null,
+    "type": "支出",
+    "amount": "32.00",
+    "fee": "",
+    "discount": "2.00",
+    "name": "公司楼下快餐",
+    "merchant": "真功夫",
+    "date": "2026-10-07",
+    "accountSel": "现金钱包 · -¥ 4,353.77",
+    "archivedPinned": null,
+    "submitLabel": "保存修改",
+    "preview": [
+      "账户将减少 ¥30.00",
+      "¥32.00 + ¥0.00 − ¥2.00"
+    ],
+    "missingIcons": 0
+  },
+  {
+    "label": "light-1440-edit-adjustment-blocked",
+    "want": "form",
+    "theme": "light",
+    "title": null,
+    "blocked": "余额调整不能在这里修改",
+    "type": null,
+    "amount": null,
+    "fee": null,
+    "discount": null,
+    "name": null,
+    "merchant": null,
+    "date": null,
+    "accountSel": null,
+    "archivedPinned": null,
+    "submitLabel": null,
+    "preview": [],
+    "missingIcons": 0
+  },
+  {
+    "label": "light-1440-copy",
+    "want": "form",
+    "theme": "light",
+    "title": "记一笔",
+    "blocked": null,
+    "type": "支出",
+    "amount": "",
+    "fee": "",
+    "discount": "",
+    "name": "公司楼下快餐",
+    "merchant": "真功夫",
+    "date": "2026-10-13",
+    "accountSel": "现金钱包 · -¥ 4,353.77",
+    "archivedPinned": null,
+    "submitLabel": "保存",
+    "preview": [
+      "填入金额后，这里会显示这笔账会怎么动账户"
+    ],
+    "missingIcons": 0
+  },
+  {
+    "label": "nav",
+    "want": "probe",
+    "sidebar": [
+      "CC CC记账",
+      "当前账本 我的账本 个人账本 · 1 人协作",
+      "概览",
+      "账单",
+      "账户",
+      "分类",
+      "标签",
+      "我的",
+      "陈 陈小账 @demo"
+    ],
+    "tabbar": [],
+    "activeTab": null
+  },
+  {
+    "label": "compose-entry",
+    "want": "probe",
+    "found": true,
+    "href": "/transactions/new"
+  }
+]

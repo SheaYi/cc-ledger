@@ -1,0 +1,389 @@
+/* ==========================================================================
+   CC记账 · 设计令牌（双主题）
+   唯一来源：docs/00-DESIGN.md（Apple 设计语言分析）+ docs/09 §8.1（深色模式方向）
+   纪律：组件层只引用变量，任何地方都不写死 hex / rgba。
+   字体：不引外部 CDN（NAS 断网可用）。Apple 设备命中 SF Pro，
+        非 Apple 设备回落到系统 UI 字体（Inter 式的近似替代）。
+
+   主题机制
+   ------------------------------------------------------------------------
+   · :root 是日间（默认）；[data-theme='dark'] 覆盖为夜间。
+   · 选择器只有这两个，不做 @media (prefers-color-scheme) 分支——
+     「自动」由 theme.js 解析成实际取值后写入 data-theme，CSS 侧永远只有两个确定态，
+     避免媒体查询与显式选择器互相打架（也避免同一套暗色被复制两份）。
+   · data-theme-mode 记录用户意图（light / dark / auto），仅供调试与 a11y 文案取值。
+   ========================================================================== */
+:root {
+  /* ---------- 品牌与交互 ----------
+     00-DESIGN 只有一个强调色 Action Blue，但它在文档里分饰两角：
+       · primary（#0066cc）—— 实心胶囊按钮的底
+       · primary-on-dark（#2997ff）—— 深色面/暗色下的「文字链接」
+     记账界面里同一个蓝色既要当按钮底、又要当链接与选中态的字色，
+     两者的对比度要求相反（白字压在蓝底上 vs 蓝字压在深底上），
+     因此此处按「角色」而非「颜色」拆成两枚令牌。 */
+  --c-primary: #0066cc; /* 交互色：链接 / 图标 / 描边 / 选中态 */
+  --c-primary-fill: #0066cc; /* 实心填充：主按钮、品牌瓷片 */
+  --c-primary-fill-hover: #0071e3; /* 实心填充的 hover（与夜间共用，提亮一档） */
+  --c-primary-focus: #0071e3; /* 焦点环 / 选中强调 */
+  --c-primary-on-dark: #2997ff; /* 深色面上的链接蓝 */
+  --c-on-primary: #ffffff;
+  --c-on-dark: #ffffff;
+
+  /* 「对比填充」：日间是近黑（= 00-DESIGN 的 button-dark-utility），
+     夜间必须翻转成近白，否则深色按钮会消失在深色页面上。
+     这一枚令牌是夜间模式最容易被漏掉的一处。 */
+  --c-ink-fill: #1d1d1f;
+  --c-ink-fill-hover: #000000;
+  --c-on-ink-fill: #ffffff;
+
+  /* ---------- 文本 ---------- */
+  --c-ink: #1d1d1f;
+  --c-body: #1d1d1f;
+  --c-body-on-dark: #ffffff;
+  --c-body-muted: #cccccc;
+  --c-ink-muted-80: #333333;
+  --c-ink-muted-48: #757575; /* Q4 拍板：由 #7a7a7a 提亮一档，白底 4.29→4.60:1（羊皮纸底 4.23:1） */
+
+  /* ---------- 面 ----------
+     层次一律由「面色切换」承担，不给卡片投影。 */
+  --c-canvas: #ffffff;
+  --c-parchment: #f5f5f7;
+  --c-pearl: #fafafc;
+  --c-tile-1: #272729;
+  --c-tile-2: #2a2a2c;
+  --c-tile-3: #252527;
+  --c-black: #000000;
+  --c-chip-translucent: rgba(210, 210, 215, 0.64);
+
+  /* 「角色面」——三枚令牌在两个主题里需要不同的相对方向，
+     不能用同一枚色值硬套（这是夜间模式最容易出错的三处）：
+       · soft-fill：贴着页底的安静填充（软按钮、用户胶囊）。
+         日间它比白页暗一档；夜间页底已是最暗，它必须比页底亮一档。
+       · hero-panel：页面唯一的大面积强调面（净资产面板）。
+         日间用深面「压」在白页上；夜间用更亮的面「浮」在深页上。
+       · brand-panel：登录页左栏品牌面。它靠「与右栏拉开最大明度差」成立，
+         夜间可用范围被压缩，纯黑（文档的 true void）是唯一还能拉开的档位。 */
+  --c-soft-fill: #f5f5f7;
+  --c-hero-panel: #272729;
+  --c-brand-panel: #272729;
+
+  /* ---------- 描边 ----------
+     00-DESIGN 的 hairline 有两个来源：颜色令牌 hairline = #e0e0e0，
+     以及 Elevation 表里的「Soft hairline = 1px rgba(0,0,0,0.08)」。
+     二者语义分工（已合并，不再混用）：
+       --c-hairline       卡片 / 胶囊 / 输入框的 1px 结构描边（唯一的结构描边）
+       --c-hairline-soft  仅「浮层分隔线」：顶栏与 TabBar 的底边（浮在内容之上的磨砂条）
+       --c-divider-soft   面内部的软分隔：列表行、页脚顶边、Pearl 按钮的 3px 环
+     */
+  --c-divider-soft: #f0f0f0;
+  --c-hairline: #e0e0e0;
+  --c-hairline-soft: rgba(0, 0, 0, 0.08); /* 仅浮层分隔线使用，勿作底色 */
+  --c-hairline-dark: #2c2c2e; /* 纯黑导航内部的分隔 */
+  --c-placeholder: #a5a5a8;
+  --c-overlay-ring: rgba(0, 0, 0, 0.06); /* 真·浮层（登录卡）的 1px 轮廓 */
+
+  /* ---------- 强调底（Action Blue 的低透明度铺底） ----------
+     按面积分级：面积越大 alpha 越低，保证压在其上的文字仍达标。 */
+  --c-accent-1: rgba(0, 102, 204, 0.04); /* 当前账本卡 */
+  --c-accent-2: rgba(0, 102, 204, 0.05); /* 选中胶囊 / 选中图标 */
+  --c-accent-3: rgba(0, 102, 204, 0.08); /* 侧栏当前项（大面积） */
+  --c-accent-4: rgba(0, 102, 204, 0.1); /* 小徽标 */
+
+  /* ---------- 磨砂与浮层 ---------- */
+  --c-frost-bg: rgba(255, 255, 255, 0.78); /* 移动顶栏 */
+  --c-frost-bg-strong: rgba(255, 255, 255, 0.86); /* 底部 TabBar */
+  --c-toast-bg: rgba(29, 29, 31, 0.94);
+  --c-toast-error: rgba(180, 0, 18, 0.95);
+  --c-toast-success: rgba(20, 105, 55, 0.95);
+
+  /* ---------- 深色面上的文字（净资产面板 / 登录品牌面） ---------- */
+  --c-on-dark-1: rgba(255, 255, 255, 0.92);
+  --c-on-dark-2: rgba(255, 255, 255, 0.62);
+  --c-on-dark-3: rgba(255, 255, 255, 0.55);
+  --c-on-dark-4: rgba(255, 255, 255, 0.38);
+  --c-on-dark-tile: rgba(255, 255, 255, 0.14);
+  --c-on-dark-chip: rgba(255, 255, 255, 0.1);
+
+  /* ---------- 语义色 ----------
+     00-DESIGN 的 Known Gaps 明确记载「表单校验与错误态未在样本页出现」，
+     故此处为记账应用自行补充。三条纪律（与「唯一强调色」同构）：
+       ① 语义色不是第二强调色 —— 强调色 =「可点击」信号，
+          语义色 =「状态 / 正负」信号，二者正交；
+       ② 语义色不得作为任何可交互元素本身的填充（按钮底、链接、焦点环），
+          只出现在「文本」与「状态底 / 描边」上；
+       ③ 全系统只有两枚（danger / success），不增第三枚
+          （需要 warning 时用 danger 的弱化版）。
+     焦点环统一走 --c-primary-focus 的 2px 实线描边（文档语法），
+     不做淡光晕，故此处不再保留 *-ring 令牌。 */
+  --c-danger: #d70015;
+  --c-danger-bg: rgba(215, 0, 21, 0.07);
+  --c-danger-line: rgba(215, 0, 21, 0.35);
+  --c-success: #1d7a3f;
+  --c-success-bg: rgba(29, 122, 63, 0.07);
+  --c-success-line: rgba(29, 122, 63, 0.28);
+
+  /* ---------- 色板描边（标签圆点 / 调色盘） ---------- */
+  --c-swatch-ring: rgba(0, 0, 0, 0.06);
+
+  /* ---------- 图表分类色（数据可视化专用，**不是** UI 强调色） ----------
+     为什么需要一档独立色板：UI 层是「近单色 + 单一强调蓝」，
+     而占比图 / 饼图 / 排行榜必须让**相邻扇区可区分**。
+     早先直接拿灰度阶梯（ink → parchment）当分类色，最后两级在白卡上
+     几乎与底色同色 —— 扇区看起来像「缺了一块」，且相邻两档分不开。
+
+     这 8 档的做法：**明度做阶梯 + 色相在冷暖之间交替**，
+     于是相邻两档既不同明度也不同色温，任何相邻组合都分得开。
+
+     ⚠️ 只用于图表图元（扇区 / 柱 / 点 / 面积 / 排行榜圆点）。
+     不得用于按钮、链接、状态提示 —— 否则会与
+     「强调色 = 可点击」「语义色 = 状态」两条纪律打架。 */
+  --c-chart-1: #1d1d1f;
+  --c-chart-2: #3f5d7d;
+  --c-chart-3: #7a8b5c;
+  --c-chart-4: #b07a5a;
+  --c-chart-5: #5f8a8b;
+  --c-chart-6: #8a6f9c;
+  --c-chart-7: #c0a25c;
+  --c-chart-8: #9aa0a6;
+
+  /* ---------- rounded（不混用，中间值一律不用） ---------- */
+  --r-none: 0px;
+  --r-xs: 5px;
+  --r-sm: 8px;
+  --r-md: 11px; /* Pearl Button capsule（00-DESIGN 里唯一的中档用例） */
+  /* 受控扩展：00-DESIGN 的卡片档是 {rounded.lg}(18px)，但报表页是 12 栅格，
+     卡片物理宽度只有 ~430px，18px 会把角落吃掉一大块并挤压 24px 内边距的呼吸感。
+     12px 登记为**唯一**的卡片圆角（不引入第二档），与 .card 一一对应。 */
+  --r-card: 12px;
+  --r-lg: 18px;
+  --r-pill: 9999px;
+  --r-full: 9999px;
+
+  /* ---------- 悬浮岛（floating island）----------
+     侧栏从「贴边通高的分栏」改成「浮在页面之上的一块板」。
+     它是**容器**，不是卡片，所以圆角直接复用 --r-card（12px）——
+     00-DESIGN 明确「不混用 radii 语法」，另开一档会让「岛 / 导航项 / 卡片」
+     三者圆角各不相同，正是这条规范要避免的。
+     同一枚值落在 248px 宽的板上和 40px 高的导航行上都成立：
+     板靠留白（上下 20px + 左右 20px）读出「浮」，不靠更大的圆角。 */
+  --r-island: 12px;
+
+  /* ---------- 悬浮岛间距 ----------
+     岛与视口左边缘、岛与内容栏之间的呼吸距离。20px = spacing 尺度表的合法值，
+     也与 .sidebar 内部 20px 的纵向 gap 同值，让「岛内边距」与「岛外边距」
+     在视觉上是同一个模数。 */
+  --island-gap: 20px;
+
+  /* ---------- spacing（8px 基准） ---------- */
+  --s-xxs: 4px;
+  --s-xs: 8px;
+  --s-sm: 12px;
+  --s-md: 17px;
+  --s-lg: 24px;
+  --s-xl: 32px;
+  --s-xxl: 48px;
+  --s-section: 80px;
+  --s-section-sm: 48px;
+
+  /* ---------- typography ---------- */
+  --f-display: "SF Pro Display", system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  --f-text: "SF Pro Text", system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+
+  /* ---------- elevation ----------
+     00-DESIGN 的硬规矩：全系统只有一处投影，且只给「真正浮起来的层」——
+     登录卡 / 邀请卡 / Toast 这类脱离页面流的浮层。
+     卡片一律 0 投影，层次由 1px hairline 描边 + 面色切换（白 ↔ 羊皮纸 ↔ 深色面）承担。
+     夜间同理：投影在深色上几乎不可见，层级改由「面阶梯」表达（见下方 dark 块）。 */
+  --shadow-overlay: 0 2px 6px rgba(0, 0, 0, 0.05), 0 24px 60px -24px rgba(0, 0, 0, 0.22);
+
+  /* ---------- 悬浮岛的两级柔和扩散投影 ----------
+     00-DESIGN 的「唯一投影」纪律针对的是**卡片 / 按钮 / 文字**（别拿投影做层次），
+     而悬浮岛属于「floating sticky bar」那一族 —— 规范给它的手段是 backdrop-blur，
+     在纯色页底上糊不出任何东西。所以这里做一次**受控扩展**，只登记两枚、
+     且只给侧栏用，任何卡片都不许引用：
+       · island       —— 岛本身浮在页面之上（极低饱和的黑，大扩散半径）；
+       · island-item  —— 导航项 hover / 选中时「贴起」一点点（比岛更淡、扩散更小）。
+     参数取向：alpha ≤ 0.06、blur ≥ 24px、绝不带 y-offset 的硬边，
+     读起来是「光晕」而不是「黑框」，符合规范 Don't 里「投影不是层次工具」的边界 ——
+     岛与页面的真正区分仍由面色（白岛 / 羊皮纸页底）承担，投影只做柔化。 */
+  --shadow-island: 0 1px 2px rgba(29, 29, 31, 0.04), 0 12px 32px -8px rgba(29, 29, 31, 0.06);
+  --shadow-island-item: 0 1px 2px rgba(29, 29, 31, 0.05);
+
+  /* ---------- 动效 ----------
+     00-DESIGN 对动效的完整规定只有两条：
+       ① 「transform: scale(0.95) 是系统级微交互」（Do's 原文）；
+       ② Iteration Guide #4「只定义 Default 与 Active/Pressed，不定义 hover」。
+     据此收敛为一个最小动效系统，纪律与「唯一强调色 / 唯一投影」同构：
+       · 单一缓动 —— 不做弹跳、不做回弹、不做第二套 easing；
+       · 四档时长：按压 90ms / 状态 160ms / 常规 240ms / 进场 420ms；
+       · 按压一律 scale(0.95)；卡片与行这类「大面」不缩放，
+         按压改用面色变化（对齐 00-DESIGN「强调先换面、再加装饰」）；
+       · 进场只做「淡入 + 8px 上浮」，按 40ms 错峰，呼应 section 的呼吸节奏；
+       · prefers-reduced-motion 下全量降级（见 app.css 末尾）。
+     主题切换刻意不给过渡：大面积 background-color 过渡会触发整屏重绘，
+     且中间帧是两套配色的混色，反而更「脏」。主题是瞬时状态，不是动效。 */
+  --e-standard: cubic-bezier(0.25, 0.1, 0.25, 1);
+  --d-press: 90ms;
+  --d-state: 160ms;
+  --d-base: 240ms;
+  --d-enter: 420ms;
+  --d-stagger: 40ms;
+  --press-scale: 0.95;
+  --enter-shift: 8px;
+
+  /* ---------- 磨砂 ---------- */
+  --frost-blur: saturate(180%) blur(20px);
+
+  /* ---------- 布局 ----------
+     桌面 = 左侧固定导航栏（sidebar）+ 右侧内容栏；
+     移动 = 顶部细条 + 底部 TabBar（左侧栏隐藏）。 */
+  --w-content: 1040px; /* 内容列最大宽度 */
+  --w-form: 560px; /* 表单独列最大宽度 */
+  --w-auth: 940px; /* 登录分栏卡最大宽度 */
+  --w-sidebar: 248px; /* 桌面左侧导航栏宽度 */
+  --nav-h: 56px;
+  --tabbar-h: 56px;
+  --gutter: 20px;
+}
+
+/* ==========================================================================
+   夜间模式
+   ==========================================================================
+
+   依据链
+   ------------------------------------------------------------------------
+   ① 00-DESIGN 的 Known Gaps 原文：「Dark-mode counterparts for store and accessories
+      utility cards were not surfaced on the analyzed pages; the system documented is
+      the daytime/light-dominant variant Apple ships by default.」
+      —— 文档自己声明未覆盖暗色，因此夜间不是「照抄」，而是按文档的规则做受约束的扩展。
+   ② 文档已给出的暗色语汇（不是我们发明的）：
+      surface-tile-1 #272729 / tile-2 #2a2a2c / tile-3 #252527 / surface-black #000000
+      primary-on-dark #2997ff · body-on-dark #ffffff · body-muted #cccccc
+      ink-muted-48 #7a7a7a（Q4 拍板后日间档提亮为 #757575）· 「Elevation comes from surface-color change」
+   ③ docs/09 §8.1 已定的方向：canvas → #1d1d1f、ink → #f5f5f7、primary → #2997ff。
+
+   三条设计公理（对齐 Material Dark Theme 与 Apple HIG）
+   ------------------------------------------------------------------------
+   一、不用纯黑做页面底。纯黑 + 亮字会产生光晕（halation），文字边缘发虚；
+       文档也把 surface-black 限定为「true void —— 视频、edge-to-edge 影像、global nav」。
+       因此页面底取 #1d1d1f（文档的 ink 值反过来当底），而不是 #000000。
+   二、层级靠「更亮的面」，不靠阴影。日间的阶梯是
+       羊皮纸 #f5f5f7 → 白 #ffffff → 深色强调面 #272729；
+       夜间整体沿文档暗色带下移一档并保持单调递增：
+       #1d1d1f（页底）→ #272729（卡片）→ #2a2a2c（珍珠面）→ #2c2c2e（强调面）。
+       四档之间 3–5 个明度点，正是 Material 建议的「每 3–4 点一个清晰层」。
+   三、降低彩度、提亮交互色。文档的 #2997ff 是为「近黑摄影深色块上的大字号链接」
+       调校的；本应用还要用它承载 11–14px 的小字与选中态文字，
+       实测 #2997ff 压在中性底上仅 4.3:1、压在淡蓝铺底上仅 3.8:1，均不达 AA。
+       故保持色相、只提亮一档到 #4da3ff（Sky Link Blue 的亮度校准版），
+       全套配对恢复 ≥4.5:1 —— 这正是「保留色相、重校准明度」的标准暗色做法。
+       实心按钮的底仍是 Action Blue #0066cc：白字压上去是 5.6:1，
+       且 00-DESIGN 的 product-tile-dark 原文写着「Action Blue still works on
+       the dark surface」，此处遵从文档。
+   ========================================================================== */
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  /* ---------- 品牌与交互 ---------- */
+  --c-primary: #4da3ff; /* 交互色：暗面上提亮一档，保证小字达标 */
+  --c-primary-fill: #0066cc; /* 实心按钮保持 Action Blue（文档明示可用） */
+  --c-primary-fill-hover: #0071e3;
+  --c-primary-focus: #4da3ff;
+  --c-primary-on-dark: #4da3ff;
+  --c-on-primary: #ffffff;
+  --c-on-dark: #ffffff;
+
+  /* 对比填充翻转为近白（否则深色按钮消失在深色页面上） */
+  --c-ink-fill: #f5f5f7;
+  --c-ink-fill-hover: #ffffff;
+  --c-on-ink-fill: #1d1d1f;
+
+  /* ---------- 文本（全部取自文档既有暗色值，不引入新灰度） ---------- */
+  --c-ink: #f5f5f7; /* docs/09 §8.1：ink → #f5f5f7 */
+  --c-body: #f5f5f7;
+  --c-body-on-dark: #ffffff;
+  --c-body-muted: #cccccc;
+  --c-ink-muted-80: #cccccc; /* 文档 body-muted */
+  --c-ink-muted-48: #8e8e93; /* 文档 ink-muted-48 的暗面档（中灰在两侧都成立，此处提亮保 AA） */
+
+  /* ---------- 面阶梯 ---------- */
+  --c-canvas: #272729; /* 卡片 = 文档 surface-tile-1 */
+  --c-parchment: #1d1d1f; /* 页底 / 侧栏 / 卡片内凹面 */
+  --c-pearl: #2a2a2c; /* 珍珠面 = 文档 surface-tile-2 */
+  --c-tile-1: #2c2c2e; /* 强调面（净资产面板 / 登录品牌面）再亮一档 */
+  --c-tile-2: #2a2a2c;
+  --c-tile-3: #252527;
+  --c-black: #000000;
+  --c-chip-translucent: rgba(210, 210, 215, 0.24);
+
+  /* 角色面：见日间块的说明 */
+  --c-soft-fill: #2a2a2c;
+  --c-hero-panel: #2c2c2e;
+  --c-brand-panel: #000000;
+
+  /* ---------- 描边：深色下必须变成「半透明亮线」，更黑的线是看不见的 ----------
+     语义分工同日间：hairline 结构描边 / hairline-soft 仅浮层分隔线 / divider-soft 面内软分隔 */
+  --c-divider-soft: rgba(255, 255, 255, 0.1);
+  --c-hairline: rgba(255, 255, 255, 0.14);
+  --c-hairline-soft: rgba(255, 255, 255, 0.1); /* 仅浮层分隔线使用，勿作底色 */
+  --c-hairline-dark: #2c2c2e;
+  --c-placeholder: #7a7a7a;
+  --c-overlay-ring: rgba(255, 255, 255, 0.12);
+
+  /* ---------- 强调底：低 alpha 蓝，面积越大越淡 ----------
+     夜间 alpha 比日间更低不是审美选择，而是「对比度预算」的反推结果：
+     淡蓝底会按比例吃掉压在其上蓝色文字的对比度，0.08 → 5.0:1、
+     0.14 → 4.5:1（刚好卡线）。为了让每一条都留出余量，上限压到 0.12。 */
+  --c-accent-1: rgba(77, 163, 255, 0.08);
+  --c-accent-2: rgba(77, 163, 255, 0.1);
+  --c-accent-3: rgba(77, 163, 255, 0.12);
+  --c-accent-4: rgba(77, 163, 255, 0.12);
+
+  /* ---------- 磨砂与浮层 ---------- */
+  --c-frost-bg: rgba(29, 29, 31, 0.72);
+  --c-frost-bg-strong: rgba(29, 29, 31, 0.84);
+  /* Toast 在日间是深底（浮在白页上）；夜间必须反过来提亮，否则深底浮在深页上等于消失 */
+  --c-toast-bg: rgba(58, 58, 60, 0.96);
+  --c-toast-error: rgba(140, 32, 28, 0.96);
+  --c-toast-success: rgba(24, 92, 52, 0.96);
+
+  /* ---------- 深色面上的文字（面本身仍是深色，故沿用日间取值） ---------- */
+  --c-on-dark-1: rgba(255, 255, 255, 0.92);
+  --c-on-dark-2: rgba(255, 255, 255, 0.62);
+  --c-on-dark-3: rgba(255, 255, 255, 0.55);
+  --c-on-dark-4: rgba(255, 255, 255, 0.38);
+  --c-on-dark-tile: rgba(255, 255, 255, 0.14);
+  --c-on-dark-chip: rgba(255, 255, 255, 0.1);
+
+  /* ---------- 语义色：提亮 + 略降彩度（保留色相，只动明度） ---------- */
+  --c-danger: #ff6961;
+  --c-danger-bg: rgba(255, 105, 97, 0.1);
+  --c-danger-line: rgba(255, 105, 97, 0.4);
+  --c-success: #30d158;
+  --c-success-bg: rgba(48, 209, 88, 0.12);
+  --c-success-line: rgba(48, 209, 88, 0.32);
+
+  /* ---------- 色板描边：深色下的圆点需要亮环才看得见 ---------- */
+  --c-swatch-ring: rgba(255, 255, 255, 0.22);
+
+  /* ---------- 图表分类色：深色下整体提亮，保持「明度阶梯 + 冷暖交替」 ---------- */
+  --c-chart-1: #f5f5f7;
+  --c-chart-2: #8fb0d4;
+  --c-chart-3: #a9c08a;
+  --c-chart-4: #d9a98a;
+  --c-chart-5: #8fc0c1;
+  --c-chart-6: #bda3cc;
+  --c-chart-7: #e0c489;
+  --c-chart-8: #9aa0a6;
+
+  /* ---------- elevation：投影在深色上不可见，只加强浮层并交给轮廓线承担 ---------- */
+  --shadow-overlay: 0 2px 8px rgba(0, 0, 0, 0.55), 0 28px 70px -28px rgba(0, 0, 0, 0.8);
+
+  /* ---------- 悬浮岛（夜间）：黑投影在深色上等于隐形，改由「面更亮 + 轮廓」承担 ----------
+     岛面在夜间要比页底**亮一档**（--c-tile-2）才能读出「浮」，
+     于是这里的投影只保留极淡的一层，给岛底边缘一点柔化即可。 */
+  --shadow-island: 0 1px 2px rgba(0, 0, 0, 0.32), 0 16px 40px -12px rgba(0, 0, 0, 0.45);
+  --shadow-island-item: 0 1px 2px rgba(0, 0, 0, 0.36);
+}

@@ -1,0 +1,1 @@
+ALTER TABLE `recurring_rules` ADD `skipped_dates` text;

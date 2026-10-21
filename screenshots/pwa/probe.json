@@ -1,0 +1,104 @@
+{
+  "results": [
+    {
+      "ok": true,
+      "detail": "{\"regs\":0,\"keys\":[]}"
+    },
+    {
+      "ok": true,
+      "detail": "/debts → /transactions/new"
+    },
+    {
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "detail": "/debts"
+    },
+    {
+      "ok": true,
+      "detail": "focus=note value=\"n\" path=/transactions/new"
+    },
+    {
+      "ok": true,
+      "detail": "path=/transactions/new value=\"\""
+    },
+    {
+      "ok": true,
+      "detail": "/transactions/new form=true"
+    },
+    {
+      "ok": true,
+      "detail": "/transactions/new?copyFrom=tx_01M4TVX2BWWK9BK9NP8WKBY179"
+    },
+    {
+      "ok": true,
+      "detail": "{\"n\":\"CC记账\",\"d\":\"standalone\"}"
+    },
+    {
+      "ok": true,
+      "detail": "[\"记一笔→/transactions/new\",\"账单→/transactions\",\"往来（待收/待付）→/debts\"]"
+    },
+    {
+      "ok": true,
+      "detail": "[\"192x192\",\"512x512\",\"192x192\",\"512x512\"]"
+    },
+    {
+      "ok": true,
+      "detail": "/icons/apple-touch-icon.png"
+    },
+    {
+      "ok": true,
+      "detail": "secure=true regs=1 controller=true"
+    },
+    {
+      "ok": true,
+      "detail": "{\"keys\":[\"cc-ledger-v1-shell\",\"cc-ledger-v1-static\",\"cc-ledger-v1-api\"],\"cached\":7}"
+    },
+    {
+      "ok": true,
+      "detail": "{\"ok\":true,\"name\":\"CC记账\",\"cc\":\"no-cache\"}"
+    },
+    {
+      "ok": true,
+      "detail": "[[\"/transactions/new\",200],[\"/transactions\",200],[\"/debts\",200]]"
+    },
+    {
+      "ok": true,
+      "detail": "33 → 33"
+    },
+    {
+      "ok": true,
+      "detail": ""
+    }
+  ],
+  "pwa": {
+    "secure": true,
+    "manifestHref": "/manifest.webmanifest",
+    "appleHref": "/icons/apple-touch-icon.png",
+    "name": "CC记账",
+    "shortName": "CC记账",
+    "display": "standalone",
+    "shortcuts": [
+      "记一笔→/transactions/new",
+      "账单→/transactions",
+      "往来（待收/待付）→/debts"
+    ],
+    "icons": [
+      "192x192",
+      "512x512",
+      "192x192",
+      "512x512"
+    ],
+    "regs": 1,
+    "swActive": true,
+    "cacheKeys": [
+      "cc-ledger-v1-shell",
+      "cc-ledger-v1-static",
+      "cc-ledger-v1-api"
+    ],
+    "shellCached": 7
+  },
+  "errors": []
+}

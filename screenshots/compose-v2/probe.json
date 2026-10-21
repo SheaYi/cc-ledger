@@ -1,0 +1,578 @@
+[
+  {
+    "label": "light-1440-default",
+    "want": "form",
+    "missing": [],
+    "suggest": {
+      "visible": true,
+      "apply": "支出 · 餐饮 › 晚餐",
+      "why": "晚间常记的一笔"
+    },
+    "type": {
+      "label": "支出",
+      "sub": "钱从账户花出去",
+      "expanded": "false"
+    },
+    "direction": {
+      "visible": false,
+      "items": 0
+    },
+    "cat": {
+      "label": "选择分类",
+      "sub": "必填",
+      "expanded": "false"
+    },
+    "moneyRow": {
+      "sameRow": true,
+      "accountTop": 349,
+      "amountTop": 349,
+      "accountH": 64,
+      "amountH": 64
+    },
+    "whenRow": {
+      "sameRow": true,
+      "dateTop": 739,
+      "timeTop": 739
+    },
+    "feeRowVisible": true,
+    "feeFieldVisible": true,
+    "discountFieldVisible": true,
+    "feeUnit": "元",
+    "tagChips": [
+      "必需",
+      "非必需",
+      "计划内",
+      "计划外",
+      "可报销",
+      "已报销",
+      "共享",
+      "代付"
+    ],
+    "tagAdd": true,
+    "catPanelPos": null
+  },
+  {
+    "label": "light-1440-type-receivable",
+    "want": "form",
+    "missing": [],
+    "suggest": {
+      "visible": false,
+      "apply": "支出 · 餐饮 › 晚餐",
+      "why": "晚间常记的一笔"
+    },
+    "type": {
+      "label": "应收款项",
+      "sub": "借出",
+      "expanded": "false"
+    },
+    "direction": {
+      "visible": true,
+      "items": 2
+    },
+    "cat": {
+      "label": "选择分类",
+      "sub": "必填",
+      "expanded": "false"
+    },
+    "moneyRow": {
+      "sameRow": true,
+      "accountTop": 343,
+      "amountTop": 343,
+      "accountH": 64,
+      "amountH": 64
+    },
+    "whenRow": {
+      "sameRow": true,
+      "dateTop": 733,
+      "timeTop": 733
+    },
+    "feeRowVisible": true,
+    "feeFieldVisible": true,
+    "discountFieldVisible": false,
+    "feeUnit": "元",
+    "tagChips": [
+      "必需",
+      "非必需",
+      "计划内",
+      "计划外",
+      "可报销",
+      "已报销",
+      "共享",
+      "代付"
+    ],
+    "tagAdd": true,
+    "catPanelPos": null
+  },
+  {
+    "label": "light-1440-receivable-collect",
+    "want": "form",
+    "missing": [],
+    "suggest": {
+      "visible": false,
+      "apply": "支出 · 餐饮 › 晚餐",
+      "why": "晚间常记的一笔"
+    },
+    "type": {
+      "label": "应收款项",
+      "sub": "收回",
+      "expanded": "false"
+    },
+    "direction": {
+      "visible": true,
+      "items": 2
+    },
+    "cat": {
+      "label": "选择分类",
+      "sub": "必填",
+      "expanded": "false"
+    },
+    "moneyRow": {
+      "sameRow": true,
+      "accountTop": 343,
+      "amountTop": 343,
+      "accountH": 64,
+      "amountH": 64
+    },
+    "whenRow": {
+      "sameRow": true,
+      "dateTop": 733,
+      "timeTop": 733
+    },
+    "feeRowVisible": true,
+    "feeFieldVisible": false,
+    "discountFieldVisible": true,
+    "feeUnit": "元",
+    "tagChips": [
+      "必需",
+      "非必需",
+      "计划内",
+      "计划外",
+      "可报销",
+      "已报销",
+      "共享",
+      "代付"
+    ],
+    "tagAdd": true,
+    "catPanelPos": null
+  },
+  {
+    "label": "light-1440-back-expense",
+    "want": "form",
+    "missing": [],
+    "suggest": {
+      "visible": false,
+      "apply": "支出 · 餐饮 › 晚餐",
+      "why": "晚间常记的一笔"
+    },
+    "type": {
+      "label": "支出",
+      "sub": "钱从账户花出去",
+      "expanded": "false"
+    },
+    "direction": {
+      "visible": false,
+      "items": 0
+    },
+    "cat": {
+      "label": "选择分类",
+      "sub": "必填",
+      "expanded": "false"
+    },
+    "moneyRow": {
+      "sameRow": true,
+      "accountTop": 291,
+      "amountTop": 291,
+      "accountH": 64,
+      "amountH": 64
+    },
+    "whenRow": {
+      "sameRow": true,
+      "dateTop": 681,
+      "timeTop": 681
+    },
+    "feeRowVisible": true,
+    "feeFieldVisible": true,
+    "discountFieldVisible": true,
+    "feeUnit": "元",
+    "tagChips": [
+      "必需",
+      "非必需",
+      "计划内",
+      "计划外",
+      "可报销",
+      "已报销",
+      "共享",
+      "代付"
+    ],
+    "tagAdd": true,
+    "catPanelPos": null
+  },
+  {
+    "label": "light-1440-cat-picked",
+    "want": "form",
+    "missing": [],
+    "suggest": {
+      "visible": false,
+      "apply": "支出 · 餐饮 › 晚餐",
+      "why": "晚间常记的一笔"
+    },
+    "type": {
+      "label": "支出",
+      "sub": "钱从账户花出去",
+      "expanded": "false"
+    },
+    "direction": {
+      "visible": false,
+      "items": 0
+    },
+    "cat": {
+      "label": "午餐",
+      "sub": "餐饮",
+      "expanded": "false"
+    },
+    "moneyRow": {
+      "sameRow": true,
+      "accountTop": 291,
+      "amountTop": 291,
+      "accountH": 64,
+      "amountH": 64
+    },
+    "whenRow": {
+      "sameRow": true,
+      "dateTop": 681,
+      "timeTop": 681
+    },
+    "feeRowVisible": true,
+    "feeFieldVisible": true,
+    "discountFieldVisible": true,
+    "feeUnit": "元",
+    "tagChips": [
+      "必需",
+      "非必需",
+      "计划内",
+      "计划外",
+      "可报销",
+      "已报销",
+      "共享",
+      "代付"
+    ],
+    "tagAdd": true,
+    "catPanelPos": null,
+    "chosen": "午餐"
+  },
+  {
+    "label": "light-1440-after-pick",
+    "want": "form",
+    "missing": [],
+    "suggest": {
+      "visible": false,
+      "apply": "支出 · 餐饮 › 晚餐",
+      "why": "晚间常记的一笔"
+    },
+    "type": {
+      "label": "支出",
+      "sub": "钱从账户花出去",
+      "expanded": "false"
+    },
+    "direction": {
+      "visible": false,
+      "items": 0
+    },
+    "cat": {
+      "label": "午餐",
+      "sub": "餐饮",
+      "expanded": "false"
+    },
+    "moneyRow": {
+      "sameRow": true,
+      "accountTop": 291,
+      "amountTop": 291,
+      "accountH": 64,
+      "amountH": 64
+    },
+    "whenRow": {
+      "sameRow": true,
+      "dateTop": 681,
+      "timeTop": 681
+    },
+    "feeRowVisible": true,
+    "feeFieldVisible": true,
+    "discountFieldVisible": true,
+    "feeUnit": "元",
+    "tagChips": [
+      "必需",
+      "非必需",
+      "计划内",
+      "计划外",
+      "可报销",
+      "已报销",
+      "共享",
+      "代付"
+    ],
+    "tagAdd": true,
+    "catPanelPos": null
+  },
+  {
+    "label": "light-1440-suggest-fresh",
+    "want": "form",
+    "missing": [],
+    "suggest": {
+      "visible": true,
+      "apply": "支出 · 餐饮 › 晚餐",
+      "why": "晚间常记的一笔"
+    },
+    "type": {
+      "label": "支出",
+      "sub": "钱从账户花出去",
+      "expanded": "false"
+    },
+    "direction": {
+      "visible": false,
+      "items": 0
+    },
+    "cat": {
+      "label": "选择分类",
+      "sub": "必填",
+      "expanded": "false"
+    },
+    "moneyRow": {
+      "sameRow": true,
+      "accountTop": 349,
+      "amountTop": 349,
+      "accountH": 64,
+      "amountH": 64
+    },
+    "whenRow": {
+      "sameRow": true,
+      "dateTop": 739,
+      "timeTop": 739
+    },
+    "feeRowVisible": true,
+    "feeFieldVisible": true,
+    "discountFieldVisible": true,
+    "feeUnit": "元",
+    "tagChips": [
+      "必需",
+      "非必需",
+      "计划内",
+      "计划外",
+      "可报销",
+      "已报销",
+      "共享",
+      "代付"
+    ],
+    "tagAdd": true,
+    "catPanelPos": null
+  },
+  {
+    "label": "light-1440-suggest-applied",
+    "want": "form",
+    "missing": [],
+    "suggest": {
+      "visible": false,
+      "apply": "支出 · 餐饮 › 晚餐",
+      "why": "晚间常记的一笔"
+    },
+    "type": {
+      "label": "支出",
+      "sub": "钱从账户花出去",
+      "expanded": "false"
+    },
+    "direction": {
+      "visible": false,
+      "items": 0
+    },
+    "cat": {
+      "label": "晚餐",
+      "sub": "餐饮",
+      "expanded": "false"
+    },
+    "moneyRow": {
+      "sameRow": true,
+      "accountTop": 291,
+      "amountTop": 291,
+      "accountH": 64,
+      "amountH": 64
+    },
+    "whenRow": {
+      "sameRow": true,
+      "dateTop": 681,
+      "timeTop": 681
+    },
+    "feeRowVisible": true,
+    "feeFieldVisible": true,
+    "discountFieldVisible": true,
+    "feeUnit": "元",
+    "tagChips": [
+      "必需",
+      "非必需",
+      "计划内",
+      "计划外",
+      "可报销",
+      "已报销",
+      "共享",
+      "代付"
+    ],
+    "tagAdd": true,
+    "catPanelPos": null
+  },
+  {
+    "label": "light-390-default",
+    "want": "form",
+    "missing": [],
+    "suggest": {
+      "visible": true,
+      "apply": "支出 · 餐饮 › 晚餐",
+      "why": "晚间常记的一笔"
+    },
+    "type": {
+      "label": "支出",
+      "sub": "钱从账户花出去",
+      "expanded": "false"
+    },
+    "direction": {
+      "visible": false,
+      "items": 0
+    },
+    "cat": {
+      "label": "选择分类",
+      "sub": "必填",
+      "expanded": "false"
+    },
+    "moneyRow": {
+      "sameRow": false,
+      "accountTop": 453,
+      "amountTop": 540,
+      "accountH": 48,
+      "amountH": 56
+    },
+    "whenRow": {
+      "sameRow": false,
+      "dateTop": 922,
+      "timeTop": 1054
+    },
+    "feeRowVisible": true,
+    "feeFieldVisible": true,
+    "discountFieldVisible": true,
+    "feeUnit": "元",
+    "tagChips": [
+      "必需",
+      "非必需",
+      "计划内",
+      "计划外",
+      "可报销",
+      "已报销",
+      "共享",
+      "代付",
+      "联调2156"
+    ],
+    "tagAdd": true,
+    "catPanelPos": null
+  },
+  {
+    "label": "dark-1440-default",
+    "want": "form",
+    "missing": [],
+    "suggest": {
+      "visible": true,
+      "apply": "支出 · 餐饮 › 晚餐",
+      "why": "晚间常记的一笔"
+    },
+    "type": {
+      "label": "支出",
+      "sub": "钱从账户花出去",
+      "expanded": "false"
+    },
+    "direction": {
+      "visible": false,
+      "items": 0
+    },
+    "cat": {
+      "label": "选择分类",
+      "sub": "必填",
+      "expanded": "false"
+    },
+    "moneyRow": {
+      "sameRow": true,
+      "accountTop": 349,
+      "amountTop": 349,
+      "accountH": 64,
+      "amountH": 64
+    },
+    "whenRow": {
+      "sameRow": true,
+      "dateTop": 739,
+      "timeTop": 739
+    },
+    "feeRowVisible": true,
+    "feeFieldVisible": true,
+    "discountFieldVisible": true,
+    "feeUnit": "元",
+    "tagChips": [
+      "必需",
+      "非必需",
+      "计划内",
+      "计划外",
+      "可报销",
+      "已报销",
+      "共享",
+      "代付",
+      "联调2156"
+    ],
+    "tagAdd": true,
+    "catPanelPos": null
+  },
+  {
+    "label": "dark-390-default",
+    "want": "form",
+    "missing": [],
+    "suggest": {
+      "visible": true,
+      "apply": "支出 · 餐饮 › 晚餐",
+      "why": "晚间常记的一笔"
+    },
+    "type": {
+      "label": "支出",
+      "sub": "钱从账户花出去",
+      "expanded": "false"
+    },
+    "direction": {
+      "visible": false,
+      "items": 0
+    },
+    "cat": {
+      "label": "选择分类",
+      "sub": "必填",
+      "expanded": "false"
+    },
+    "moneyRow": {
+      "sameRow": false,
+      "accountTop": 453,
+      "amountTop": 540,
+      "accountH": 48,
+      "amountH": 56
+    },
+    "whenRow": {
+      "sameRow": false,
+      "dateTop": 922,
+      "timeTop": 1054
+    },
+    "feeRowVisible": true,
+    "feeFieldVisible": true,
+    "discountFieldVisible": true,
+    "feeUnit": "元",
+    "tagChips": [
+      "必需",
+      "非必需",
+      "计划内",
+      "计划外",
+      "可报销",
+      "已报销",
+      "共享",
+      "代付",
+      "联调2156"
+    ],
+    "tagAdd": true,
+    "catPanelPos": null
+  }
+]

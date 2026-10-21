@@ -1,0 +1,161 @@
+{
+  "results": [
+    {
+      "ok": true,
+      "detail": "房租o7z / 工资o8b"
+    },
+    {
+      "ok": true,
+      "detail": "/recurring / 周期账单"
+    },
+    {
+      "ok": true,
+      "detail": "周期账单"
+    },
+    {
+      "ok": true,
+      "detail": "2 行"
+    },
+    {
+      "ok": true,
+      "detail": "每月 1 号 · 现金钱包 → 支出\n             · 房租"
+    },
+    {
+      "ok": true,
+      "detail": "下次 2026-11-01"
+    },
+    {
+      "ok": true,
+      "detail": "¥ 4,500.00"
+    },
+    {
+      "ok": true,
+      "detail": "[\"preview\",\"run\",\"toggle\",\"edit\",\"del\"]"
+    },
+    {
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "detail": "[\"name\",\"amount\",\"recordType\",\"frequency\",\"intervalCount\",\"dayOfMonth\",\"weekDay\",\"month\",\"maxMonthEnd\",\"startDate\",\"endDate\",\"generateAheadDays\",\"accountId\",\"toAccountId\",\"categoryId\",\"title\",\"merchant\",\"autoCreate\"]"
+    },
+    {
+      "ok": true,
+      "detail": "{\"monthly\":true,\"weekly\":false,\"yearly\":false}"
+    },
+    {
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "detail": "{\"monthly\":false,\"weekly\":false,\"yearly\":true}"
+    },
+    {
+      "ok": true,
+      "detail": "{\"monthly\":false,\"weekly\":false,\"yearly\":false}"
+    },
+    {
+      "ok": true,
+      "detail": "{\"afterTransfer\":true,\"afterExpense\":false}"
+    },
+    {
+      "ok": true,
+      "detail": "3 条"
+    },
+    {
+      "ok": true,
+      "detail": "3"
+    },
+    {
+      "ok": true,
+      "detail": "dayOfMonth=null month=null"
+    },
+    {
+      "ok": true,
+      "detail": "weekly"
+    },
+    {
+      "ok": true,
+      "detail": "66.60"
+    },
+    {
+      "ok": true,
+      "detail": "{\"open\":true,\"cols\":2}"
+    },
+    {
+      "ok": true,
+      "detail": "2026-11-01 2026-12-01 2027-01-01 2027-02-01 2027-03-01"
+    },
+    {
+      "ok": true,
+      "detail": "5"
+    },
+    {
+      "ok": true,
+      "detail": "[\"2026-12-01\"]"
+    },
+    {
+      "ok": true,
+      "detail": "2026-11-01 2027-01-01 2027-02-01 2027-03-01 2027-04-01"
+    },
+    {
+      "ok": true,
+      "detail": "36 → 37"
+    },
+    {
+      "ok": true,
+      "detail": "[\"2026-11-10:20000.00\"]"
+    },
+    {
+      "ok": true,
+      "detail": "{\"badge\":\"已暂停\",\"btn\":[\"恢复\"],\"group\":[\"已暂停\"]}"
+    },
+    {
+      "ok": true,
+      "detail": "[\"恢复\"]"
+    },
+    {
+      "ok": true,
+      "detail": "{\"open\":true,\"name\":\"探针7q0d\",\"amt\":\"66.60\",\"freq\":\"weekly\",\"wd\":\"3\",\"monthlyHidden\":true}"
+    },
+    {
+      "ok": true,
+      "detail": "2 条"
+    },
+    {
+      "ok": true,
+      "detail": "2 行"
+    },
+    {
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "ok": true,
+      "detail": "wrap"
+    },
+    {
+      "ok": true,
+      "detail": "分类"
+    },
+    {
+      "ok": true,
+      "detail": "36 → 36"
+    },
+    {
+      "ok": true,
+      "detail": "0 → 0"
+    },
+    {
+      "ok": true,
+      "detail": ""
+    }
+  ],
+  "errors": []
+}

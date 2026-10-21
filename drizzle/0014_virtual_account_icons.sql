@@ -1,0 +1,41 @@
+UPDATE `accounts` SET `icon` = 'hand-coins' WHERE `kind` = 'virtual' AND `type` = 'receivable' AND (`icon` IS NULL OR `icon` = '');--> statement-breakpoint
+UPDATE `accounts` SET `icon` = 'heart-handshake' WHERE `kind` = 'virtual' AND `type` = 'payable' AND (`icon` IS NULL OR `icon` = '');--> statement-breakpoint
+UPDATE `accounts` SET `icon` = 'circle-percent' WHERE `kind` = 'virtual' AND `type` = 'fee' AND (`icon` IS NULL OR `icon` = '');
+
+-- ==========================================================================
+-- 0014：给系统虚拟账户回填图标
+--
+-- ## 现象
+-- 账户页「虚拟账户」分组里，债权（借出）/ 债务（欠款）/ 手续费/财务费用
+-- 三行的**图标位是空的** —— 名称、余额、类型标签都在，唯独左边一块留白。
+--
+-- ## 根因
+-- `accounts.icon` 是可空列，而 `SYSTEM_VIRTUAL_ACCOUNTS`（constants.ts）
+-- 最初只声明了 `key / name / type`，`seed.ts` 插入时没带 icon → 三个系统账户
+-- 永远 `icon = NULL`。用户不会去编辑它们（`isDefault` + 不可删除），
+-- 于是这个空洞对所有账本永久成立。
+--
+-- 为什么它安静地活到现在：`entityIcon('')` 与 `entityIcon(null)` 都**返回空串**
+-- 而不是回退到默认图标 —— 空串渲染出来就是「没有图标」，不报错、不占位，
+-- 一眼扫过去只像排版没对齐，没人会把它当 bug 报。
+--
+-- ## 修法（两端都补）
+-- 1. `constants.ts` / `seed.ts`：新建账本直接带 icon。
+-- 2. 本迁移：给**已存在的**账本回填。
+--
+-- ## 为什么不能靠 seed 自动补
+-- seed 走 `onConflictDoNothing()`，冲突即跳过 —— 存量行永远不会被更新。
+-- 而账本可能已经被用户改过名字，纯 upsert 会把用户的命名一起冲掉。
+--
+-- ## 条件为什么带 `icon IS NULL OR icon = ''`
+-- 只填空值，不覆盖用户已设的图标。虽然虚拟账户不可编辑、实际上不存在
+-- 「已有 icon」的行，但补上这个守卫可以让迁移**重复执行也幂等**：
+-- 万一将来虚拟账户变得可编辑，重跑本迁移不会把用户的图标打回默认值。
+--
+-- ## 回滚
+-- `UPDATE accounts SET icon = NULL WHERE kind = 'virtual';`
+--
+-- ⚠️ 图标名必须与 `public/assets/lucide-data.js` 的 LUCIDE 键逐字一致，
+--    写错名字不会报错 —— `lucide()` 会静默回退成 `circle-help` 问号图。
+--    前端 `ACCOUNT_TYPE_ICON`（ui.js）是同一份映射，两边须同源。
+-- ==========================================================================

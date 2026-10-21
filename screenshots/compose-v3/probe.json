@@ -1,0 +1,235 @@
+{
+  "results": [
+    {
+      "label": "默认态：触发器显示「支出」",
+      "ok": true,
+      "detail": "{\"label\":\"支出\",\"sub\":\"钱从账户花出去\",\"expanded\":\"false\",\"empty\":true}"
+    },
+    {
+      "label": "默认态：未选分类时触发器是 is-empty",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "label": "默认态：无缺失图标",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "label": "默认态：账户与金额同行",
+      "ok": true,
+      "detail": "291/291"
+    },
+    {
+      "label": "默认态：日期与时间同行",
+      "ok": true,
+      "detail": "555/555"
+    },
+    {
+      "label": "默认态：账户框与金额框等高（64）",
+      "ok": true,
+      "detail": "64/64"
+    },
+    {
+      "label": "打开面板：三列全部可见",
+      "ok": true,
+      "detail": "{\"c\":false,\"p\":false,\"l\":false}"
+    },
+    {
+      "label": "类型列 5 项（支出/收入/转账/应收款项/应付款项）",
+      "ok": true,
+      "detail": "[\"expense\",\"income\",\"transfer\",\"receivable\",\"payable\"]"
+    },
+    {
+      "label": "类型列 2 组（常用 / 债权债务）",
+      "ok": true,
+      "detail": "[\"常用\",\"债权债务\"]"
+    },
+    {
+      "label": "类型列高亮 = 表单当前类型（expense）",
+      "ok": true,
+      "detail": "expense"
+    },
+    {
+      "label": "一列只做一件事：桌面三列宽度依次递减且都 >0",
+      "ok": true,
+      "detail": "[226,182,260]"
+    },
+    {
+      "label": "一级分类非空且带当前展开项",
+      "ok": true,
+      "detail": "20 项 / on=餐饮"
+    },
+    {
+      "label": "二级分类非空且标题 = 当前一级分类",
+      "ok": true,
+      "detail": "10 项 / 餐饮"
+    },
+    {
+      "label": "「建议」是面板的第一个子元素（用户要求放最前）",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "label": "建议条可见",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "label": "建议 = 最近 9 笔支出的二级分类（去重、最近优先）",
+      "ok": true,
+      "detail": "实得 [\"书籍影音\",\"晚餐\",\"午餐\",\"手机话费\",\"电影\",\"房租\",\"咖啡\"] vs 期望 [\"书籍影音\",\"晚餐\",\"午餐\",\"手机话费\",\"电影\",\"房租\",\"咖啡\"]"
+    },
+    {
+      "label": "建议 chip 数 ≤ 9",
+      "ok": true,
+      "detail": "7"
+    },
+    {
+      "label": "点第一列「收入」：中/右两列切成收入的分类树",
+      "ok": true,
+      "detail": "4 项"
+    },
+    {
+      "label": "点第一列「收入」：**表单类型尚未改变**（草稿只活在面板里）",
+      "ok": true,
+      "detail": "trigger=支出 draft=income"
+    },
+    {
+      "label": "点第二级：第三列换成该支的子类",
+      "ok": true,
+      "detail": "经营收入 / 4 项"
+    },
+    {
+      "label": "点第三级「营业收入」：提交并收起面板",
+      "ok": true,
+      "detail": "open=false label=营业收入"
+    },
+    {
+      "label": "提交后类型 = 收入、副值含「收入」与一级分类",
+      "ok": true,
+      "detail": "收入 · 经营收入"
+    },
+    {
+      "label": "提交后方向行仍隐藏（收入无阶段）",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "label": "重新展开：草稿回到表单当前值（不残留上次浏览的中间态）",
+      "ok": true,
+      "detail": "type=income leaf=营业收入"
+    },
+    {
+      "label": "点建议「书籍影音」：一键落回支出 + 该分类",
+      "ok": true,
+      "detail": "label=书籍影音 sub=支出 · 娱乐"
+    },
+    {
+      "label": "点「转账」：立即提交、面板收起、第三列让位（leaf-less）",
+      "ok": true,
+      "detail": "open=false"
+    },
+    {
+      "label": "转账：触发器 = 转账 / 「账户之间挪钱」、方向行收起、转入账户出现",
+      "ok": true,
+      "detail": "{\"sub\":\"账户之间挪钱\",\"to\":true}"
+    },
+    {
+      "label": "转账下再展开：第二列给一句解释、第三列隐藏",
+      "ok": true,
+      "detail": "{\"leafHidden\":true,\"empty\":\"转账不记分类 —— 选好下面的「转入账户」就行。\"}"
+    },
+    {
+      "label": "搜索态：三列让位，整幅宽度交给命中结果",
+      "ok": true,
+      "detail": "{\"mode\":\"search\",\"n\":3}"
+    },
+    {
+      "label": "搜索「借」：结果跨多种类型且每枚 chip 都带类型标签",
+      "ok": true,
+      "detail": "[\"receivable\",\"payable\"]"
+    },
+    {
+      "label": "搜索态：建议条让位",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "label": "桌面搜索框高度 ≥32（触控 44 底线只在 ≤833 生效）",
+      "ok": true,
+      "detail": "32"
+    },
+    {
+      "label": "搜索态点「借出借款」：类型一并切到「应收款项」",
+      "ok": true,
+      "detail": "label=借出借款 sub=应收款项 · 借出 · 借款"
+    },
+    {
+      "label": "Esc 收起面板",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "label": "点面板之外（遮罩）收起",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "label": "选中分类后「清除分类」出现",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "label": "「清除分类」：触发器回到未选态但保留类型",
+      "ok": true,
+      "detail": "{\"label\":\"支出\",\"sub\":\"钱从账户花出去\",\"expanded\":\"false\",\"empty\":true}"
+    },
+    {
+      "label": "夜间：面板打开且无缺失图标",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "label": "390：账户与金额堆叠（同行只承诺桌面）",
+      "ok": true,
+      "detail": "327/414"
+    },
+    {
+      "label": "390：面板是底部 Sheet",
+      "ok": true,
+      "detail": "{\"pos\":\"fixed\",\"gap\":0}"
+    },
+    {
+      "label": "390：三段竖排（三列都可见）",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "label": "390：面板内可点元素全部 ≥44×44",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "label": "390：面板外可点元素全部 ≥44×44",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "label": "390：点类型→一级→二级 全链路提交（晚餐）",
+      "ok": true,
+      "detail": "label=晚餐"
+    },
+    {
+      "label": "390 夜间：面板打开、无缺失图标、触控全达标",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "label": "全程零控制台报错",
+      "ok": true,
+      "detail": ""
+    }
+  ],
+  "errors": []
+}

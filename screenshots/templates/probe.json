@@ -1,0 +1,125 @@
+{
+  "results": [
+    {
+      "ok": true,
+      "detail": "{\"x\":195,\"y\":873,\"w\":78,\"h\":56}"
+    },
+    {
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "detail": "实得 8"
+    },
+    {
+      "ok": true,
+      "detail": "现金钱包 › 早餐"
+    },
+    {
+      "ok": true,
+      "detail": "8/8"
+    },
+    {
+      "ok": true,
+      "detail": "金额只是建议值，可以随意改"
+    },
+    {
+      "ok": true,
+      "detail": "{\"w\":390,\"h\":520,\"bottom\":844}"
+    },
+    {
+      "ok": true,
+      "detail": "[57,57,57,57,57,57,57,57]"
+    },
+    {
+      "ok": true,
+      "detail": "/transactions/new"
+    },
+    {
+      "ok": true,
+      "detail": "早餐 / 期望含 早餐"
+    },
+    {
+      "ok": true,
+      "detail": "现金钱包 · -¥ 5,853.77 / 期望含 现金钱包"
+    },
+    {
+      "ok": true,
+      "detail": "8.00 / 期望 8.00"
+    },
+    {
+      "ok": true,
+      "detail": "早餐 / 期望 早餐"
+    },
+    {
+      "ok": true,
+      "detail": "\"\""
+    },
+    {
+      "ok": true,
+      "detail": "2026-10-14 vs 本地今天 2026-10-14"
+    },
+    {
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "detail": "selStart=true"
+    },
+    {
+      "ok": true,
+      "detail": "false"
+    },
+    {
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "detail": "{\"path\":\"/transactions/new\",\"amount\":\"\",\"category\":\"支出\",\"noteVisible\":false}"
+    },
+    {
+      "ok": true,
+      "detail": "{\"before\":{\"ldg_01M4RCGWFYP7H0HZNX3EBWVFS7#tpl_breakfast\":4,\"ldg_01M4RCGWFYP7H0HZNX3EBWVFS7#tpl_lunch\":0,\"ldg_01M4RCGWFYP7H0HZNX3EBWVFS7#tpl_metro\":0,\"ldg_01M4RCGWFYP7H0HZNX3EBWVFS7#tpl_taxi\":0,\"ldg_01M4RCGWFYP7H0HZNX3EBWVFS7#tpl_grocery\":0,\"ldg_01M4RCGWFYP7H0HZNX3EBWVFS7#tpl_coffee\":0,\"ldg_01M4RCGWFYP7H0HZNX3EBWVFS7#tpl_refuel\":0,\"ldg_01M4RCGWFYP7H0HZNX3EBWVFS7#tpl_express\":0},\"after\":{\"ldg_01M4RCGWFYP7H0HZNX3EBWVFS7#tpl_breakfast\":4,\"ldg_01M4RCGWFYP7H0HZNX3EBWVFS7#tpl_lunch\":0,\"ldg_01M4RCGWFYP7H0HZNX3EBWVFS7#tpl_metro\":0,\"ldg_01M4RCGWFYP7H0HZNX3EBWVFS7#tpl_taxi\":0,\"ldg_01M4RCGWFYP7H0HZNX3EBWVFS7#tpl_grocery\":0,\"ldg_01M4RCGWFYP7H0HZNX3EBWVFS7#tpl_coffee\":0,\"ldg_01M4RCGWFYP7H0HZNX3EBWVFS7#tpl_refuel\":0,\"ldg_01M4RCGWFYP7H0HZNX3EBWVFS7#tpl_express\":0}}"
+    },
+    {
+      "ok": true,
+      "detail": "{\"path\":\"/transactions/new\",\"category\":\"早餐\",\"amount\":\"8.00\"}"
+    },
+    {
+      "ok": true,
+      "detail": "{\"path\":\"/transactions/new\",\"amount\":\"\"}"
+    },
+    {
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "detail": "8 → 8"
+    },
+    {
+      "ok": true,
+      "detail": "33 → 33"
+    },
+    {
+      "ok": true,
+      "detail": ""
+    }
+  ],
+  "errors": [
+    "LOG Failed to load resource: the server responded with a status of 409 (Conflict) <http://127.0.0.1:3000/api/v1/ledgers/ldg_01M4RCGWFYP7H0HZNX3EBWVFS7/transactions/tx_01M4TP5SH0KCX7RSN6E8QP0D0F/save-as-template>",
+    "LOG Failed to load resource: the server responded with a status of 404 (Not Found) <http://127.0.0.1:3000/api/v1/ledgers/ldg_01M4RCGWFYP7H0HZNX3EBWVFS7/templates/tpl_%E4%B8%8D%E5%AD%98%E5%9C%A8>",
+    "LOG Failed to load resource: the server responded with a status of 409 (Conflict) <http://127.0.0.1:3000/api/v1/ledgers/ldg_01M4RCGWFYP7H0HZNX3EBWVFS7/transactions/tx_01M4TP5SH0KCX7RSN6E8QP0D0F/save-as-template>"
+  ]
+}

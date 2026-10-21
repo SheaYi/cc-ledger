@@ -1,0 +1,180 @@
+{
+  "results": [
+    {
+      "label": "首次进入：回访横幅不出现",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "label": "首次进入：草稿箱为空",
+      "ok": true,
+      "detail": "null"
+    },
+    {
+      "label": "空白表单停留 700ms 后仍不写草稿（类型/日期有值不算「有内容」）",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "label": "选了分类 + 填了金额 → 自动写入草稿",
+      "ok": true,
+      "detail": "[\"v\",\"savedAt\",\"ledgerId\",\"fields\",\"snap\"]"
+    },
+    {
+      "label": "草稿内容含类型/分类/金额/账本",
+      "ok": true,
+      "detail": "\"32.00\""
+    },
+    {
+      "label": "草稿带展示快照（横幅文案不依赖分类是否还在）",
+      "ok": true,
+      "detail": "{\"typeLabel\":\"支出\",\"categoryLabel\":\"晚餐\"}"
+    },
+    {
+      "label": "回访：横幅出现",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "label": "回访：文案含金额与分类（金额走全站 `money()` 格式：`¥ 32.00`）",
+      "ok": true,
+      "detail": "上次有一笔没记完（¥ 32.00 · 晚餐）"
+    },
+    {
+      "label": "回访：表单本身仍是空的（要用户点「继续」才恢复）",
+      "ok": true,
+      "detail": "amount= pick=支出"
+    },
+    {
+      "label": "回访：横幅不是红色（danger 语义留给错误）",
+      "ok": true,
+      "detail": "rgba(0, 102, 204, 0.04)"
+    },
+    {
+      "label": "继续：横幅收起",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "label": "继续：金额回到输入框",
+      "ok": true,
+      "detail": "32.00"
+    },
+    {
+      "label": "继续：类型与分类回到触发器",
+      "ok": true,
+      "detail": "晚餐 / 支出 · 餐饮"
+    },
+    {
+      "label": "继续：账户保留（不是默认第一个）",
+      "ok": true,
+      "detail": "现金钱包 · -¥ 4,353.77"
+    },
+    {
+      "label": "继续：草稿仍在（用户还可以再离开一次）",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "label": "再次回访：横幅仍在（草稿没被自己读走）",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "label": "丢弃：横幅不再出现",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "label": "丢弃：草稿箱被清空",
+      "ok": true,
+      "detail": "null"
+    },
+    {
+      "label": "填 18 → 草稿出现",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "label": "把金额改回空 → 草稿自动清掉（不留空壳）",
+      "ok": true,
+      "detail": "null"
+    },
+    {
+      "label": "提交前草稿存在",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "label": "提交后跳回账单列表",
+      "ok": true,
+      "detail": "/transactions"
+    },
+    {
+      "label": "提交后账单 +1",
+      "ok": true,
+      "detail": "22 → 23"
+    },
+    {
+      "label": "提交后草稿被清空",
+      "ok": true,
+      "detail": "null"
+    },
+    {
+      "label": "超期 24h 的草稿不再提示",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "label": "超期草稿的金额没有被带进表单",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "换账本的草稿不再提示（ID 是账本内的，串了会记错账户）",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "label": "编辑态：不弹草稿横幅",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "label": "编辑态：输入不会写草稿（凭空造一笔改过的记录没有意义）",
+      "ok": true,
+      "detail": "null"
+    },
+    {
+      "label": "复制态：不弹草稿横幅（复制本身就是恢复机制）",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "label": "复制态：不会覆盖用户中断的那一笔",
+      "ok": true,
+      "detail": "null"
+    },
+    {
+      "label": "390：横幅出现",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "label": "390：两个动作都 ≥44×44",
+      "ok": true,
+      "detail": "[{\"label\":\"继续\",\"x\":37,\"y\":198,\"w\":154,\"h\":44},{\"label\":\"丢弃\",\"x\":199,\"y\":198,\"w\":154,\"h\":44}]"
+    },
+    {
+      "label": "夜间：横幅出现且无缺失图标",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "label": "全程零控制台报错",
+      "ok": true,
+      "detail": ""
+    }
+  ],
+  "errors": []
+}
