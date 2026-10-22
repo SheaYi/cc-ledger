@@ -11,18 +11,33 @@ import { MAPPING_TEMPLATES, decodeCsv, guessMapping, parseCsv, parseRows } from 
  * 导出端表头定义在**前端**（`public/assets/views/transactions.js › rowsToCsv()`），
  * 导入端模板在**后端**（本文件）。两者是同一份契约的两半，
  * 天然会漂移 —— 而漂移的表现是「自己的导出文件导不回来」，
- * 且**零报错**：只猜中 3/17 列，类型、方向、分类、账户全部丢失。
+ * 且**零报错**：只猜中 3 列，类型、方向、分类、账户全部丢失。
  *
- * 所以这里不写「我以为的 17 个列名」，而是读真实导出文件比对。
+ * 所以这里不写「我以为的 18 个列名」，而是读真实导出文件比对。
  */
 
 const EXPORT_HEADERS = [
-  '日期', '时间', '类型', '方向', '分类', '账户', '转入账户',
+  '日期', '时间', '类型', '方向', '主类别', '子类别', '账户', '转入账户',
   '名称', '商家', '对象', '金额', '手续费', '折扣', '实际值', '标签', '备注', '记账人',
 ];
 
 const REF_CSV = 'C:/Users/xieyi/Desktop/账单_我的账本_2026-10-18.csv';
 const tpl = MAPPING_TEMPLATES.find((t) => t.key === 'cc-ledger')!;
+
+/**
+ * 旧版导出只有「分类」单列，新版拆成「主类别 / 子类别」两列。
+ * 真机参考文件可能是任一种格式，统一归一到新格式再比对，
+ * 这样无论 fixture 是旧 17 列还是新 18 列，契约断言都稳定。
+ */
+function normalizeHeader(h: string[]): string[] {
+  const i = h.indexOf('分类');
+  if (i >= 0 && !h.includes('主类别')) {
+    const out = h.slice();
+    out.splice(i, 1, '主类别', '子类别');
+    return out;
+  }
+  return h;
+}
 
 /** 读参考文档（存在才读；不存在时用内联表头，保证 CI 也能跑） */
 function refHeader(): string[] {
@@ -34,16 +49,16 @@ function refHeader(): string[] {
   }
 }
 
-describe('导入模板 · CC记账导出账单（17 列契约）', () => {
+describe('导入模板 · CC记账导出账单（18 列契约）', () => {
   it('列名、顺序、数量与导出端逐字一致', () => {
     const doc = tpl.doc!;
     expect(doc.map((d) => d.column)).toEqual(EXPORT_HEADERS);
-    expect(doc.map((d) => d.column)).toEqual(refHeader());
+    expect(doc.map((d) => d.column)).toEqual(normalizeHeader(refHeader()));
     // 顺序必须是文档顺序，不能只是集合相等
     expect(doc.map((d) => d.index)).toEqual(EXPORT_HEADERS.map((_, i) => i + 1));
   });
 
-  it('不得遗漏也不得新增：17 列全部有交代（含类型/必填/去向）', () => {
+  it('不得遗漏也不得新增：18 列全部有交代（含类型/必填/去向）', () => {
     for (const d of tpl.doc!) {
       expect(d.hint, `列「${d.column}」缺说明`).toBeTruthy();
       expect(['text', 'date', 'time', 'money', 'enum', 'ref']).toContain(d.kind);
@@ -79,11 +94,13 @@ describe('导入模板 · CC记账导出账单（17 列契约）', () => {
     }
   });
 
-  it('标量可选列均可映射（时间 / 名称 / 对象 / 手续费 / 折扣 / 标签）', () => {
+  it('可选列均可映射（时间 / 名称 / 对象 / 主类别 / 子类别 / 手续费 / 折扣 / 标签）', () => {
     const m = {
       timeColumn: '时间',
       nameColumn: '名称',
       counterpartyColumn: '对象',
+      mainCategoryColumn: '主类别',
+      subCategoryColumn: '子类别',
       feeColumn: '手续费',
       discountColumn: '折扣',
       tagsColumn: '标签',
@@ -108,6 +125,8 @@ describe('guessMapping · 自己的导出文件要能被完整识别', () => {
     expect(mapping.merchantColumn).toBe('商家');
     expect(mapping.noteColumn).toBe('备注');
     expect(mapping.recordTypeColumn).toBe('类型');
+    expect(mapping.mainCategoryColumn).toBe('主类别');
+    expect(mapping.subCategoryColumn).toBe('子类别');
   });
 
   it('解析真实参考文档：类型列按行还原记录类型', () => {

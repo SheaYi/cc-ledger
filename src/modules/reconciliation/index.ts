@@ -29,6 +29,7 @@ import {
   matchRate,
   missingReceipts,
   reconHistory,
+  reviewDuplicateGroup,
   reconSchedule,
   reconStatement,
   reverseTransaction,
@@ -37,6 +38,13 @@ import {
 
 const amount = z.union([z.string(), z.number()]);
 const dateStr = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, '日期格式应为 YYYY-MM-DD');
+
+/** 重复扣费人工判定：只有「确认是重复」和「忽略」两种结论，没有中间态 */
+const duplicateReviewSchema = z.object({
+  groupKey: z.string().min(1).max(200),
+  status: z.enum(['confirmed', 'ignored']),
+  note: z.string().max(200).optional(),
+});
 
 const amendBody = z.object({
   amount: amount.nullish(),
@@ -351,17 +359,48 @@ export async function registerReconciliationRoutes(
     },
   );
 
-  /** R-11 匹配率指标 */
+  /** R-11 记账完整度（匹配率 + 缺失明细），支持时间范围与账单来源筛选 */
   app.get('/api/v1/ledgers/:ledgerId/recon-match-rate', { preHandler: app.requireAuth }, async (req) => {
     const m = membershipFromRequest(ctx, req);
-    const q = req.query as { accountId?: string };
-    return ok(matchRate(ctx, m.ledgerId, q.accountId));
+    const q = req.query as {
+      accountId?: string;
+      from?: string;
+      to?: string;
+      statementId?: string;
+      source?: string;
+    };
+    return ok(
+      matchRate(ctx, m.ledgerId, q.accountId, {
+        from: q.from,
+        to: q.to,
+        statementId: q.statementId,
+        source: q.source,
+      }),
+    );
   });
 
-  /** R-12 重复扣费 / 订阅清单（对账视角） */
+  /** R-12 重复扣费：订阅线索 + 疑似重复交易（对账视角） */
   app.get('/api/v1/ledgers/:ledgerId/duplicate-charges', { preHandler: app.requireAuth }, async (req) => {
     const m = membershipFromRequest(ctx, req);
-    return ok(duplicateCharges(ctx, m.ledgerId));
+    const q = req.query as { windowDays?: string; includeReviewed?: string };
+    return ok(
+      duplicateCharges(ctx, m.ledgerId, {
+        windowDays: q.windowDays ? Number(q.windowDays) : undefined,
+        includeReviewed: q.includeReviewed === '1' || q.includeReviewed === 'true',
+      }),
+    );
+  });
+
+  /**
+   * R-12 重复扣费的人工判定：确认重复 / 忽略。
+   * ⚠️ 只记录意见，不动账目 —— 删哪一笔由用户决定，自动删等于替他处置财务数据。
+   */
+  app.post('/api/v1/ledgers/:ledgerId/duplicate-reviews', { preHandler: app.requireAuth }, async (req, reply) => {
+    const m = membershipFromRequest(ctx, req);
+    const body = parseOrThrow(duplicateReviewSchema, req.body);
+    return reply
+      .code(201)
+      .send(ok(reviewDuplicateGroup(ctx, m.ledgerId, body.groupKey, body.status, m.userId, body.note)));
   });
 
   /** R-13 缺凭证的大额支出 */

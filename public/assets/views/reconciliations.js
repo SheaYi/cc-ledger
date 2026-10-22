@@ -43,7 +43,7 @@
 import { Api } from '../api.js';
 import { appFrame, mountTabBar } from '../chrome.js';
 import { currentLedger, loadSession } from '../session.js';
-import { esc, icon, money, toast, RECONCILE_REASON_LABEL } from '../ui.js';
+import { esc, icon, money, setLoading, toast, todayStr, RECONCILE_REASON_LABEL } from '../ui.js';
 
 /**
  * 收支配色。与股票相反 —— 本项目「负向 = 红、正向 = 绿」
@@ -77,6 +77,365 @@ function dateFromDaysAgo(n) {
   const d = new Date(Date.now() - n * 86400000);
   const p = (x) => String(x).padStart(2, '0');
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+/* ================================================================== *
+ * 银行流水导入 —— 记账完整度的数据来源
+ * ================================================================== */
+
+/**
+ * 为什么要在这里做导入：完整度读的是 `bank_statement_lines`，
+ * 而这张表**只有流水导入会写**。此前全站没有导入入口，于是完整度永远
+ * 是「还没有导入过流水」—— 空态文案还让用户「到账户页导入」，
+ * 可账户页也没有这个入口。指标本身没错，是它依赖的动作根本做不了。
+ */
+
+/**
+ * 与服务端 `parseCsv` **同一套规则**：只认逗号、双引号转义、丢空行。
+ *
+ * ⚠️ 这不是「前端再实现一个 CSV 解析」：列清单必须与服务端解析出的列
+ * **逐项同名**，服务端用 `header.indexOf(name)` 找列，两处规则不一致
+ * 就会报「找不到列 X」，而用户看到的表头明明有那一列。
+ */
+function parseCsvRows(text) {
+  const rows = [];
+  let row = [];
+  let cell = '';
+  let quoted = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (quoted) {
+      if (c === '"') {
+        if (text[i + 1] === '"') {
+          cell += '"';
+          i++;
+        } else quoted = false;
+      } else cell += c;
+      continue;
+    }
+    if (c === '"') quoted = true;
+    else if (c === ',') {
+      row.push(cell);
+      cell = '';
+    } else if (c === '\n') {
+      row.push(cell);
+      rows.push(row);
+      row = [];
+      cell = '';
+    } else if (c !== '\r') cell += c;
+  }
+  if (cell || row.length) {
+    row.push(cell);
+    rows.push(row);
+  }
+  return rows.filter((r) => r.some((x) => x.trim() !== ''));
+}
+
+/** 表头 → 字段的猜测表。命不中就留空让用户选，绝不「猜一个装作对」 */
+const COLUMN_HINTS = {
+  date: ['日期', '交易日期', '交易时间', '记账日期', 'date'],
+  amount: ['金额', '交易金额', '发生额', 'amount'],
+  amountOut: ['支出', '支出金额', '借方', 'debit'],
+  description: ['摘要', '商品说明', '备注', '交易类型', 'description'],
+  merchant: ['商户', '商家', '交易对方', '对方账户', '收款方', '付款方', 'merchant'],
+  balance: ['余额', '账户余额', 'balance'],
+};
+
+function guessColumn(header, field, used) {
+  for (const kw of COLUMN_HINTS[field] ?? []) {
+    const hit = header.find((h) => {
+      const name = String(h ?? '').trim();
+      return !used.has(name) && name.toLowerCase().includes(kw);
+    });
+    if (hit !== undefined) return hit;
+  }
+  return '';
+}
+
+/**
+ * 整表一次猜完，且**一列只能被猜中一次**。
+ *
+ * ⚠️ 顺序是 `amountOut` 先于 `amount`：银行的「两列式」表头常写成
+ * `收入金额 / 支出金额`，两列都含「金额」。若先猜 `amount`，它会拿走
+ * 「支出金额」，`amountOut` 再拿走「收入金额」—— 于是每一笔收入都被当成支出。
+ */
+function guessMapping(header) {
+  const used = new Set();
+  const out = {};
+  for (const key of ['date', 'amountOut', 'amount', 'description', 'merchant', 'balance']) {
+    const hit = guessColumn(header, key, used);
+    out[key] = hit;
+    if (hit) used.add(hit);
+  }
+  return out;
+}
+
+/**
+ * 读文件为文本。
+ *
+ * ⚠️ 国内银行导出的 CSV 多为 GBK，直接按 UTF-8 读会满屏乱码，
+ * 而用户只会说「导入坏了」。判据与服务端 `decodeText` 一致：
+ * UTF-8 解出替换字符（U+FFFD）就改用 GBK 解一遍。
+ */
+async function readCsvText(file) {
+  const buf = await file.arrayBuffer();
+  let text = new TextDecoder('utf-8').decode(buf);
+  if (text.includes('�')) {
+    try {
+      text = new TextDecoder('gbk').decode(buf);
+    } catch {
+      /* 浏览器不支持 GBK 就沿用 UTF-8 的结果，不强改 */
+    }
+  }
+  return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
+}
+
+/** 导入弹窗的字段槽（键与服务端 `ColumnMapping` 一致） */
+const IMPORT_FIELDS = [
+  { key: 'date', label: '日期列', required: true, hint: '每行都得有日期，缺了这一列整行会被跳过' },
+  { key: 'amount', label: '金额列', required: true, hint: '带正负号填这一列；分两列时这里填收入列' },
+  { key: 'amountOut', label: '支出列', hint: '金额分成「收入/支出」两列时填这里' },
+  { key: 'description', label: '摘要列', hint: '对不上时靠它人工核对' },
+  { key: 'merchant', label: '商户列', hint: '商户相同的流水才能被判成疑似重复' },
+  { key: 'balance', label: '余额列', hint: '只记录不参与匹配' },
+];
+
+/**
+ * 打开导入弹窗。
+ *
+ * 做成弹窗而不是跳 `/import`：那一页导入的是**账目**（直接生成账单），
+ * 跟这里要的「银行流水（只用来核对）」是两件事，混在一起会让用户以为
+ * 导入完账目被记了两遍。
+ */
+function openStatementImport({ ledger, accounts, accountId, onDone }) {
+  const usable = (accounts ?? []).filter((a) => a.kind !== 'virtual');
+  if (!usable.length) {
+    toast('还没有能对账的账户，先去账户页建一个', 'error');
+    return;
+  }
+
+  const wrap = document.createElement('div');
+  wrap.className = 'modal';
+  wrap.innerHTML = `
+    <div class="modal__scrim" data-role="scrim"></div>
+    <div class="modal__panel modal__panel--import" role="dialog" aria-modal="true" aria-labelledby="stmt-imp-title" tabindex="-1">
+      <div class="modal__head">
+        <h3 class="modal__title" id="stmt-imp-title">导入银行账单</h3>
+        <button class="btn btn--icon" type="button" data-role="close" aria-label="关闭">${icon('close', 18)}</button>
+      </div>
+      <div class="modal__body stack stack--md">
+        <p class="stmt-imp__note">
+          <span class="stmt-imp__note-icon" aria-hidden="true">${icon('info', 16)}</span>
+          <span>导入的是<b>银行流水</b>，只用来核对账本有没有漏记 —— 不会生成任何账目。</span>
+        </p>
+        <div class="field-row stmt-imp__pair">
+          <label class="field">
+            <span class="field__label">账户</span>
+            <select class="input" data-role="account">
+              ${usable
+                .map(
+                  (a) =>
+                    `<option value="${esc(a.id)}"${a.id === accountId ? ' selected' : ''}>${esc(a.name)}</option>`,
+                )
+                .join('')}
+            </select>
+          </label>
+          <label class="field">
+            <span class="field__label">账单月份</span>
+            <input class="input" type="month" data-role="month" />
+            <span class="field__hint">留空则取第一行的日期</span>
+          </label>
+        </div>
+        <div class="field">
+          <span class="field__label">CSV 文件</span>
+          <label class="stmt-imp__drop" data-role="drop">
+            <input class="stmt-imp__file" type="file" accept=".csv,.txt" data-role="file" />
+            <span class="stmt-imp__drop-icon" data-role="drop-icon" aria-hidden="true">${icon('upload', 22)}</span>
+            <span class="stmt-imp__drop-main" data-role="drop-main">选择 CSV 文件</span>
+            <span class="stmt-imp__drop-sub" data-role="drop-sub"
+              >逗号分隔，第一行为表头 · UTF-8 与 GBK 都能读</span
+            >
+          </label>
+        </div>
+        <div data-role="mapping"></div>
+      </div>
+      <div class="modal__foot">
+        <button class="btn btn--secondary btn--sm" type="button" data-role="cancel">取消</button>
+        <button class="btn btn--sm" type="button" data-role="submit" disabled>导入</button>
+      </div>
+    </div>`;
+  document.body.appendChild(wrap);
+
+  const mappingSlot = wrap.querySelector('[data-role=mapping]');
+  const submitBtn = wrap.querySelector('[data-role=submit]');
+  const fileInput = wrap.querySelector('[data-role=file]');
+  const dropEl = wrap.querySelector('[data-role=drop]');
+  const dropIcon = wrap.querySelector('[data-role=drop-icon]');
+  const dropMain = wrap.querySelector('[data-role=drop-main]');
+  const dropSub = wrap.querySelector('[data-role=drop-sub]');
+  let content = '';
+  let filename = '';
+  let header = [];
+  /** 表头之外的行数 —— 只有表头没有数据时不该放行（会建出一个空批次） */
+  let dataRows = 0;
+
+  const close = () => wrap.remove();
+  wrap.addEventListener('click', (e) => {
+    if (e.target.closest('[data-role=scrim],[data-role=close],[data-role=cancel]')) close();
+  });
+
+  /**
+   * 上传区只有两种状态：空（上箭头 + 「选择 CSV 文件」）与已选（对勾 + 文件名）。
+   * 只换图标与文案，不换结构 —— 两种状态的撑高一样，选完文件弹窗不会跳一下。
+   */
+  function paintDrop(name) {
+    const filled = Boolean(name);
+    dropEl.classList.toggle('is-filled', filled);
+    dropIcon.innerHTML = icon(filled ? 'check' : 'upload', 22);
+    dropMain.textContent = name || '选择 CSV 文件';
+    dropSub.textContent = filled
+      ? '文件已读取 · 点击可更换'
+      : '逗号分隔，第一行为表头 · UTF-8 与 GBK 都能读';
+  }
+
+  /** 换成一个读不出来的文件时，把上一次的解析结果彻底清掉，别让「导入」还亮着 */
+  function resetPicked() {
+    content = '';
+    filename = '';
+    header = [];
+    dataRows = 0;
+    mappingSlot.innerHTML = '';
+    paintDrop('');
+    syncSubmit();
+  }
+
+  function currentMapping() {
+    const val = (key) => wrap.querySelector(`[data-map=${key}]`)?.value ?? '';
+    return {
+      date: val('date'),
+      amount: val('amount'),
+      amountOut: val('amountOut') || null,
+      description: val('description') || null,
+      merchant: val('merchant') || null,
+      balance: val('balance') || null,
+    };
+  }
+
+  /**
+   * 只有「选了文件 + 日期列 + 金额列」才允许提交。
+   * 不这么做的话，用户点「导入」会拿到一个「找不到列」的 400，
+   * 而他明明什么都没选 —— 错误里不会写「你还没选文件」。
+   */
+  function syncSubmit() {
+    const m = currentMapping();
+    submitBtn.disabled = !(content && dataRows > 0 && m.date && m.amount);
+  }
+
+  function paintMapping(rows) {
+    dataRows = Math.max(rows.length - 1, 0);
+    const dupNames = new Set(header).size !== header.length;
+    const guess = guessMapping(header);
+    /** 重名列与「只有表头」都不是错误，但都会让导入结果跟用户预期不一样，用警示色说清 */
+    const warn = dupNames || dataRows === 0;
+    const summary =
+      dataRows === 0
+        ? '只读到表头，没有数据行 —— 确认一下是不是选错了文件'
+        : `已读取 <b class="tnum">${esc(String(dataRows))}</b> 行 · <b class="tnum">${esc(
+            String(header.length),
+          )}</b> 列${dupNames ? ' · 表头有重名列，只会取第一列' : ''}`;
+    mappingSlot.innerHTML = `
+      <div class="stack stack--sm">
+        <p class="stmt-imp__parsed" data-tone="${warn ? 'warn' : 'ok'}">
+          <span class="stmt-imp__parsed-icon" aria-hidden="true">${icon(warn ? 'info' : 'check', 14)}</span>
+          <span>${summary}</span>
+        </p>
+        <div class="stmt-imp__maphead">
+          <span class="tt-caption-strong">列映射</span>
+          <span class="tt-caption text-muted">带「必填」的两列不选就不能导入</span>
+        </div>
+        <div class="stmt-imp__map">
+          ${IMPORT_FIELDS.map(
+            (f) => `<label class="field">
+              <span class="field__label">${esc(f.label)}${
+                f.required ? '<span class="stmt-imp__req">必填</span>' : ''
+              }</span>
+              <select class="input" data-map="${esc(f.key)}">
+                ${f.required ? '<option value="">请选择</option>' : '<option value="">不使用</option>'}
+                ${header
+                  .map(
+                    (h) =>
+                      `<option value="${esc(h)}"${guess[f.key] === h ? ' selected' : ''}>${esc(h || '（空列名）')}</option>`,
+                  )
+                  .join('')}
+              </select>
+              ${f.hint ? `<span class="field__hint">${esc(f.hint)}</span>` : ''}
+            </label>`,
+          ).join('')}
+        </div>
+      </div>`;
+    syncSubmit();
+  }
+
+  mappingSlot.addEventListener('change', syncSubmit);
+
+  fileInput.addEventListener('change', async () => {
+    const file = fileInput.files?.[0];
+    if (!file) return;
+    try {
+      content = await readCsvText(file);
+    } catch {
+      resetPicked();
+      toast('这个文件读不出来，换个 CSV 试试', 'error');
+      return;
+    }
+    filename = file.name;
+    const rows = parseCsvRows(content);
+    header = rows[0] ?? [];
+    if (!header.length) {
+      resetPicked();
+      toast('没读到表头，确认一下是不是逗号分隔的 CSV', 'error');
+      return;
+    }
+    paintDrop(file.name);
+    paintMapping(rows);
+  });
+
+  submitBtn.addEventListener('click', async () => {
+    const mapping = currentMapping();
+    const month = wrap.querySelector('[data-role=month]').value || null;
+    const targetAccount = wrap.querySelector('[data-role=account]').value;
+    setLoading(submitBtn, true, '导入中');
+    try {
+      const res = await Api.importBankStatement(ledger.id, targetAccount, {
+        filename,
+        content,
+        mapping,
+        statementMonth: month,
+      });
+      const d = res?.data ?? {};
+      const s = d.matchSummary ?? {};
+      /**
+       * 结果要说清两件事：进了多少行、**有多少行已经对上账**。
+       * 只报行数的话，用户看到「导入 100 行」会以为完整度该是 100%。
+       */
+      toast(
+        `导入 ${d.rowCount ?? 0} 行，已自动对上 ${s.matched ?? 0} 笔${
+          Number(d.duplicateCount ?? 0) ? `，${d.duplicateCount} 行本批内重复已标记待确认` : ''
+        }`,
+      );
+      close();
+      onDone?.();
+    } catch (err) {
+      setLoading(submitBtn, false);
+      toast(err?.message ?? '导入失败', 'error');
+    }
+  });
+
+  /**
+   * 焦点移进 dialog（a11y），但别落在被视觉隐藏的文件 input 上 ——
+   * 那会给上传区套一圈焦点环，看着像「已选中」，而用户其实还没选。
+   */
+  wrap.querySelector('.modal__panel')?.focus();
 }
 
 export async function renderReconciliations(container, { go } = {}) {
@@ -122,6 +481,7 @@ export async function renderReconciliations(container, { go } = {}) {
       <div data-role="todo"></div>
       <div data-role="schedule"></div>
       <div data-role="tools"></div>
+      <div data-role="tools-detail"></div>
 
       <section class="section">
         <div class="section__head">
@@ -155,6 +515,7 @@ export async function renderReconciliations(container, { go } = {}) {
   const todoSlot = frame.querySelector('[data-role=todo]');
   const schedSlot = frame.querySelector('[data-role=schedule]');
   const toolsSlot = frame.querySelector('[data-role=tools]');
+  const toolsDetailSlot = frame.querySelector('[data-role=tools-detail]');
   const listSlot = frame.querySelector('[data-role=list]');
   const accSelect = frame.querySelector('[data-role=f-account]');
   const rangeSelect = frame.querySelector('[data-role=f-range]');
@@ -561,24 +922,332 @@ export async function renderReconciliations(container, { go } = {}) {
    * 判定全部来自后端已经算好的字段，前端不重算阈值（否则两处结论会不一致）。
    */
   const PERIOD_LABEL = { monthly: '每月', weekly: '每周', quarterly: '每季', yearly: '每年' };
+  /** 账单来源：后端只存代码，中文标签在这里映射一次（别在模板里散着写） */
+  const SOURCE_LABEL = {
+    manual: '手动导入',
+    alipay: '支付宝',
+    wechat: '微信',
+    bank: '银行',
+    csv: 'CSV 导入',
+    unknown: '未标注',
+  };
+  const CONF_LABEL = { high: '高度疑似', medium: '需人工确认' };
+  const MISS_STATE_LABEL = { unmatched: '账本没有', suspected: '对不上' };
+
+  /**
+   * 工具区的三个状态必须显式区分。
+   *
+   * 「空」与「加载中」不能共用一种渲染：空是**有结论**（确实没有），
+   * 加载中是**没结论**。以前四个请求全 catch 成 null，任何一个失败都会
+   * 静默渲染成「没有」—— 用户看到「0 项」不会想到是接口挂了。
+   */
+  let toolsState = 'loading'; // loading | ready | error
+  let toolsError = '';
+  let toolsData = { rate: null, dup: null, missing: null, sync: null };
+  /** 展开的明细面板：null | 'completeness' | 'duplicates' */
+  let toolsTab = null;
+  /** 完整度筛选：range 为空表示全部；source 为空表示全部来源 */
+  let rateFilter = { range: '90', source: '' };
+  let dupFilter = { windowDays: 3, includeReviewed: false };
+  /** 请求序号：筛选连点时「最后点的赢」，过期响应不覆盖新结果 */
+  let toolsSeq = 0;
+
+  function isoDaysAgo(n) {
+    const d = new Date();
+    d.setDate(d.getDate() - n);
+    return todayStr(d);
+  }
 
   async function renderTools() {
-    const [rate, dup, missing, sync] = await Promise.all([
-      Api.reconMatchRate(ledger.id).then((r) => r.data).catch(() => null),
-      Api.duplicateCharges(ledger.id).then((r) => r.data).catch(() => null),
-      Api.missingReceipts(ledger.id, '200').then((r) => r.data).catch(() => null),
-      Api.bankSyncStatus(ledger.id).then((r) => r.data).catch(() => null),
-    ]);
+    const seq = ++toolsSeq;
+    toolsState = 'loading';
+    toolsError = '';
+    paintTools();
 
+    try {
+      const [rate, dup, missing, sync] = await Promise.all([
+        Api.reconMatchRate(ledger.id, {
+          accountId: accountFilter || undefined,
+          from: rateFilter.range ? isoDaysAgo(Number(rateFilter.range)) : undefined,
+          source: rateFilter.source || undefined,
+        }).then((r) => r.data),
+        Api.duplicateCharges(ledger.id, {
+          windowDays: dupFilter.windowDays,
+          includeReviewed: dupFilter.includeReviewed,
+        }).then((r) => r.data),
+        Api.missingReceipts(ledger.id, '200').then((r) => r.data),
+        Api.bankSyncStatus(ledger.id).then((r) => r.data),
+      ]);
+      if (seq !== toolsSeq) return; // 已有更新的请求，丢弃这次结果
+      toolsData = { rate, dup, missing, sync };
+      toolsState = 'ready';
+    } catch (err) {
+      if (seq !== toolsSeq) return;
+      toolsState = 'error';
+      toolsError = err?.message ?? '请求失败';
+    }
+    paintTools();
+  }
+
+  /** 指标卡 + 明细面板一起画：明细依赖同一份数据，分开画会出现两处结论不一致 */
+  function paintTools() {
+    if (toolsState === 'loading') {
+      toolsSlot.innerHTML = `
+        <section class="section">
+          <div class="section__head">
+            <h2 class="tt-body-strong">记账工具</h2>
+            <span class="tt-fine-print">加载中</span>
+          </div>
+          <div class="card">
+            <div class="recon-hist__loading">
+              <div class="skeleton"></div>
+              <div class="skeleton"></div>
+              <div class="skeleton"></div>
+            </div>
+          </div>
+        </section>`;
+      toolsDetailSlot.innerHTML = '';
+      return;
+    }
+
+    if (toolsState === 'error') {
+      toolsSlot.innerHTML = `
+        <section class="section">
+          <div class="section__head">
+            <h2 class="tt-body-strong">记账工具</h2>
+            <span class="badge badge--danger">加载失败</span>
+          </div>
+          <div class="card">
+            <div class="empty-state">
+              <span class="empty-state__icon" aria-hidden="true">${icon('info', 20)}</span>
+              <p class="tt-body-strong">记账工具没能加载出来</p>
+              <p class="tt-caption text-muted">${esc(toolsError)}。这不是「没有问题」，是没能查到。</p>
+              <button class="btn btn--sm btn--secondary" type="button" data-role="t-retry">重试</button>
+            </div>
+          </div>
+        </section>`;
+      toolsDetailSlot.innerHTML = '';
+      return;
+    }
+
+    const { rate, dup, missing, sync } = toolsData;
+    paintMetrics(rate, dup, missing, sync);
+    paintToolsDetail(rate, dup);
+  }
+
+  function paintToolsDetail(rate, dup) {
+    if (toolsTab === 'completeness') {
+      toolsDetailSlot.innerHTML = completenessDetail(rate);
+      return;
+    }
+    if (toolsTab === 'duplicates') {
+      toolsDetailSlot.innerHTML = duplicatesDetail(dup);
+      return;
+    }
+    toolsDetailSlot.innerHTML = '';
+  }
+
+  /* ---------- 记账完整度明细 ---------- */
+
+  function completenessDetail(rate) {
+    const lines = rate?.missingLines ?? [];
+    const sources = rate?.sources ?? [];
+    const effective = Number(rate?.effectiveTotal ?? 0);
+    /** 总量（含已忽略）——「从未导入」与「当前范围没有」是两种空，得分开说 */
+    const total = Number(rate?.total ?? 0);
+    const rangeOptions = [
+      ['30', '近 30 天'],
+      ['90', '近 90 天'],
+      ['365', '近一年'],
+      ['', '全部'],
+    ];
+
+    return `
+      <section class="section">
+        <div class="section__head">
+          <!--
+            「导入账单」放在标题后、筛选器前：完整度读的是银行流水，
+            而流水只能靠导入进来 —— 没有这个入口，这一整块永远是空的。
+          -->
+          <div class="recon-hist__title">
+            <h2 class="tt-body-strong">缺失与对不上的流水</h2>
+            <button class="btn btn--sm btn--secondary" type="button" data-role="t-import">
+              ${icon('download', 16)}<span>导入账单</span>
+            </button>
+          </div>
+          <div class="row row--md row--wrap recon-hist__filters">
+            <select class="input recon-hist__select" data-role="t-range" aria-label="时间范围">
+              ${rangeOptions
+                .map(
+                  ([v, label]) =>
+                    `<option value="${esc(v)}"${rateFilter.range === v ? ' selected' : ''}>${esc(label)}</option>`,
+                )
+                .join('')}
+            </select>
+            <select class="input recon-hist__select" data-role="t-source" aria-label="账单来源">
+              <option value=""${rateFilter.source === '' ? ' selected' : ''}>全部来源</option>
+              ${sources
+                .map(
+                  (s) =>
+                    `<option value="${esc(s.value)}"${rateFilter.source === s.value ? ' selected' : ''}>${esc(
+                      SOURCE_LABEL[s.value] ?? s.value,
+                    )}（${esc(String(s.count))}）</option>`,
+                )
+                .join('')}
+            </select>
+          </div>
+        </div>
+        <div class="card">
+          <p class="metric__state">
+            口径：已入账 <span class="tnum">${esc(String(rate?.recordedCount ?? 0))}</span> 笔 /
+            有效 <span class="tnum">${esc(String(effective))}</span> 笔
+            ${Number(rate?.ignoredCount ?? 0) > 0
+              ? `（已忽略 <span class="tnum">${esc(String(rate.ignoredCount))}</span> 笔，不计入分母）`
+              : ''}
+          </p>
+          ${
+            lines.length
+              ? `<div class="recon-miss">
+                   <div class="recon-miss__row recon-miss__row--head">
+                     <span>日期</span><span>商户 / 摘要</span><span class="recon-miss__num">金额</span><span>状态</span>
+                   </div>
+                   ${lines
+                     .map(
+                       (l) => `<div class="recon-miss__row">
+                         <span class="recon-miss__date tnum">${esc(l.txDate ?? '—')}</span>
+                         <span class="recon-miss__who">${esc(l.merchant || l.description || '—')}</span>
+                         <span class="recon-miss__num tnum">${esc(money(l.amount))}</span>
+                         <span class="recon-miss__state">
+                           <span class="badge ${l.matchState === 'suspected' ? 'badge--accent' : 'badge--danger'}">${esc(
+                             MISS_STATE_LABEL[l.matchState] ?? l.matchState,
+                           )}</span>
+                         </span>
+                       </div>`,
+                     )
+                     .join('')}
+                 </div>
+                 <p class="metric__hint">${
+                   lines.length >= 100
+                     ? '只显示最近 100 笔，处理完再来核对'
+                     : '「账本没有」= 银行有这笔、账本里没有；「对不上」= 有候选但金额或日期不一致'
+                 }</p>`
+              : `<div class="empty-state">
+                   <span class="empty-state__icon" aria-hidden="true">${icon('check', 20)}</span>
+                   <p class="tt-body-strong">${
+                     total === 0
+                       ? '还没有导入过银行账单'
+                       : effective === 0
+                         ? '这个范围内的流水都标记为忽略了'
+                         : '流水都已入账，没有缺失'
+                   }</p>
+                   <p class="tt-caption text-muted">${
+                     total === 0
+                       ? '导入的是银行流水，只用来核对账本有没有漏记，不会生成账目。'
+                       : effective === 0
+                         ? '被忽略的流水不计入匹配率，换个时间范围或账户可以再查一次。'
+                         : '银行流水里的每一笔都能在账本里找到对应记录。'
+                   }</p>
+                   ${
+                     total === 0
+                       ? `<button class="btn btn--sm" type="button" data-role="t-import">
+                            ${icon('download', 16)}<span>导入账单</span>
+                          </button>`
+                       : ''
+                   }
+                 </div>`
+          }
+        </div>
+      </section>`;
+  }
+
+  /* ---------- 重复扣费明细 ---------- */
+
+  function duplicatesDetail(dup) {
+    const groups = dup?.duplicateGroups ?? [];
+    const windowOptions = [
+      ['3', '3 天内'],
+      ['7', '7 天内'],
+      ['30', '30 天内'],
+    ];
+
+    return `
+      <section class="section">
+        <div class="section__head">
+          <h2 class="tt-body-strong">疑似重复交易</h2>
+          <div class="row row--md row--wrap recon-hist__filters">
+            <select class="input recon-hist__select" data-role="d-window" aria-label="时间窗口">
+              ${windowOptions
+                .map(
+                  ([v, label]) =>
+                    `<option value="${esc(v)}"${String(dupFilter.windowDays) === v ? ' selected' : ''}>${esc(label)}</option>`,
+                )
+                .join('')}
+            </select>
+            <label class="row row--sm dup-toggle">
+              <input type="checkbox" data-role="d-reviewed"${dupFilter.includeReviewed ? ' checked' : ''} />
+              <span class="tt-caption">显示已忽略</span>
+            </label>
+          </div>
+        </div>
+        <div class="card">
+          ${
+            groups.length
+              ? `<div class="dup-list">
+                   ${groups
+                     .map(
+                       (g) => `<article class="dup-group" data-group="${esc(g.groupKey)}">
+                         <div class="dup-group__head">
+                           <span class="dup-group__title">${esc(g.merchant || '未填商户')} · ${esc(money(g.amount))} · ${
+                             esc(String(g.count))
+                           } 笔</span>
+                           <span class="badge ${g.status === 'confirmed' ? 'badge--danger' : g.status === 'ignored' ? '' : 'badge--accent'}">${esc(
+                             g.status === 'confirmed' ? '已确认重复' : g.status === 'ignored' ? '已忽略' : CONF_LABEL[g.confidence] ?? g.confidence,
+                           )}</span>
+                         </div>
+                         <p class="dup-group__reasons">判定依据：${(g.reasons ?? []).map((x) => esc(x)).join(' · ')}</p>
+                         <div class="dup-group__items">
+                           ${(g.items ?? [])
+                             .map(
+                               (it) => `<div class="dup-item">
+                                 <span class="dup-item__meta tnum">${esc(it.txDate ?? '—')} · ${esc(it.accountName ?? '—')}</span>
+                                 <button class="btn btn--sm btn--quiet" type="button" data-act="open" data-id="${esc(it.id)}">查看详情</button>
+                               </div>`,
+                             )
+                             .join('')}
+                         </div>
+                         <div class="dup-group__ops">
+                           <button class="btn btn--sm" type="button" data-act="confirm"${g.status === 'confirmed' ? ' disabled' : ''}>确认重复</button>
+                           <button class="btn btn--sm btn--secondary" type="button" data-act="ignore"${g.status === 'ignored' ? ' disabled' : ''}>忽略</button>
+                         </div>
+                       </article>`,
+                     )
+                     .join('')}
+                 </div>
+                 <p class="metric__hint">确认或忽略只记录你的判断，不会改动任何账目 —— 删哪一笔由你决定。</p>`
+              : `<div class="empty-state">
+                   <span class="empty-state__icon" aria-hidden="true">${icon('check', 20)}</span>
+                   <p class="tt-body-strong">没有发现疑似重复</p>
+                   <p class="tt-caption text-muted">
+                     判据是「金额相同 + 商户相同 + ${esc(String(dup?.windowDays ?? 3))} 天内」，三者同时成立才会列出。
+                     把时间窗口放宽可以查更久以前的。
+                   </p>
+                 </div>`
+          }
+        </div>
+      </section>`;
+  }
+
+  function paintMetrics(rate, dup, missing, sync) {
     /**
-     * 匹配率低于 90% 时**才**提示漏记风险，且样本不足 20 笔时不提示 ——
-     * 3 笔里匹配 2 笔说不上「漏记」。阈值与样本量都由后端判定（riskHint），
-     * 前端只负责呈现，不重算 —— 否则两个页面的结论会不一致。
+     * 三档状态全部来自后端已算好的字段，前端不重算阈值 ——
+     * 否则同一个指标在两个页面会给出两个结论。
      */
-    const rateTotal = Number(rate?.total ?? 0);
+    const effective = Number(rate?.effectiveTotal ?? 0);
+    const total = Number(rate?.total ?? 0);
+    const rateValue = rate?.matchRate ?? null;
     const rateState =
-      rateTotal === 0
-        ? { text: '待开始', cls: 'badge--accent' }
+      effective === 0
+        ? { text: total > 0 ? '全部忽略' : '待开始', cls: 'badge--accent' }
         : rate?.riskHint
           ? { text: '异常', cls: 'badge--danger' }
           : { text: '正常', cls: '' };
@@ -586,12 +1255,21 @@ export async function renderReconciliations(container, { go } = {}) {
     const dupTotal = Number(dup?.total ?? 0);
     const dupItems = dup?.items ?? [];
     const dupStale = Number(dup?.possiblyStale?.length ?? 0);
+    const dupPending = Number(dup?.pendingCount ?? 0);
+    const dupConfirmed = Number(dup?.confirmedCount ?? 0);
+    /**
+     * 徽标优先反映「有没有待判的重复」—— 那是需要人动手的事。
+     * 以前这里只看订阅数（`dupTotal`），结果是：明明有疑似重复待确认，
+     * 徽标却写「正常」，用户根本不会点开。
+     */
     const dupState =
-      dupStale > 0
-        ? { text: `${dupStale} 项待核`, cls: 'badge--accent' }
-        : dupTotal > 0
-          ? { text: '正常', cls: '' }
-          : { text: '无订阅', cls: '' };
+      dupPending > 0
+        ? { text: `${dupPending} 组待判`, cls: 'badge--accent' }
+        : dupConfirmed > 0
+          ? { text: `${dupConfirmed} 组已确认`, cls: 'badge--danger' }
+          : dupStale > 0
+            ? { text: `${dupStale} 项待核`, cls: 'badge--accent' }
+            : { text: '正常', cls: '' };
 
     const missCount = Number(missing?.count ?? 0);
     const missState = missCount > 0 ? { text: '待补', cls: 'badge--accent' } : { text: '正常', cls: '' };
@@ -614,22 +1292,25 @@ export async function renderReconciliations(container, { go } = {}) {
             </div>
             ${
               /**
-               * ⚠️ 一条流水都没导入时**不能显示「100%」**。
-               * 后端的 `matchRate` 在 total=0 时返回 100（除零的兜底值），
-               * 直接显示会让人以为「完整度满分」—— 而真实情况是「还没开始对」。
-               * 分母为 0 时给「—」，这是全站对无意义比率的统一处理。
+               * ⚠️ 没有有效样本时给「—」而不是「100%」。
+               * 后端现在把这种情形的 `matchRate` 返回成 `null`（以前兜底成 100），
+               * 直接渲染会让人以为「完整度满分」—— 而真实情况是「还没开始对」。
+               * 分母只算有效流水（已忽略的不进分母），所以还要说清这个口径。
                */
-              rateTotal > 0
-                ? `<p class="metric__value tnum">${esc(String(rate.matchRate))}%</p>
-                   <p class="metric__state">已匹配 <span class="tnum">${esc(String(rate.matched))}</span> / <span class="tnum">${esc(String(rateTotal))}</span> 笔</p>`
+              effective > 0 && rateValue !== null
+                ? `<p class="metric__value tnum">${esc(String(rateValue))}%</p>
+                   <p class="metric__state">已入账 <span class="tnum">${esc(String(rate?.recordedCount ?? 0))}</span> / <span class="tnum">${esc(String(effective))}</span> 笔</p>`
                 : `<p class="metric__value">—</p>
-                   <p class="metric__state">还没有导入过流水</p>`
+                   <p class="metric__state">${total > 0 ? '流水都已标记为忽略' : '还没有导入过流水'}</p>`
             }
             ${
               rate?.riskHint
                 ? `<p class="metric__hint is-neg">${esc(rate.riskHint)}</p>`
                 : `<p class="metric__hint">阈值 ${esc(String(rate?.threshold ?? 90))}%，样本满 20 笔才提示风险</p>`
             }
+            <button class="btn btn--sm btn--secondary metric__more" type="button" data-role="tab-completeness">
+              ${effective > 0 ? `查看 ${esc(String(rate?.missingCount ?? 0))} 笔缺失` : '查看口径说明'}
+            </button>
           </article>
 
           <article class="metric">
@@ -637,16 +1318,26 @@ export async function renderReconciliations(container, { go } = {}) {
               <h3 class="metric__title">重复扣费</h3>
               <span class="badge ${dupState.cls}">${esc(dupState.text)}</span>
             </div>
-            <p class="metric__value tnum">${esc(String(dupTotal))} 项</p>
-            <p class="metric__state">${dupTotal ? '已确认为订阅的周期性支出' : '还没有确认过的订阅'}</p>
+            ${
+              /**
+               * 数值取「待判 + 已确认」的组数，而不是订阅数 ——
+               * 用户看到这张卡想问的是「有没有被重复扣」，不是「我确认过几个订阅」。
+               * 下面那行同时保留订阅线索，两条线索各说各的，不混成一个数。
+               */
+              dupPending + dupConfirmed > 0
+                ? `<p class="metric__value tnum">${esc(String(dupPending + dupConfirmed))} 组</p>
+                   <p class="metric__state">疑似同一笔记了两次</p>`
+                : `<p class="metric__value tnum">0 组</p>
+                   <p class="metric__state">没有发现疑似重复</p>`
+            }
             ${
               dupItems.length
                 ? `<div class="metric__list">
                      ${dupItems
-                       .slice(0, 3)
+                       .slice(0, 2)
                        .map(
                          (d) => `<div class="metric__item">
-                           <span class="metric__item-label">${esc(d.userLabel || d.merchant)} · ${esc(
+                           <span class="metric__item-label">订阅：${esc(d.userLabel || d.merchant)} · ${esc(
                              PERIOD_LABEL[d.periodType] ?? d.periodType,
                            )}</span>
                            <span class="metric__item-value tnum">${esc(money(d.amount))}</span>
@@ -654,14 +1345,17 @@ export async function renderReconciliations(container, { go } = {}) {
                        )
                        .join('')}
                    </div>
-                   <p class="metric__hint">${dupItems.length > 3 ? `共 ${dupItems.length} 项，显示金额最高的 3 项` : '按年支出从高到低'}</p>`
-                : `<p class="metric__hint">在统计页确认订阅后会出现在这里</p>`
+                   <p class="metric__hint">另有 ${esc(String(dupTotal))} 项已确认订阅${dupItems.length > 2 ? '，显示金额最高的 2 项' : ''}</p>`
+                : `<p class="metric__hint">订阅线索：在统计页确认订阅后会出现在这里</p>`
             }
             ${
               dupStale
                 ? `<p class="metric__hint">${esc(String(dupStale))} 项已超过 45 天没再出现，可能已经停了</p>`
                 : ''
             }
+            <button class="btn btn--sm btn--secondary metric__more" type="button" data-role="tab-duplicates">
+              ${dupPending + dupConfirmed > 0 ? '逐组核对' : '查看判定依据'}
+            </button>
           </article>
 
           <article class="metric">
@@ -694,8 +1388,87 @@ export async function renderReconciliations(container, { go } = {}) {
   /* ---------------- 接线 ---------------- */
 
   frame.querySelector('[data-role=to-accounts]').addEventListener('click', () => go('/accounts'));
+
+  /**
+   * 「记账工具」区整体用事件委托。
+   *
+   * 明细面板每次筛选都会整块重绘，给按钮逐个挂监听等于每次重绘都要重新挂一遍 ——
+   * 漏挂一处就是「点了没反应」，而这种问题在静态检查里完全看不出来。
+   */
+  toolsSlot.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-role]');
+    if (!btn) return;
+    const role = btn.getAttribute('data-role');
+    if (role === 't-retry') {
+      renderTools();
+      return;
+    }
+    if (role === 'tab-completeness' || role === 'tab-duplicates') {
+      const next = role === 'tab-completeness' ? 'completeness' : 'duplicates';
+      toolsTab = toolsTab === next ? null : next;
+      paintToolsDetail(toolsData.rate, toolsData.dup);
+      paintMetrics(toolsData.rate, toolsData.dup, toolsData.missing, toolsData.sync);
+    }
+  });
+
+  toolsDetailSlot.addEventListener('change', (e) => {
+    const el = e.target;
+    const role = el.getAttribute?.('data-role');
+    if (role === 't-range') {
+      rateFilter.range = el.value;
+      renderTools();
+    } else if (role === 't-source') {
+      rateFilter.source = el.value;
+      renderTools();
+    } else if (role === 'd-window') {
+      dupFilter.windowDays = Number(el.value);
+      renderTools();
+    } else if (role === 'd-reviewed') {
+      dupFilter.includeReviewed = el.checked;
+      renderTools();
+    }
+  });
+
+  toolsDetailSlot.addEventListener('click', async (e) => {
+    const importBtn = e.target.closest('button[data-role=t-import]');
+    if (importBtn) {
+      openStatementImport({
+        ledger,
+        accounts,
+        accountId: accountFilter,
+        /** 导入完立刻重算 —— 不然用户会看到「导入成功」而数字还是旧的 */
+        onDone: () => renderTools().catch(() => {}),
+      });
+      return;
+    }
+    const btn = e.target.closest('button[data-act]');
+    if (!btn) return;
+    const act = btn.getAttribute('data-act');
+    const groupKey = btn.closest('[data-group]')?.getAttribute('data-group') ?? '';
+
+    if (act === 'open') {
+      const id = btn.getAttribute('data-id');
+      if (id) go(`/transactions/${encodeURIComponent(id)}`);
+      return;
+    }
+    if (act === 'confirm' || act === 'ignore') {
+      const status = act === 'confirm' ? 'confirmed' : 'ignored';
+      btn.disabled = true;
+      try {
+        await Api.reviewDuplicate(ledger.id, { groupKey, status });
+        toast(status === 'confirmed' ? '已标记为重复' : '已忽略');
+        renderTools();
+      } catch (err) {
+        btn.disabled = false;
+        toast(err?.message ?? '操作失败', 'error');
+      }
+    }
+  });
+
   accSelect.addEventListener('change', () => {
     accountFilter = accSelect.value;
+    /** 账户同时影响完整度的统计范围，工具区要跟着重算 */
+    renderTools();
     load();
   });
   rangeSelect.addEventListener('change', () => {

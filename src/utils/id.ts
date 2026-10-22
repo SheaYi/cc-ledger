@@ -65,4 +65,6 @@ export const ID_PREFIX = {
   reimbursement: 'rim',
   backdatedAdjustment: 'bad',
   periodReopenLog: 'prl',
+  /* --- 重复扣费的人工判定（迁移 0016） --- */
+  duplicateReview: 'drv',
 } as const;

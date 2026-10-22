@@ -561,11 +561,33 @@ export const Api = {
       'GET',
       `/ledgers/${seg(ledgerId)}/accounts/${seg(accountId)}/credit-billing${qs({ year, month })}`,
     ),
-  /** R-11 匹配率 */
-  reconMatchRate: (ledgerId, accountId) =>
-    request('GET', `/ledgers/${seg(ledgerId)}/recon-match-rate${qs({ accountId })}`),
-  /** R-12 重复扣费 */
-  duplicateCharges: (ledgerId) => request('GET', `/ledgers/${seg(ledgerId)}/duplicate-charges`),
+  /**
+   * R-11 记账完整度（匹配率 + 缺失明细）
+   * `from/to` 时间范围、`source` 账单来源、`statementId` 某一次导入的账单。
+   */
+  reconMatchRate: (ledgerId, opts = {}) =>
+    request(
+      'GET',
+      `/ledgers/${seg(ledgerId)}/recon-match-rate${qs({
+        accountId: opts.accountId,
+        from: opts.from,
+        to: opts.to,
+        source: opts.source,
+        statementId: opts.statementId,
+      })}`,
+    ),
+  /** R-12 重复扣费：订阅线索 + 疑似重复交易 */
+  duplicateCharges: (ledgerId, opts = {}) =>
+    request(
+      'GET',
+      `/ledgers/${seg(ledgerId)}/duplicate-charges${qs({
+        windowDays: opts.windowDays,
+        includeReviewed: opts.includeReviewed ? '1' : undefined,
+      })}`,
+    ),
+  /** R-12 人工判定：确认重复 / 忽略（只记录意见，不动账目） */
+  reviewDuplicate: (ledgerId, payload) =>
+    request('POST', `/ledgers/${seg(ledgerId)}/duplicate-reviews`, { body: payload }),
   /** R-13 缺凭证的大额支出 */
   missingReceipts: (ledgerId, minAmount) =>
     request('GET', `/ledgers/${seg(ledgerId)}/missing-receipts${qs({ minAmount })}`),

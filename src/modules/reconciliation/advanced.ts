@@ -20,6 +20,7 @@ import {
   accounts,
   bankStatementLines,
   bankStatements,
+  duplicateReviews,
   reconAdjustingItems,
   reconciliationRecords,
   recurringDetections,
@@ -1121,38 +1122,178 @@ export function creditCardBilling(ctx: AppCtx, ledgerId: string, accountId: stri
  * ================================================================== */
 
 /**
- * 匹配率 = 已匹配 ÷ 流水总笔数。
+ * 记账完整度 = 已入账 ÷ **有效**流水笔数。
  *
- * 低于 90% 提示「可能存在漏记」—— 这是**记账完整度**的度量，
- * 国内没有任何产品做这件事。90% 这个阈值来自一木公开的
- * 「手动修正率 < 5%」的行业实践，取它的补集。
+ * ## 分母为什么必须剔除 `ignored`
+ *
+ * `ignored` 是用户**主动排除**的流水 —— 信用卡还款本身、卡内定活互转、
+ * 同一笔消费的分期子项（见本文件开头的红线）。它们不是「漏记」，
+ * 混进分母会把完整度无端压低：实测某账本 62 笔已匹配 + 31 笔已忽略，
+ * 旧算法给出 **66.7%**，而真实情况是「该记的都记了」。
+ * 这个数一旦显示出来，用户会以为自己漏了三分之一没记 —— 纯属误导。
+ *
+ * ## 没有流水时为什么不能返回 100
+ *
+ * 旧实现在 `total = 0` 时兜底返回 `100`，前端直接渲染就是「完整度满分」，
+ * 而真实情况是「还没导入过任何账单」。除零一律给 `null`，由前端显示「—」。
+ *
+ * 阈值 90% 来自一木公开的「手动修正率 < 5%」行业实践，取它的补集。
  */
-export function matchRate(ctx: AppCtx, ledgerId: string, accountId?: string) {
-  const conds = [eq(bankStatementLines.ledgerId, ledgerId)];
-  if (accountId) conds.push(eq(bankStatementLines.accountId, accountId));
+export interface MatchRateFilter {
+  /** 起始日期 `YYYY-MM-DD`（含） */
+  from?: string;
+  /** 结束日期 `YYYY-MM-DD`（含） */
+  to?: string;
+  /** 账单来源：某一次导入的账单 */
+  statementId?: string;
+  /** 账单来源：渠道（bank_statements.source） */
+  source?: string;
+}
+
+export function matchRate(
+  ctx: AppCtx,
+  ledgerId: string,
+  accountId?: string,
+  filter: MatchRateFilter = {},
+) {
+  const scope = [eq(bankStatementLines.ledgerId, ledgerId)];
+  if (accountId) scope.push(eq(bankStatementLines.accountId, accountId));
+  if (filter.from) scope.push(gte(bankStatementLines.txDate, filter.from));
+  if (filter.to) scope.push(lte(bankStatementLines.txDate, filter.to));
+  if (filter.statementId) scope.push(eq(bankStatementLines.statementId, filter.statementId));
+  if (filter.source) {
+    scope.push(
+      sql`exists (select 1 from ${bankStatements} s where s.id = ${bankStatementLines.statementId} and s.source = ${filter.source})`,
+    );
+  }
+  const where = and(...scope);
+
   const rows = ctx.db
     .select({
       state: bankStatementLines.matchState,
       cnt: sql<number>`count(*)`,
     })
     .from(bankStatementLines)
-    .where(and(...conds))
+    .where(where)
     .groupBy(bankStatementLines.matchState)
     .all();
+
+  const pick = (s: string) => Number(rows.find((r) => r.state === s)?.cnt ?? 0);
   const total = rows.reduce((s, r) => s + Number(r.cnt), 0);
-  const matched = Number(rows.find((r) => r.state === 'matched')?.cnt ?? 0);
-  const suspected = Number(rows.find((r) => r.state === 'suspected')?.cnt ?? 0);
-  const rate = total > 0 ? Math.round((matched / total) * 1000) / 10 : 100;
+  const matched = pick('matched');
+  const suspected = pick('suspected');
+  const unmatched = pick('unmatched');
+  const ignored = pick('ignored');
+
+  /** 有效分母：剔除用户主动忽略的流水 */
+  const effectiveTotal = matched + suspected + unmatched;
+  const rate = effectiveTotal > 0 ? Math.round((matched / effectiveTotal) * 1000) / 10 : null;
+
+  /**
+   * 「哪些账目缺失或对不上」—— 只有给得出清单，完整度才是个能行动的数字。
+   * 两类都算缺失：`unmatched`（银行有、账本没有）与 `suspected`（有候选但对不上）。
+   */
+  const missingLines = ctx.db
+    .select({
+      id: bankStatementLines.id,
+      statementId: bankStatementLines.statementId,
+      accountId: bankStatementLines.accountId,
+      txDate: bankStatementLines.txDate,
+      direction: bankStatementLines.direction,
+      amount: bankStatementLines.amount,
+      merchant: bankStatementLines.merchant,
+      description: bankStatementLines.description,
+      matchState: bankStatementLines.matchState,
+      matchReason: bankStatementLines.matchReason,
+      rowNo: bankStatementLines.rowNo,
+    })
+    .from(bankStatementLines)
+    .where(and(where, inArray(bankStatementLines.matchState, ['unmatched', 'suspected'])))
+    .orderBy(desc(bankStatementLines.txDate), asc(bankStatementLines.rowNo))
+    .limit(100)
+    .all();
+
+  /** 账单来源下拉：只列这本账本（+ 该账户）真的导入过的 */
+  const stmtConds = [eq(bankStatements.ledgerId, ledgerId)];
+  if (accountId) stmtConds.push(eq(bankStatements.accountId, accountId));
+  const statements = ctx.db
+    .select({
+      id: bankStatements.id,
+      source: bankStatements.source,
+      statementMonth: bankStatements.statementMonth,
+      filename: bankStatements.filename,
+      rowCount: bankStatements.rowCount,
+      createdAt: bankStatements.createdAt,
+    })
+    .from(bankStatements)
+    .where(and(...stmtConds))
+    .orderBy(desc(bankStatements.createdAt))
+    .limit(50)
+    .all();
+
+  const bySource = new Map<string, number>();
+  for (const s of statements) {
+    const key = s.source ?? 'unknown';
+    bySource.set(key, (bySource.get(key) ?? 0) + 1);
+  }
+
   return {
     total,
     matched,
     suspected,
-    unmatched: Number(rows.find((r) => r.state === 'unmatched')?.cnt ?? 0),
-    ignored: Number(rows.find((r) => r.state === 'ignored')?.cnt ?? 0),
+    unmatched,
+    ignored,
+    /** ⚠️ 无有效样本时为 `null`（不是 100）—— 见上方「为什么不能返回 100」 */
     matchRate: rate,
     /** 只有样本量足够时提示才有意义 —— 3 笔里匹配 2 笔说不上「漏记风险」 */
-    riskHint: total >= 20 && rate < 90 ? '匹配率偏低，可能存在漏记，建议核对未匹配流水' : null,
+    riskHint:
+      effectiveTotal >= 20 && rate !== null && rate < 90
+        ? '匹配率偏低，可能存在漏记，建议核对未匹配流水'
+        : null,
     threshold: 90,
+
+    /* ---- 以下为记账完整度的口径明细（新增字段，既有字段语义不变）---- */
+    /** 有效分母 = 已入账 + 疑似 + 未匹配（不含 ignored） */
+    effectiveTotal,
+    /** 已入账数 */
+    recordedCount: matched,
+    /** 缺失数 = 未匹配 + 疑似 */
+    missingCount: unmatched + suspected,
+    /** 已忽略数（同 `ignored`，单独列出便于前端解释口径） */
+    ignoredCount: ignored,
+    /** 本次统计用到的筛选条件，回显给前端避免「页面显示的和算的不是一回事」 */
+    filters: {
+      accountId: accountId ?? null,
+      from: filter.from ?? null,
+      to: filter.to ?? null,
+      statementId: filter.statementId ?? null,
+      source: filter.source ?? null,
+    },
+    /** 缺失/对不上的流水明细 */
+    missingLines: missingLines.map((l) => ({
+      id: l.id,
+      statementId: l.statementId,
+      accountId: l.accountId,
+      txDate: l.txDate,
+      direction: l.direction,
+      amount: formatCents(Number(l.amount ?? 0)),
+      merchant: l.merchant,
+      description: l.description,
+      matchState: l.matchState,
+      matchReason: l.matchReason,
+      rowNo: l.rowNo,
+    })),
+    /** 账单来源下拉选项 */
+    sources: [...bySource.entries()].map(([value, count]) => ({ value, count })),
+    /** 可选的具体账单（用于「哪一次导入」筛选） */
+    statements: statements.map((s) => ({
+      id: s.id,
+      source: s.source,
+      statementMonth: s.statementMonth,
+      filename: s.filename,
+      rowCount: s.rowCount,
+      createdAt: s.createdAt,
+    })),
   };
 }
 
@@ -1161,12 +1302,43 @@ export function matchRate(ctx: AppCtx, ledgerId: string, accountId?: string) {
  * ================================================================== */
 
 /**
- * 对账侧的重复扣费视角：只保留**已确认为订阅**的项，并按年支出倒序。
- * 检测算法在 `stats/advanced.ts` 的 `detectSubscriptions()` ——
- * 同一套识别逻辑不能在两个模块各写一份，否则「统计说有 3 个、
- * 对账说有 4 个」这种不一致迟早出现。
+ * 对账侧的重复扣费视角。
+ *
+ * ## 两条线索，而不是一条
+ *
+ *   · **订阅线索**（`recurringDetections`）：已确认为订阅的周期性支出。
+ *     检测算法在 `stats/advanced.ts` 的 `detectSubscriptions()` ——
+ *     同一套识别逻辑不能在两个模块各写一份，否则「统计说有 3 个、
+ *     对账说有 4 个」这种不一致迟早出现。
+ *   · **重复线索**（本函数新增）：**同一笔被记了两次**。这条以前完全没有，
+ *     而它恰恰是用户看到「重复扣费」四个字时以为会得到的东西。
+ *     只靠订阅线索的后果是：没在统计页确认过订阅的用户，这张卡永远是空的，
+ *     显示「还没有确认过的订阅」—— 用户据此以为自己没有重复扣费。
+ *
+ * ## 为什么判定必须是「金额 + 商户 + 时间窗」三者同时成立
+ *
+ * 只看金额：每天一杯 15 元的咖啡会被判成几百组重复。
+ * 只看商户：同一家店的正常多次消费会被全判成重复。
+ * 只看时间：同日的多笔不同消费毫无关系。
+ * 三者同时成立才指向「同一笔记了两次」；任一单独维度都只是巧合。
  */
-export function duplicateCharges(ctx: AppCtx, ledgerId: string) {
+export interface DuplicateChargeFilter {
+  /** 时间窗（天）：两笔相隔多少天内算「可能是同一笔」，默认 3 */
+  windowDays?: number;
+  /** 是否把已忽略的组也列出来，默认 false */
+  includeReviewed?: boolean;
+}
+
+/** 商户归一：去重前先把大小写与空白抹平，否则「星巴克」和「星巴克 」是两家店 */
+function merchantKey(merchant: string | null, name: string | null): string {
+  return (merchant ?? name ?? '').trim().toLowerCase();
+}
+
+export function duplicateCharges(
+  ctx: AppCtx,
+  ledgerId: string,
+  filter: DuplicateChargeFilter = {},
+) {
   const rows = ctx.db
     .select()
     .from(recurringDetections)
@@ -1174,6 +1346,157 @@ export function duplicateCharges(ctx: AppCtx, ledgerId: string) {
     .orderBy(desc(recurringDetections.amount))
     .all();
   const stale = rows.filter((r) => daysBetween(r.lastSeen, todayStr()) > 45);
+
+  /* ---------- 新增：疑似重复交易识别 ---------- */
+
+  const windowDays = Math.min(Math.max(Number(filter.windowDays ?? 3) || 3, 1), 30);
+
+  /**
+   * 只取支出。收入的重复（同一笔工资记两次）确实是问题，
+   * 但「重复扣费」这个词指向的是**被多扣的钱**，混进来会稀释重点。
+   */
+  const txs = ctx.db
+    .select({
+      id: transactions.id,
+      txDate: transactions.txDate,
+      txTime: transactions.txTime,
+      name: transactions.name,
+      merchant: transactions.merchant,
+      note: transactions.note,
+      actualAmount: transactions.actualAmount,
+      accountId: transactions.accountId,
+      importHash: transactions.importHash,
+    })
+    .from(transactions)
+    .where(
+      and(
+        eq(transactions.ledgerId, ledgerId),
+        eq(transactions.recordType, 'expense'),
+        isNull(transactions.deletedAt),
+      ),
+    )
+    .orderBy(asc(transactions.txDate), asc(transactions.id))
+    .all();
+
+  const accountNames = new Map(
+    ctx.db
+      .select({ id: accounts.id, name: accounts.name })
+      .from(accounts)
+      .where(eq(accounts.ledgerId, ledgerId))
+      .all()
+      .map((a) => [a.id, a.name]),
+  );
+
+  const reviews = new Map(
+    ctx.db
+      .select()
+      .from(duplicateReviews)
+      .where(eq(duplicateReviews.ledgerId, ledgerId))
+      .all()
+      .map((r) => [r.groupKey, r]),
+  );
+
+  /** 先按「金额 + 商户」分桶，再在桶内按日期相邻切簇 */
+  const buckets = new Map<string, typeof txs>();
+  for (const t of txs) {
+    const key = `${Number(t.actualAmount ?? 0)}|${merchantKey(t.merchant, t.name)}`;
+    const bucket = buckets.get(key);
+    if (bucket) bucket.push(t);
+    else buckets.set(key, [t]);
+  }
+
+  const groups: Array<{
+    groupKey: string;
+    amountCents: number;
+    merchant: string;
+    count: number;
+    windowDays: number;
+    spanDays: number;
+    reasons: string[];
+    confidence: 'high' | 'medium';
+    status: 'pending' | 'confirmed' | 'ignored';
+    reviewedAt: string | null;
+    items: Array<Record<string, unknown>>;
+  }> = [];
+
+  for (const bucket of buckets.values()) {
+    if (bucket.length < 2) continue;
+    const head = bucket[0];
+    if (!head) continue;
+    const amountCents = Number(head.actualAmount ?? 0);
+    const merchant = merchantKey(head.merchant, head.name);
+
+    /** 桶内已按日期升序：相邻间隔 ≤ windowDays 的归为一簇 */
+    let cluster: typeof txs = [];
+    const flush = () => {
+      const first = cluster[0];
+      const last = cluster[cluster.length - 1];
+      if (cluster.length < 2 || !first || !last) return;
+      const spanDays = daysBetween(first.txDate, last.txDate);
+      const sameDay = spanDays === 0;
+      const hashes = new Set(cluster.map((t) => t.importHash ?? null));
+      const notes = new Set(cluster.map((t) => (t.note ?? '').trim()).filter(Boolean));
+
+      const reasons = ['金额相同', '商户相同'];
+      reasons.push(sameDay ? '同一天' : `${spanDays} 天内`);
+      if (hashes.size === 1 && !hashes.has(null)) reasons.push('同一导入批次');
+      if (notes.size === 1) reasons.push('备注相同');
+
+      /**
+       * 金额与商户由分桶已经保证相同，差别只在**时间**：
+       * 同一天 → 高（大概率是同一笔记了两次）；
+       * 跨天 → 中（可能是真的买了两次，得由人看）。
+       * 同一导入批次命中则更可能是导入重复，也归高。
+       */
+      const sameBatch = hashes.size === 1 && !hashes.has(null);
+      const confidence: 'high' | 'medium' = sameDay || sameBatch ? 'high' : 'medium';
+
+      const groupKey = `${amountCents}|${merchant}|${first.txDate}`;
+      const review = reviews.get(groupKey);
+
+      groups.push({
+        groupKey,
+        amountCents,
+        merchant,
+        count: cluster.length,
+        windowDays,
+        spanDays,
+        reasons,
+        confidence,
+        status: (review?.status as 'confirmed' | 'ignored') ?? 'pending',
+        reviewedAt: review?.updatedAt ?? null,
+        items: cluster.map((t) => ({
+          id: t.id,
+          txDate: t.txDate,
+          txTime: t.txTime,
+          name: t.name,
+          merchant: t.merchant,
+          note: t.note,
+          amount: formatCents(Number(t.actualAmount ?? 0)),
+          accountId: t.accountId,
+          accountName: accountNames.get(t.accountId) ?? null,
+        })),
+      });
+    };
+
+    for (const t of bucket) {
+      const prev = cluster[cluster.length - 1];
+      if (prev && daysBetween(prev.txDate, t.txDate) > windowDays) {
+        flush();
+        cluster = [];
+      }
+      cluster.push(t);
+    }
+    flush();
+  }
+
+  /** 金额高的排前面 —— 重复 500 元比重复 5 元值得先看 */
+  groups.sort((a, b) => b.amountCents - a.amountCents || b.count - a.count);
+
+  const visible = filter.includeReviewed
+    ? groups
+    : groups.filter((g) => g.status !== 'ignored');
+
   return {
     total: rows.length,
     /** 超过 45 天没再出现 —— 可能是「以为还在扣其实已经停了」，值得核一眼 */
@@ -1193,7 +1516,71 @@ export function duplicateCharges(ctx: AppCtx, ledgerId: string) {
       lastSeen: r.lastSeen,
       userLabel: r.userLabel,
     })),
+
+    /* ---- 疑似重复交易（新增字段，既有字段语义不变）---- */
+    windowDays,
+    duplicateGroups: visible.slice(0, 50).map((g) => ({
+      ...g,
+      amount: formatCents(g.amountCents),
+    })),
+    duplicateGroupCount: visible.length,
+    pendingCount: groups.filter((g) => g.status === 'pending').length,
+    confirmedCount: groups.filter((g) => g.status === 'confirmed').length,
+    ignoredCount: groups.filter((g) => g.status === 'ignored').length,
   };
+}
+
+/**
+ * 记录人工判定：确认是重复 / 忽略（不是重复）。
+ *
+ * ⚠️ 只**记录意见**，不动账目。删不删那笔冗余账目是用户的决定 ——
+ * 自动删除等于替用户处置了他的财务数据，且删错了无法撤销（附件是物理删）。
+ */
+export function reviewDuplicateGroup(
+  ctx: AppCtx,
+  ledgerId: string,
+  groupKey: string,
+  status: 'confirmed' | 'ignored',
+  actorId: string,
+  note?: string,
+) {
+  if (!groupKey) {
+    throw HttpError.validation([{ field: 'groupKey', message: '缺少分组标识' }]);
+  }
+  if (status !== 'confirmed' && status !== 'ignored') {
+    throw HttpError.validation([{ field: 'status', message: '判定结果只能是 confirmed 或 ignored' }]);
+  }
+  const now = nowIso();
+  const existing = ctx.db
+    .select()
+    .from(duplicateReviews)
+    .where(and(eq(duplicateReviews.ledgerId, ledgerId), eq(duplicateReviews.groupKey, groupKey)))
+    .get();
+
+  if (existing) {
+    ctx.db
+      .update(duplicateReviews)
+      .set({ status, actorId, note: note ?? null, updatedAt: now })
+      .where(eq(duplicateReviews.id, existing.id))
+      .run();
+    return { id: existing.id, groupKey, status, updated: true };
+  }
+
+  const id = newId(ID_PREFIX.duplicateReview);
+  ctx.db
+    .insert(duplicateReviews)
+    .values({
+      id,
+      ledgerId,
+      groupKey,
+      status,
+      actorId,
+      note: note ?? null,
+      createdAt: now,
+      updatedAt: now,
+    })
+    .run();
+  return { id, groupKey, status, updated: false };
 }
 
 /* ================================================================== *

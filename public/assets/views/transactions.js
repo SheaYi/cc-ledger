@@ -380,7 +380,7 @@ export async function renderTransactions(container, { go, query }) {
   function rowsToCsv(rows) {
     const DIR_LABEL = { increase: '增加', decrease: '减少', none: '无', write_off: '核销' };
     const headers = [
-      '日期', '时间', '类型', '方向', '分类', '账户', '转入账户',
+      '日期', '时间', '类型', '方向', '主类别', '子类别', '账户', '转入账户',
       '名称', '商家', '对象', '金额', '手续费', '折扣', '实际值', '标签', '备注', '记账人',
     ];
     const lines = [headers.map(csvCell).join(',')];
@@ -391,7 +391,8 @@ export async function renderTransactions(container, { go, query }) {
         tx.txTime ?? '',
         RECORD_TYPE_LABEL[tx.recordType] ?? tx.recordType ?? '',
         DIR_LABEL[tx.direction] ?? tx.direction ?? '',
-        subjectText(tx),
+        tx.category?.parent?.name ?? '',
+        tx.category?.name ?? '',
         tx.account?.name ?? '',
         tx.toAccount?.name ?? '',
         tx.name ?? '',

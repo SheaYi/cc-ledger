@@ -85,7 +85,9 @@ docker compose logs -f
 ```
 
 - 端口：`3000`
-- 数据卷：`cc-ledger-data` → 容器内 `/data`
+- 数据目录：宿主 `./data`（可用 `.env` 的 `DATA_HOST_DIR` 指定绝对路径）→ 容器内 `/data`
+  - NAS 上即 `/volume1/docker/cc-ledger/data`，在「文件管理」里直接可见
+  - ⚠️ 容器以 uid 1001 运行，宿主目录必须先 `sudo chown -R 1001:1001 data`
 - 容器内目录：`/data/cc-ledger.db`（主库）、`/data/uploads`（头像/附件）、`/data/backups`（每日备份）
 
 > ⚠️ `PUBLIC_BASE_URL` 必须改成 NAS 的实际访问地址（如 `http://192.168.0.10:3000`），
@@ -96,13 +98,18 @@ docker compose logs -f
 ### 备份与恢复
 
 ```bash
-# 备份（宿主机侧打包整个数据卷）
-docker run --rm -v cc-ledger_cc-ledger-data:/data -v "$PWD":/backup alpine \
-  tar czf /backup/cc-ledger-data-$(date +%Y%m%d).tar.gz -C /data .
+# 备份（停 5 秒，整目录打包 —— 保证 SQLite 一致性）
+docker compose stop
+sudo tar czf cc-ledger-$(date +%Y%m%d).tar.gz -C ./data .
+docker compose start
+```
 
+```bash
 # 恢复
 docker compose stop
-docker compose run --rm --entrypoint sh cc-ledger -c 'ls /data'
+sudo rm -f ./data/cc-ledger.db-wal ./data/cc-ledger.db-shm
+sudo tar xzf cc-ledger-20261022.tar.gz -C ./data
+sudo chown -R 1001:1001 ./data
 docker compose start
 ```
 

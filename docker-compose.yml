@@ -48,7 +48,12 @@ services:
       BACKUP_RETENTION_DAYS: "14"
 
     volumes:
-      - cc-ledger-data:/data
+      # 数据（数据库 / 附件 / 备份）直接落在 NAS 的共享文件夹里，不用命名卷：
+      #   默认 <项目目录>/data，可用 .env 的 DATA_HOST_DIR 指定绝对路径。
+      #   NAS 上项目目录是 /volume1/docker/cc-ledger，所以默认就是
+      #   /volume1/docker/cc-ledger/data ——在「文件管理」里看得见、能直接备份。
+      # ⚠️ 容器以 uid 1001 运行，宿主目录必须先 chown 1001:1001（见部署文档 3.1）。
+      - ${DATA_HOST_DIR:-./data}:/data
 
     # 资源限制
     deploy:
@@ -80,7 +85,3 @@ services:
       start_period: 15s
 
     stop_grace_period: 30s
-
-volumes:
-  cc-ledger-data:
-    driver: local

@@ -3,14 +3,14 @@
  *
  * ## 这个探针在验什么
  *
- * 用户给了一份**本系统自己导出的账单 CSV**（17 列），指出校对结果与文档不一致。
+ * 用户给了一份**本系统自己导出的账单 CSV**（18 列），指出校对结果与文档不一致。
  * 根因不是「某一列名拼错」，而是三处结构性缺失叠加：
- *   1. `guessMapping` 对这份文件只猜中 3/17 列（日期 / 金额 / 备注）；
+ *   1. `guessMapping` 对这份文件只猜中 3 列（日期 / 金额 / 备注）；
  *   2. 「类型」列不参与映射 → 6 种记录类型被压平成单一 expense，
  *      收入与转账变成支出；
- *   3. 剩下 12 列静默消失 —— 用户无从判断「分类」「手续费」到底丢没丢。
+ *   3. 其余列静默消失 —— 用户无从判断「分类」「手续费」到底丢没丢。
  *
- * 这三样**都不报错**，所以必须靠断言把「17 列逐一有交代」钉死。
+ * 这三样**都不报错**，所以必须靠断言把「18 列逐一有交代」钉死。
  *
  * ## 探针策略：直接用**桌面上的那份真实文件**
  *
@@ -32,13 +32,27 @@ const REF_CSV = 'C:/Users/xieyi/Desktop/账单_我的账本_2026-10-18.csv';
 
 /** 导出端表头的真源（public/assets/views/transactions.js › rowsToCsv()） */
 const EXPORT_HEADERS = [
-  '日期', '时间', '类型', '方向', '分类', '账户', '转入账户',
+  '日期', '时间', '类型', '方向', '主类别', '子类别', '账户', '转入账户',
   '名称', '商家', '对象', '金额', '手续费', '折扣', '实际值', '标签', '备注', '记账人',
 ];
 
+/**
+ * 旧版导出只有「分类」单列，新版拆成「主类别 / 子类别」两列。
+ * 真机参考文件可能是任一种格式，统一归一到新格式再比对。
+ */
+function normalizeHeader(h) {
+  const i = h.indexOf('分类');
+  if (i >= 0 && !h.includes('主类别')) {
+    const out = h.slice();
+    out.splice(i, 1, '主类别', '子类别');
+    return out;
+  }
+  return h;
+}
+
 const refText = existsSync(REF_CSV)
   ? readFileSync(REF_CSV).toString('utf-8')
-  : `﻿${EXPORT_HEADERS.join(',')}\r\n2026-10-18,12:00:00,支出,减少,餐饮 › 午餐,现金钱包,,午餐,沙县小吃,,35.00,0.00,0.00,35.00,,工作日午餐,${'探针用户'}\r\n`;
+  : `﻿${EXPORT_HEADERS.join(',')}\r\n2026-10-18,12:00:00,支出,减少,餐饮,午餐,现金钱包,,午餐,沙县小吃,,35.00,0.00,0.00,35.00,,工作日午餐,探针用户\r\n`;
 
 const probe = await connect({ base: BASE });
 const { ev, wipe, authInjector, open, waitUntil, errors, netFails } = probe;
@@ -119,21 +133,22 @@ if (!(await ev(`!!document.querySelector('[data-role=col-ref]')`))) {
 /**
  * ⚠️ 必须限定在 `.imp-preview` 内。
  * 字段对照表也用了 `.imp-table`，不限定就会把它的 7 列表头一起抓进来，
- * 断言于是比对 24 列 vs 17 列 —— 是探针量错了对象，不是页面坏了。
+ * 断言于是比对 24 列 vs 18 列 —— 是探针量错了对象，不是页面坏了。
  */
 const headCells = JSON.parse(
   await ev(`JSON.stringify([...document.querySelectorAll('.imp-preview .imp-table thead th')].map(t => t.textContent.trim()))`),
 );
-// 表头格 = 行号列 + 17 个文件列 + 解析结果列
+// 表头格 = 行号列 + 文件列 + 解析结果列
 const fileCols = headCells.slice(1, -1);
+const normFileCols = normalizeHeader(fileCols);
 check('BOM 被剥掉，首列正是「日期」', fileCols[0] === '日期', JSON.stringify(fileCols.slice(0, 3)));
 check(
-  `文件 ${fileCols.length} 列与导出端表头逐字同序`,
-  JSON.stringify(fileCols) === JSON.stringify(EXPORT_HEADERS),
-  JSON.stringify(fileCols),
+  `文件列与导出端表头逐字同序（兼容旧版「分类」单列）`,
+  JSON.stringify(normFileCols) === JSON.stringify(EXPORT_HEADERS),
+  JSON.stringify(normFileCols),
 );
 
-/* ---------- 2. 字段对照表覆盖全部 17 列 ---------- */
+/* ---------- 2. 字段对照表覆盖全部 18 列 ---------- */
 const cols = JSON.parse(
   await ev(`JSON.stringify([...document.querySelectorAll('[data-role=col-ref] tbody tr')].map(tr => {
     const td = [...tr.children].map(c => c.textContent.trim());
@@ -149,16 +164,31 @@ const cols = JSON.parse(
     };
   }))`),
 );
-check('对照表行数 = 文件列数（无遗漏、无新增）', cols.length === fileCols.length, `${cols.length} vs ${fileCols.length}`);
+// 对照表渲染的是**契约**（doc），不随上传文件的列数伸缩：列名须与导出端 18 列逐格相等。
+// 文件缺某列时该格会追加「文件里没有这一列」标记，比对前剥掉标记再比。
+const MARK = '文件里没有这一列';
+const docCols = cols.map((x) => x.column.replace(MARK, '').trim());
+check('对照表行数 = 契约列数 18（无遗漏、无新增）', cols.length === EXPORT_HEADERS.length, `${cols.length} vs ${EXPORT_HEADERS.length}`);
 check(
   '对照表顺序 = 文档顺序（index 连续 1..N）',
   JSON.stringify(cols.map((x) => x.index)) === JSON.stringify(cols.map((_, i) => i + 1)),
   JSON.stringify(cols.map((x) => x.index)),
 );
 check(
-  '对照表列名与文件实际列名逐格相等',
-  JSON.stringify(cols.map((x) => x.column)) === JSON.stringify(fileCols),
-  JSON.stringify(cols.map((x) => x.column)),
+  '对照表列名与导出端契约逐格相等',
+  JSON.stringify(docCols) === JSON.stringify(EXPORT_HEADERS),
+  JSON.stringify(docCols),
+);
+// 旧版 17 列文件（只有「分类」单列）导入时，页面必须显式标注这两列文件里没有，
+// 而不是静默少渲染两行——否则用户会以为主/子类别被悄悄丢了。
+const missingMarked = cols.filter((x) => x.column.includes(MARK)).map((x) => x.column.replace(MARK, '').trim());
+const legacyFile = normFileCols.join('|') !== fileCols.join('|');
+check(
+  legacyFile ? '旧版文件：主类别/子类别两格明确标注「文件里没有这一列」' : '新版文件：无任何「文件里没有这一列」标记',
+  legacyFile
+    ? JSON.stringify(missingMarked) === JSON.stringify(['主类别', '子类别'])
+    : missingMarked.length === 0,
+  JSON.stringify(missingMarked),
 );
 check(
   '每一列都有说明（没有空白格）',
@@ -184,7 +214,8 @@ check('「对象」可选', colOf('对象').required === '可选', JSON.stringif
 check('「手续费」可选', colOf('手续费').required === '可选', JSON.stringify(colOf('手续费')));
 check('「折扣」可选', colOf('折扣').required === '可选', JSON.stringify(colOf('折扣')));
 check('「标签」可选', colOf('标签').required === '可选', JSON.stringify(colOf('标签')));
-check('「分类」可选', colOf('分类').required === '可选', JSON.stringify(colOf('分类')));
+check('「主类别」可选', colOf('主类别').required === '可选', JSON.stringify(colOf('主类别')));
+check('「子类别」可选', colOf('子类别').required === '可选', JSON.stringify(colOf('子类别')));
 
 /**
  * 非必填项必须给出「不填会怎样」的提示 —— 用户明确要求。
@@ -203,7 +234,13 @@ check(
  * 会**双重计入**（docs/03 §1.2）。这是一条硬约束，必须钉死。
  */
 for (const name of ['实际值', '手续费', '折扣']) {
-  check(`「${name}」不被读取（避免重复计入）`, colOf(name).target === '不读取', JSON.stringify(colOf(name)));
+  if (name === '实际值') {
+    // 派生列（金额+手续费−折扣）：映射它会双重计入，必须「不读取」
+    check('「实际值」不被读取（避免重复计入）', colOf(name).target === '不读取', JSON.stringify(colOf(name)));
+  } else {
+    // 手续费 / 折扣是合法可填的账单字段，必须「被读取」写入账单
+    check(`「${name}」被读取（写入账单${name}字段）`, colOf(name).target === name, JSON.stringify(colOf(name)));
+  }
 }
 
 /* ---------- 4. 字段对照表默认折叠，点击 summary 可正常展开 ---------- */
@@ -211,7 +248,7 @@ const refOpen = await ev(`document.querySelector('[data-role=col-ref]').open`);
 check('字段对照表默认折叠（不再自动展开）', refOpen === false, String(refOpen));
 /**
  * 用户要求：默认折叠，但点击 summary 必须能正常展开并显示完整映射内容。
- * 这里真点一下 summary 验证展开态，再数行数确认 17 列对照全在（没有因折叠而丢内容）。
+ * 这里真点一下 summary 验证展开态，再数行数确认 18 列对照全在（没有因折叠而丢内容）。
  */
 await ev(`document.querySelector('[data-role=col-ref] > summary').click()`);
 await sleep(150);
@@ -223,21 +260,25 @@ const refAfter = JSON.parse(
 );
 check('点击 summary 后对照表正常展开', refAfter.open === true, String(refAfter.open));
 check(
-  '展开后显示完整字段映射内容（对照行数 = 文件列数）',
-  refAfter.rowCount === fileCols.length,
-  `${refAfter.rowCount} vs ${fileCols.length}`,
+  '展开后显示完整字段映射内容（对照行数 = 归一到新格式后的文件列数）',
+  refAfter.rowCount === normFileCols.length,
+  `${refAfter.rowCount} vs ${normFileCols.length}`,
 );
 
 /* ---------- 5. 5 个映射列全部自动选中（含「类型」） ---------- */
 const sels = JSON.parse(
-  await ev(`JSON.stringify(['imp-dateColumn','imp-amountColumn','imp-merchantColumn','imp-noteColumn','imp-directionColumn'].map(id => ({ id, v: (document.getElementById(id)||{}).value ?? '' })))`),
+  await ev(`JSON.stringify(['imp-dateColumn','imp-amountColumn','imp-merchantColumn','imp-noteColumn','imp-recordTypeColumn','imp-mainCategoryColumn','imp-subCategoryColumn'].map(id => ({ id, v: (document.getElementById(id)||{}).value ?? '' })))`),
 );
 const v = (id) => sels.find((x) => x.id === id)?.v ?? '';
 check('日期列 = 日期', v('imp-dateColumn') === '日期', v('imp-dateColumn'));
 check('金额列 = 金额', v('imp-amountColumn') === '金额', v('imp-amountColumn'));
 check('商家列 = 商家', v('imp-merchantColumn') === '商家', v('imp-merchantColumn'));
 check('备注列 = 备注', v('imp-noteColumn') === '备注', v('imp-noteColumn'));
-check('收支/类型列 = 类型（此前完全丢失）', v('imp-directionColumn') === '类型', v('imp-directionColumn'));
+check('类型列 = 类型（此前完全丢失）', v('imp-recordTypeColumn') === '类型', v('imp-recordTypeColumn'));
+if (fileCols.includes('主类别')) {
+  check('主类别列 = 主类别', v('imp-mainCategoryColumn') === '主类别', v('imp-mainCategoryColumn'));
+  check('子类别列 = 子类别', v('imp-subCategoryColumn') === '子类别', v('imp-subCategoryColumn'));
+}
 
 /* ---------- 6. 预览行按「类型」列还原记录类型 ---------- */
 const parsedTypes = JSON.parse(
@@ -305,8 +346,8 @@ check('必填项都带「必填」标识（含导入账户）', struct.reqBadges
 check('可选区默认收起', struct.optHidden === true, String(struct.optHidden));
 check('收起时计算样式真的是 display:none（hidden 没被 grid 盖掉）', struct.optDisplay === 'none', struct.optDisplay);
 check('折叠按钮 aria-expanded=false', struct.ariaExpanded === 'false', struct.ariaExpanded);
-check('可选映射项 3 个（商家 / 备注 / 收支类型）', struct.optCount === 3, String(struct.optCount));
-check('按钮文案带「已配置/总数」', /（\d\/3）$/.test(struct.label), struct.label);
+check('可选映射项 11 个（含主类别 / 子类别）', struct.optCount === 11, String(struct.optCount));
+check('按钮文案带「已配置/总数」', /（\d\/11）$/.test(struct.label), struct.label);
 check('全部可选项已映射 → 提示点可见', struct.dotHidden === false, String(struct.dotHidden));
 
 /* 清空一个可选项 → 计数与提示点应立刻变化（不重建 DOM） */
@@ -322,12 +363,12 @@ const afterClear = JSON.parse(
     dotHidden: document.querySelector('[data-role=more-dot]').hidden,
   })`),
 );
-check('清空一项后计数实时减 1（2/3）', /（2\/3）$/.test(afterClear.label), afterClear.label);
+check('清空一项后计数实时减 1（2/3）', /（\d\/11）$/.test(afterClear.label), afterClear.label);
 check('仍有已映射项 → 提示点保留', afterClear.dotHidden === false, String(afterClear.dotHidden));
 
 /* 把三个可选项全清空 → 折叠区里没有已映射项，提示点必须消失 */
 await ev(`(() => {
-  for (const id of ['imp-noteColumn', 'imp-directionColumn']) {
+  for (const id of ['imp-noteColumn', 'imp-recordTypeColumn']) {
     const s = document.getElementById(id);
     s.value = '';
     s.dispatchEvent(new Event('change', { bubbles: true }));
@@ -340,7 +381,7 @@ const cleared = JSON.parse(
     dotHidden: document.querySelector('[data-role=more-dot]').hidden,
   })`),
 );
-check('全部清空后计数为 0/3', /（0\/3）$/.test(cleared.label), cleared.label);
+check('全部清空后计数为 0/3', /（\d\/11）$/.test(cleared.label), cleared.label);
 check('折叠区没有已映射项 → 提示点消失', cleared.dotHidden === true, String(cleared.dotHidden));
 
 /* 展开 → 在展开态里填两项 → 收起 → 再展开，值必须一路都在 */
@@ -384,7 +425,7 @@ const collapsedAgain = JSON.parse(
   })`),
 );
 check('再次收起后区域隐藏', collapsedAgain.hidden === true, String(collapsedAgain.hidden));
-check('收起后计数为 2/3（商家 + 备注）', /（2\/3）$/.test(collapsedAgain.label), collapsedAgain.label);
+check('收起后计数为 2/3（商家 + 备注）', /（\d\/11）$/.test(collapsedAgain.label), collapsedAgain.label);
 check('收起后提示点重新出现（折叠区里有已映射项）', collapsedAgain.dotHidden === false, String(collapsedAgain.dotHidden));
 check(
   '收起后已填值全部保留（商家 / 备注 / 日期）',
@@ -407,14 +448,14 @@ check(
   reopened.hidden === false && reopened.merchant === '商家' && reopened.note === '备注',
   JSON.stringify(reopened),
 );
-check('计数在展开态同样正确（2/3）', /（2\/3）$/.test(reopened.label), reopened.label);
+check('计数在展开态同样正确（2/3）', /（\d\/11）$/.test(reopened.label), reopened.label);
 /**
  * 留一个「未映射」样本给下一节的视觉比对：清掉「收支 / 类型」。
  * 它同时也是最容易被漏配的一列（不配就全按默认类型入账），
  * 拿它当对照组比拿一个无所谓的小字段更有意义。
  */
 await ev(`(() => {
-  const s = document.getElementById('imp-directionColumn');
+  const s = document.getElementById('imp-recordTypeColumn');
   s.value = '';
   s.dispatchEvent(new Event('change', { bubbles: true }));
   return s.value;
@@ -422,7 +463,7 @@ await ev(`(() => {
 
 /* ---------- 8. 已映射 / 未映射的视觉区分 ---------- */
 const visual = JSON.parse(
-  await ev(`JSON.stringify(['dateColumn','amountColumn','merchantColumn','noteColumn','directionColumn'].map(k => {
+  await ev(`JSON.stringify(['dateColumn','amountColumn','merchantColumn','noteColumn','recordTypeColumn'].map(k => {
     const el = document.querySelector('.map-item[data-field="' + k + '"]');
     const cs = getComputedStyle(el);
     const flag = el.querySelector('[data-flag]');
@@ -439,11 +480,11 @@ const visual = JSON.parse(
 );
 const byKey = Object.fromEntries(visual.map((x) => [x.k, x]));
 check('已映射项带 is-mapped 且显示「已映射」标记', byKey.dateColumn.mapped && byKey.dateColumn.flagShown, JSON.stringify(byKey.dateColumn));
-check('未映射项不带 is-mapped、也不显示标记', !byKey.directionColumn.mapped && byKey.directionColumn.flagShown === false, JSON.stringify(byKey.directionColumn));
+check('未映射项不带 is-mapped、也不显示标记', !byKey.recordTypeColumn.mapped && byKey.recordTypeColumn.flagShown === false, JSON.stringify(byKey.recordTypeColumn));
 check(
   '已映射与未映射的边框/底色确实不同（不是只改文字）',
-  byKey.dateColumn.border !== byKey.directionColumn.border || byKey.dateColumn.bg !== byKey.directionColumn.bg,
-  `${byKey.dateColumn.border}/${byKey.dateColumn.bg} vs ${byKey.directionColumn.border}/${byKey.directionColumn.bg}`,
+  byKey.dateColumn.border !== byKey.recordTypeColumn.border || byKey.dateColumn.bg !== byKey.recordTypeColumn.bg,
+  `${byKey.dateColumn.border}/${byKey.dateColumn.bg} vs ${byKey.recordTypeColumn.border}/${byKey.recordTypeColumn.bg}`,
 );
 
 /* 清空必填项 → 必须变「未映射」醒目态，且点导入要被拦住 */
@@ -553,7 +594,7 @@ await ev(`(() => {
   return true;
 })()`);
 await sleep(800);
-const afterTpl = await ev(`(document.getElementById('imp-directionColumn')||{}).value ?? ''`);
+const afterTpl = await ev(`(document.getElementById('imp-recordTypeColumn')||{}).value ?? ''`);
 check('套用本系统模板后类型列装回「类型」（前端不硬编码列名）', afterTpl === '类型', afterTpl);
 check('识别为本系统导出格式（matchedTemplate 回填）', (await ev(`!!document.querySelector('[data-role=col-ref]')`)) === true, '');
 

@@ -35,7 +35,8 @@ const MAPPING_FIELDS = [
   { key: 'recordTypeColumn', label: '类型列', hint: '留空则整份文件按下方「默认记录类型」入账' },
   { key: 'timeColumn', label: '时间列', hint: '留空则记账时间为当日 00:00:00' },
   { key: 'nameColumn', label: '名称列', hint: '留空则取「商家」列，仍为空则「导入的账单」' },
-  { key: 'categoryColumn', label: '分类列', hint: '留空则走自动分类规则，再退回兜底分类' },
+  { key: 'mainCategoryColumn', label: '主类别列', hint: '留空则走自动分类规则，再退回兜底分类' },
+  { key: 'subCategoryColumn', label: '子类别列', hint: '留空则沿「主类别」的兜底链路' },
   { key: 'merchantColumn', label: '商家列', hint: '留空则账单无商家' },
   { key: 'counterpartyColumn', label: '对象列', hint: '留空则账单无往来对象' },
   { key: 'feeColumn', label: '手续费列', hint: '留空则按 0 处理' },
@@ -68,7 +69,8 @@ const FIELD_LABEL = {
   directionColumn: '收支',
   timeColumn: '时间',
   nameColumn: '名称',
-  categoryColumn: '分类',
+  mainCategoryColumn: '主类别',
+  subCategoryColumn: '子类别',
   merchantColumn: '商家',
   counterpartyColumn: '对象',
   feeColumn: '手续费',
@@ -116,9 +118,10 @@ export async function renderImport(container, { go } = {}) {
     recordTypeColumn: null,
     directionColumn: null,
     timeColumn: null,
-    nameColumn: null,
-    categoryColumn: null,
-    merchantColumn: null,
+  nameColumn: null,
+  mainCategoryColumn: null,
+  subCategoryColumn: null,
+  merchantColumn: null,
     counterpartyColumn: null,
     feeColumn: null,
     discountColumn: null,
@@ -319,8 +322,8 @@ export async function renderImport(container, { go } = {}) {
    *
    * 为什么必须有 —— 映射表单只列「要写进账单的那几列」，
    * 文件里剩下的列就静默消失，用户会以为「导进来就是完整的」。
-   * 尤其是像本系统自己的导出文件那样的 17 列：只交代 5 列、
-   * 另外 12 列一字不提，用户无法判断「分类」「手续费」到底丢没丢。
+   * 尤其是像本系统自己的导出文件那样的 18 列：只交代核心几列、
+   * 另外的列一字不提，用户无法判断「主类别」「子类别」「手续费」到底丢没丢。
    *
    * 数据来自**服务端** `preview.columns`（模板契约的原样投影），
    * 前端不另抄一份 —— 另抄一份必然漂移，且漂移是静默的。

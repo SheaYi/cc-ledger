@@ -184,11 +184,11 @@ export const MAPPING_TEMPLATES: MappingTemplate[] = [
      * 本系统自己导出的账单（`transactions.js › rowsToCsv()`）。
      *
      * 放在**第一位**：它是「导出的文件要能原样导回」这条闭环的最后一环，
-     * 此前完全不被识别 —— 一份自己的导出文件喂进来只猜中 3/17 列
+     * 此前完全不被识别 —— 一份自己的导出文件喂进来只猜中 3 列
      * （日期 / 金额 / 备注），类型、方向、分类、账户全部丢失，
      * 6 种记录类型被压平成单一 expense，收入与转账变成支出。
      *
-     * 表头顺序与 `rowsToCsv()` 的 `headers` 数组**逐字一致**（17 列、单层扁平，
+     * 表头顺序与 `rowsToCsv()` 的 `headers` 数组**逐字一致**（18 列、单层扁平，
      * 无嵌套子表头），改导出端就必须同步改这里 —— 两处是同一份契约。
      */
     key: 'cc-ledger',
@@ -199,7 +199,8 @@ export const MAPPING_TEMPLATES: MappingTemplate[] = [
       recordTypeColumn: ['类型'],
       timeColumn: ['时间'],
       nameColumn: ['名称'],
-      categoryColumn: ['分类'],
+      mainCategoryColumn: ['主类别'],
+      subCategoryColumn: ['子类别'],
       merchantColumn: ['商家'],
       counterpartyColumn: ['对象'],
       feeColumn: ['手续费'],
@@ -208,14 +209,15 @@ export const MAPPING_TEMPLATES: MappingTemplate[] = [
       noteColumn: ['备注'],
     },
     /**
-     * **17 列逐列交代**，顺序 / 类型 / 取值域 / 必填全部照抄导出端
-     * （`transactions.js › rowsToCsv()` 的 `headers` 数组，17 项单层扁平，
+     * **18 列逐列交代**，顺序 / 类型 / 取值域 / 必填全部照抄导出端
+     * （`transactions.js › rowsToCsv()` 的 `headers` 数组，18 项单层扁平，
      *  无嵌套子表头 —— 文档里没有子表头，就不许凭空造出层级）。
      *
      * ⚠️ 「实际值」绝不能当 amount：它 = 金额 + 手续费 − 折扣，
      *    再让系统按 amount 重算一遍手续费会**双重计入**（`docs/03 §1.2`）。
      *
-     * 只消费 5 列（日期/类型/商家/金额/备注），其余 12 列逐条说明为什么不读。
+     * 「分类」在此拆为「主类别」「子类别」两列，分别反查一级 / 二级分类。
+     * 共消费 13 列（日期/时间/类型/主类别/子类别/名称/商家/对象/金额/手续费/折扣/标签/备注），其余 5 列（方向/账户/转入账户/实际值/记账人）不读取。
      */
 doc: [
       {
@@ -259,18 +261,28 @@ doc: [
         defaultValue: '后端按记录类型重算（与原文可能不同，例如冲减行）',
       },
       {
-        column: '分类',
+        column: '主类别',
         index: 5,
         kind: 'ref',
         values: null,
         required: false,
-        consume: 'categoryColumn',
-        hint: '可选。按「一级 › 二级」全名反查本账本的分类树；名字对不上的行退回兜底分类',
+        consume: 'mainCategoryColumn',
+        hint: '可选。一级分类名；与「子类别」一起反查本账本分类树；都留空则走自动分类规则 → 兜底分类',
         defaultValue: '自动分类规则 → 未命中则用兜底分类；都没有则该行失败并列入报告',
       },
       {
-        column: '账户',
+        column: '子类别',
         index: 6,
+        kind: 'ref',
+        values: null,
+        required: false,
+        consume: 'subCategoryColumn',
+        hint: '可选。二级分类名；其上级必须匹配「主类别」（若填），名字对不上则退回兜底分类',
+        defaultValue: '沿用「主类别」的兜底链路；都没有则该行失败并列入报告',
+      },
+      {
+        column: '账户',
+        index: 7,
         kind: 'ref',
         values: null,
         required: false,
@@ -280,7 +292,7 @@ doc: [
       },
       {
         column: '转入账户',
-        index: 7,
+        index: 8,
         kind: 'ref',
         values: null,
         required: false,
@@ -290,7 +302,7 @@ doc: [
       },
       {
         column: '名称',
-        index: 8,
+        index: 9,
         kind: 'text',
         values: null,
         required: false,
@@ -300,7 +312,7 @@ doc: [
       },
       {
         column: '商家',
-        index: 9,
+        index: 10,
         kind: 'text',
         values: null,
         required: false,
@@ -310,7 +322,7 @@ doc: [
       },
       {
         column: '对象',
-        index: 10,
+        index: 11,
         kind: 'text',
         values: null,
         required: false,
@@ -320,7 +332,7 @@ doc: [
       },
       {
         column: '金额',
-        index: 11,
+        index: 12,
         kind: 'money',
         values: null,
         required: true,
@@ -330,7 +342,7 @@ doc: [
       },
       {
         column: '手续费',
-        index: 12,
+        index: 13,
         kind: 'money',
         values: null,
         required: false,
@@ -340,7 +352,7 @@ doc: [
       },
       {
         column: '折扣',
-        index: 13,
+        index: 14,
         kind: 'money',
         values: null,
         required: false,
@@ -350,7 +362,7 @@ doc: [
       },
       {
         column: '实际值',
-        index: 14,
+        index: 15,
         kind: 'money',
         values: null,
         required: false,
@@ -360,7 +372,7 @@ doc: [
       },
       {
         column: '标签',
-        index: 15,
+        index: 16,
         kind: 'text',
         values: null,
         required: false,
@@ -370,7 +382,7 @@ doc: [
       },
       {
         column: '备注',
-        index: 16,
+        index: 17,
         kind: 'text',
         values: null,
         required: false,
@@ -380,7 +392,7 @@ doc: [
       },
       {
         column: '记账人',
-        index: 17,
+        index: 18,
         kind: 'ref',
         values: null,
         required: false,
@@ -389,7 +401,7 @@ doc: [
         defaultValue: '当前登录用户',
       },
     ],
-    hint: '本系统账单页导出的 CSV（17 列），支持原样导回；「类型」列会还原支出/收入',
+    hint: '本系统账单页导出的 CSV（18 列），支持原样导回；「类型」列会还原支出/收入',
   },
   {
     key: 'alipay',
@@ -480,7 +492,8 @@ export const IMPORT_COLUMN_FIELDS = [
   'directionColumn',
   'timeColumn',
   'nameColumn',
-  'categoryColumn',
+  'mainCategoryColumn',
+  'subCategoryColumn',
   'merchantColumn',
   'counterpartyColumn',
   'feeColumn',
@@ -517,8 +530,10 @@ export interface Mapping {
   timeColumn?: string | null;
   /** 账单名称；留空 → 取商家，仍为空则「导入的账单」 */
   nameColumn?: string | null;
-  /** 分类名（「一级 › 二级」）；留空 → 自动分类规则 → 兜底分类 */
-  categoryColumn?: string | null;
+  /** 主类别（一级分类）名；留空 → 自动分类规则 → 兜底分类 */
+  mainCategoryColumn?: string | null;
+  /** 子类别（二级分类）名；留空 → 与「主类别」一起决定分类，二者都空则走兜底 */
+  subCategoryColumn?: string | null;
   /** 往来对象（对手方个人/单位） */
   counterpartyColumn?: string | null;
   /** 手续费；留空 → 0。仅部分记录类型支持（见 FEE_APPLICABLE） */
@@ -563,7 +578,8 @@ export interface ParsedRow {
   /** 以下均为可选列：未映射时留 null，由 commit 兜底 */
   txTime: string | null;
   name: string | null;
-  categoryName: string | null;
+  mainCategoryName: string | null;
+  subCategoryName: string | null;
   counterparty: string | null;
   /** 元字符串 */
   fee: string | null;
@@ -697,7 +713,8 @@ export function parseRows(
   const iDirection = idx(mapping.directionColumn);
   const iTime = idx(mapping.timeColumn);
   const iName = idx(mapping.nameColumn);
-  const iCategory = idx(mapping.categoryColumn);
+  const iMain = idx(mapping.mainCategoryColumn);
+  const iSub = idx(mapping.subCategoryColumn);
   const iCounterparty = idx(mapping.counterpartyColumn);
   const iFee = idx(mapping.feeColumn);
   const iDiscount = idx(mapping.discountColumn);
@@ -777,7 +794,8 @@ export function parseRows(
       rawType,
       txTime: normalizeTime(at(iTime)),
       name: at(iName),
-      categoryName: at(iCategory),
+      mainCategoryName: at(iMain),
+      subCategoryName: at(iSub),
       counterparty: at(iCounterparty),
       fee: moneyAt(iFee),
       discount: moneyAt(iDiscount),
@@ -864,6 +882,8 @@ export function preview(
      * 与 `guessMapping` 漏字段是同一处缺陷的两端，两头都得补才生效。
      */
     recordTypeColumn: mapping?.recordTypeColumn ?? guess.mapping.recordTypeColumn ?? null,
+    mainCategoryColumn: mapping?.mainCategoryColumn ?? guess.mapping.mainCategoryColumn ?? null,
+    subCategoryColumn: mapping?.subCategoryColumn ?? guess.mapping.subCategoryColumn ?? null,
     recordType: (mapping?.recordType as RecordType) ?? 'expense',
     defaultAccountId: mapping?.defaultAccountId ?? '',
     defaultCategoryId: mapping?.defaultCategoryId ?? null,
@@ -1003,14 +1023,31 @@ export interface ImportReport {
  *   · **命中即信任**——它排在自动分类规则之前，因为用户文件里写明的分类
  *     比「按商家猜」更可信；但**未命中不报错**，退回规则/兜底，避免一个错别字全盘失败。
  */
-function resolveCategoryByName(
+/**
+ * 主类别 / 子类别名 → 分类 id。
+ *
+ * ⚠️ 与导出端 `rowsToCsv()`（拆分为「主类别」「子类别」两列）**同一套格式约定**：
+ *   导出时分别写 `category.parent.name` 与 `category.name`，导入时按同样的拆分反查回去。
+ *   这是「自己的导出文件要能原样导回」闭环的最后一块拼图。
+ *
+ * 匹配规则（宽松但确定）：
+ *   · 子类别给了：必须命中一个**叶子（二级）**分类，且其父级（若有）名称匹配主类别；
+ *   · 只给了主类别：作为二级分类名匹配（找不到叶子则无法落到具体账单，退回兜底）；
+ *   · `recordType` 必须一致（分类树按类型分开，跨类型的同名不可混用）；
+ *   · 已停用的分类不参与；
+ *   · **命中即信任**——它排在自动分类规则之前，因为用户文件里写明的分类
+ *     比「按商家猜」更可信；但**未命中不报错**，退回规则/兜底，避免一个错别字全盘失败。
+ */
+function resolveCategoryByNames(
   ctx: AppCtx,
   ledgerId: string,
   recordType: RecordType,
-  raw: string | null,
+  mainRaw: string | null,
+  subRaw: string | null,
 ): string | null {
-  const s = raw?.trim();
-  if (!s) return null;
+  const main = mainRaw?.trim();
+  const sub = subRaw?.trim();
+  if (!main && !sub) return null;
   const cats = ctx.db
     .select({
       id: categories.id,
@@ -1024,11 +1061,23 @@ function resolveCategoryByName(
     .all();
   const byId = new Map(cats.map((c) => [c.id, c]));
   const norm = (x: string) => x.replace(/\s+/g, '').replace(/[›>·]/g, '>');
-  const target = norm(s);
+
+  /** 子类别给了：要求命中叶子（二级）分类，且父级名称匹配主类别（若填） */
+  if (sub) {
+    for (const c of cats) {
+      if (c.archivedAt || c.recordType !== recordType || !c.parentId) continue;
+      const parent = byId.get(c.parentId);
+      if (norm(c.name) === norm(sub) && (!main || (parent && norm(parent.name) === norm(main)))) {
+        return c.id;
+      }
+    }
+    return null;
+  }
+  /** 只给了主类别：作为二级（叶子）分类名匹配；本身是父级则无法落到具体账单 */
+  if (!main) return null;
   for (const c of cats) {
-    if (c.archivedAt || c.recordType !== recordType) continue;
-    const display = c.parentId ? `${byId.get(c.parentId)?.name ?? ''}>${c.name}` : c.name;
-    if (norm(display) === target) return c.id;
+    if (c.archivedAt || c.recordType !== recordType || !c.parentId) continue;
+    if (norm(c.name) === norm(main)) return c.id;
   }
   return null;
 }
@@ -1159,12 +1208,12 @@ export function commit(
     const fallbackCat =
       p.recordType === 'income' ? (mapping.incomeCategoryId ?? null) : (mapping.defaultCategoryId ?? null);
     /**
-     * 分类解析优先级：`categoryColumn` 写的分类名 → 自动分类规则 → 兜底分类。
+     * 分类解析优先级：自动分类规则 → 「主类别 / 子类别」列写明的分类名 → 兜底分类。
      *
      * 文件里**显式写明的分类**最可信，压过「按商家猜」的规则；
      * 但写错名字（未命中）时不报错，退回规则/兜底，避免一个错别字全盘失败。
      */
-    const categoryId = hit?.categoryId ?? resolveCategoryByName(ctx, ledgerId, p.recordType, p.categoryName) ?? fallbackCat;
+    const categoryId = hit?.categoryId ?? resolveCategoryByNames(ctx, ledgerId, p.recordType, p.mainCategoryName, p.subCategoryName) ?? fallbackCat;
 
     if (!categoryId) {
       // expense/income/… 都强制要求分类；没有规则命中又没有默认分类 → 这一行注定建不了，

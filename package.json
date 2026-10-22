@@ -38,7 +38,7 @@
     "test:schedule": "tsx scripts/test-recurring-schedule.mjs",
     "icons": "node scripts/gen-pwa-icons.mjs",
     "audit:deploydoc": "node scripts/audit-deploy-doc.mjs",
-    "verify": "npm run typecheck && npm run audit:schema && npm run audit:deploydoc && npm run test && npm run parity && npm run audit:imports && npm run audit:syntax && npm run audit:template && npm run audit:nav && npm run audit:contrast && npm run audit:url && npm run audit:routes && npm run audit:migration && npm run smoke:3 && npm run smoke:4 && npm run smoke:8 && npm run smoke:9 && npm run smoke:10 && npm run test:schedule && npm run smoke:11 && npm run test:install && npm run smoke:12 && npm run smoke:13 && npm run smoke:14 && npm run smoke:15 && npm run smoke:16",
+    "verify": "npm run typecheck && npm run audit:schema && npm run audit:deploydoc && npm run test && npm run parity && npm run audit:imports && npm run audit:syntax && npm run audit:template && npm run audit:nav && npm run audit:contrast && npm run audit:url && npm run audit:routes && npm run audit:migration && npm run smoke:3 && npm run smoke:4 && npm run smoke:8 && npm run smoke:9 && npm run smoke:10 && npm run test:schedule && npm run smoke:11 && npm run test:install && npm run smoke:12 && npm run smoke:13 && npm run smoke:14 && npm run smoke:15 && npm run smoke:16 && npm run smoke:17",
     "audit:syntax": "node scripts/audit-frontend-syntax.mjs",
     "probe:boundary": "node scripts/probe-boundary-ui.mjs",
     "probe:recon": "node scripts/probe-reconciliations-ui.mjs",
@@ -57,6 +57,9 @@
     "probe:report": "node scripts/probe-report-ui.mjs",
     "probe:importmap": "node scripts/probe-import-mapping-ui.mjs",
     "probe:ledgers": "node scripts/probe-ledger-cards.mjs",
+    "probe:spacing": "node scripts/probe-spacing.mjs",
+    "smoke:17": "node scripts/smoke-recon-tools.mjs",
+    "probe:recontools": "node scripts/probe-recon-tools.mjs",
     "probe:spacing": "node scripts/probe-spacing.mjs"
   },
   "dependencies": {

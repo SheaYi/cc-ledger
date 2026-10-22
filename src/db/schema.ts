@@ -1077,6 +1077,47 @@ export const recurringDetections = sqliteTable(
   ),
 );
 
+/**
+ * 重复扣费的**人工判定结果**（对账页「重复扣费」的确认/忽略）。
+ *
+ * ## 为什么必须单独建表，而不是塞进 transactions
+ *
+ * 「疑似重复」是算法算出来的**候选**，它随时会因为数据变化而重算：
+ * 今天两笔看着像重复，用户补了备注后明天就不像了。如果把判定写死在
+ * 账目行上，要么污染业务表（加一列只为 UI 服务），要么重算时把用户
+ * 的判定冲掉。判定是**人对某一组候选的意见**，与候选本身生命周期不同，
+ * 分开存才不会互相覆盖。
+ *
+ * ## 为什么用 groupKey 而不是 transactionIds
+ *
+ * 组内成员会变（新增/删除一笔都会改变这个簇），以 id 集合做键会导致
+ * 「我明明忽略过了，它又冒出来」。groupKey 只取**稳定的判定维度**
+ * （金额 + 商户 + 时间窗起点），成员变化不影响键，判定才留得住。
+ */
+export const duplicateReviews = sqliteTable(
+  'duplicate_reviews',
+  {
+    id: text('id').primaryKey(),
+    ledgerId: text('ledger_id')
+      .notNull()
+      .references((): AnySQLiteColumn => ledgers.id, { onDelete: 'cascade' }),
+    /** 稳定的组键：`金额分|商户|窗口起始日`（见下方 groupKey 生成规则） */
+    groupKey: text('group_key').notNull(),
+    status: text('status').notNull().default('confirmed'),
+    actorId: text('actor_id').references((): AnySQLiteColumn => users.id, {
+      onDelete: 'set null',
+    }),
+    note: text('note'),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (t) => extras(
+    uniqueIndex('idx_dr_group').on(t.ledgerId, t.groupKey),
+    index('idx_dr_ledger').on(t.ledgerId, t.status),
+    check('dr_status', sql`${t.status} IN ('confirmed','ignored')`),
+  ),
+);
+
 /** B-05 预警去重（同一账期同一档位只提醒一次） */
 export const budgetAlerts = sqliteTable(
   'budget_alerts',

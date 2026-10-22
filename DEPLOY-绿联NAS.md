@@ -2,7 +2,7 @@
 
 > **机型**：绿联 DXP4800（Intel Pentium Gold 8505，**x86_64**，8GB DDR5，可扩 64GB）
 > **系统**：UGOS Pro（自带「Docker」应用）
-> **形态**：单容器 + 单数据卷，所有数据落在 `/data`，容器可随时重建
+> **形态**：单容器 + 共享文件夹绑定挂载（数据落在 `/volume1/docker/cc-ledger/data`，容器内是 `/data`），容器可随时重建
 > **本次目标**：局域网访问 `http://<NAS_IP>:3000`
 
 ---
@@ -12,7 +12,7 @@
 **已实测验证的**（在开发机上跑过真实代码得出）：
 
 - `/healthz` 的字段名与含义（直接读 `src/modules/health/index.ts`）
-- 迁移文件数量 **16**（数 `drizzle/*.sql`）
+- 迁移文件数量 **17**（数 `drizzle/*.sql`）
 - 所有环境变量名（比对 `src/config/env.ts`）
 - 限流窗口：登录 **每分钟 5 次**、注册 **每小时 3 次**（读 `src/modules/auth/index.ts`）
 - 每日备份时间 **03:00**、保留 14 天（读 `src/scheduler/index.ts`）
@@ -21,7 +21,7 @@
 
 - `docker compose up -d --build` 的**完整构建过程**（开发机上没装 Docker，无法预先跑通）
 - 首次构建耗时（文档写 5–15 分钟，是经验估计，取决于你的网速）
-- 备份/恢复命令（需要真实数据卷才能验证）
+- 备份/恢复命令（需要真实数据目录才能验证）
 
 > 这些无法预先验证的部分，都配了「如果失败怎么办」的排障步骤（第八节）。
 > 另外 `npm run audit:deploydoc` 会持续校验本文与代码的一致性 —— 代码改了本文没跟上，这个闸门会红。
@@ -55,7 +55,7 @@ cc-ledger/
 ├── package-lock.json     ← 必需（Dockerfile 用 npm ci，缺了会失败）
 ├── tsconfig.json         ← 必需（npm run build 要用）
 ├── drizzle.config.ts     ← 必需
-├── drizzle/              ← 必需（16 个数据库迁移文件，缺了数据库建不出表）
+├── drizzle/              ← 必需（17 个数据库迁移文件，缺了数据库建不出表）
 ├── public/               ← 必需（前端页面）
 ├── src/                  ← 必需（要现场编译 TypeScript）
 └── .env                  ← 不用传（自己在 NAS 上建，见第三节）
@@ -106,14 +106,28 @@ sudo -i
 
 ## 三、目录与环境准备
 
-### 3.1 建目录
+### 3.1 建目录（源码 + 数据）
 
 ```bash
 sudo mkdir -p /volume1/docker/cc-ledger
+sudo mkdir -p /volume1/docker/cc-ledger/data
+sudo chown -R 1001:1001 /volume1/docker/cc-ledger/data
 ```
 
-> **用途**：存放项目源码。`/volume1` 是第一个存储池的路径 —— 如果你的存储池编号不是 1，
-> 在 SSH 里执行 `ls /` 看看有哪些 `volumeN` 目录，挑一个空间够的。
+> **用途**：`/volume1/docker/cc-ledger` 放项目源码；它下面的 `data` 放**真实数据**
+> （数据库、附件、自动备份）。`docker-compose.yml` 里那一行
+> `${DATA_HOST_DIR:-./data}:/data` 就是把 `data` 目录接到容器内的 `/data`。
+> 这样数据库文件直接躺在共享文件夹里 —— 在绿联「文件管理」里看得见，
+> 备份就是复制一个目录，不用再套一层 `docker run` 去导卷。
+>
+> **`chown 1001:1001` 不能省**：容器以非 root 用户 `nodejs`（uid 1001）运行，
+> 而 `sudo mkdir` 建出来的目录属主是 root。不改属主，容器一启动就会
+> `SQLITE_CANTOPEN` / `permission denied`，然后在重启循环里刷日志。
+> 这条命令正是「把目录交给容器用户」。
+>
+> `/volume1` 是第一个存储池的路径 —— 如果你的存储池编号不是 1，
+> 在 SSH 里执行 `ls /` 看看有哪些 `volumeN` 目录，挑一个空间够的
+> （下文所有 `/volume1` 都要跟着换）。
 
 ### 3.2 上传文件
 
@@ -122,7 +136,9 @@ sudo mkdir -p /volume1/docker/cc-ledger
 `文件管理` → 进入存储空间 → 打开（或新建）`docker` 文件夹 → 进入 `cc-ledger` 文件夹 →
 把上面第一节列的文件/文件夹拖进去。
 
-> `.env` 不用上传（下一步自己建），`node_modules` 和 `data` 不用上传（不小而且无用）。
+> `.env` 不用上传（下一步自己建），`node_modules` 和 `data` 不用上传
+> （前者是依赖，NAS 上会重新装；后者是数据，本地的那份不该带到 NAS 上）。
+> 但 **`data` 目录本身要先建好并 chown 1001**，见 3.1。
 
 **方式二：命令行传（快，适合文件多）**
 
@@ -206,7 +222,7 @@ cat .env
 | `PUBLIC_BASE_URL` | 邀请链接里的地址 | **必改**成真实 IP |
 | `DATA_DIR: /data` | 数据目录在容器里的位置 | 别改 |
 | `DB_PATH: /data/cc-ledger.db` | **数据库文件的准确落盘路径**（改它等于换一个空库） | 别改 |
-| `volumes: cc-ledger-data:/data` | **数据卷挂载**：NAS 的硬盘接到容器的 `/data` | 别改（改了会丢数据） |
+| `volumes: ${DATA_HOST_DIR:-./data}:/data` | **绑定挂载**：把 NAS 上 `cc-ledger/data` 目录接到容器 `/data`。数据是**看得见的普通文件**，不再是 Docker 内部卷 | 可改（换存放位置），改完必须重新 chown 1001 |
 | `deploy.resources.limits.memory: 512M` | 内存上限，防止拖垮 NAS | 按需调 |
 | `cap_drop: ALL` | 去掉容器所有特权（安全加固） | 别改 |
 | `logging.max-size: 10m` | 单个日志文件最大 10MB，共留 3 个 | 按需调 |
@@ -225,6 +241,16 @@ cat .env
 ---
 
 ## 五、启动与开机自启
+
+**两条路线，结果一样**：
+
+| 路线 | 怎么做 | 适合谁 |
+|---|---|---|
+| **A. SSH 敲命令**（本文主推） | `docker compose up -d --build` | 想一次跑通、后续好排障 |
+| **B. 网页界面「Docker → 项目」** | 新建项目，项目目录选 `docker/cc-ledger`，把 `docker-compose.yml` 内容贴进去，环境变量在界面里填 | 不想开 SSH；但构建失败时看不到完整日志 |
+
+> ⚠️ **不管走哪条路线，第 3.1 步的 `mkdir data` + `chown 1001:1001` 都必须先做**（需要 SSH 一次）。
+> 界面里创建的空目录属主是 root，容器写不进去 —— 这是唯一绕不过 SSH 的一步。
 
 ### 5.1 首次构建并启动
 
@@ -286,8 +312,9 @@ SSH 不方便时，用网页界面点：
 
 `Docker` 应用 → **容器** → 找到 `cc-ledger` → 右侧按钮可 **启动 / 停止 / 重启 / 查看日志 / 删除**
 
-> ⚠️ **不要用界面删容器** —— 删了容器本身不删数据卷（数据还在），
-> 但如果你在删除时勾了「同时删除卷」，数据就没了。
+> ⚠️ **可以用界面删容器，数据不会跟着走**：数据在共享文件夹的 `data` 目录里，
+> 容器只是个壳，删了重建、重新 `up` 起来数据原样在。
+> 唯一的风险是**手动去文件管理里删掉 `data` 目录** —— 那才是真删库，删前先备份。
 
 ---
 
@@ -461,7 +488,7 @@ curl http://127.0.0.1:3000/healthz
   "app": "CC记账",
   "version": "1.0.0",
   "uptimeSeconds": 3944,
-  "database": { "connected": true, "migrationsApplied": 16, "walMode": true },
+  "database": { "connected": true, "migrationsApplied": 17, "walMode": true },
   "scheduler": { "running": true, "nextRun": "...", "tasks": [] }
 }
 ```
@@ -472,8 +499,8 @@ curl http://127.0.0.1:3000/healthz
 |---|---|---|
 | `status` | `"ok"` | 不是 ok 就看 `database.error` 字段 |
 | `uptimeSeconds` | **持续增长** | 每次查询都变小 = 容器在反复重启，回到 8.3 |
-| `database.connected` | `true` | `false` = 数据库打不开，通常是数据卷权限问题 |
-| `database.migrationsApplied` | **16** | 小于 16 = 迁移没跑完；`0` = 表根本没建起来 |
+| `database.connected` | `true` | `false` = 数据库打不开，通常是数据目录属主不是 1001（见 8.4） |
+| `database.migrationsApplied` | **17** | 小于 17 = 迁移没跑完；`0` = 表根本没建起来 |
 | `database.walMode` | `true` | WAL 模式是并发读写的前提 |
 | `scheduler.running` | `true` | `false` = 定时任务没启动（周期账单、每日备份将不工作） |
 
@@ -523,9 +550,17 @@ docker compose restart
 
 等 30 秒，然后刷新浏览器，确认**刚才记的那笔账还在**。
 
-> **这一步验证的是「数据卷挂载对了」**。如果重启后账目消失，
-> 说明数据写在了容器的临时层而不是数据卷里 —— 这是必须立刻发现的问题，
+> **这一步验证的是「数据目录挂接对了」**。如果重启后账目消失，
+> 说明数据写在了容器的临时层而不是宿主的 `data` 目录 —— 这是必须立刻发现的问题，
 > 因为以后升级/重建容器会导致数据丢失。
+>
+> 也可以直接看宿主目录里有没有文件（这是绑定挂载才有的好处）：
+>
+> ```bash
+> ls -l /volume1/docker/cc-ledger/data
+> ```
+>
+> 应该能看到 `cc-ledger.db`、`cc-ledger.db-wal`、`backups/`、`uploads/`。
 
 ### 7.7 开机自启验证
 
@@ -627,18 +662,37 @@ docker inspect cc-ledger --format '{{.State.Health.Status}} {{json .State.Health
 
 ### 8.4 权限不足（EACCES / permission denied）
 
-容器以 **非 root 用户 uid 1001** 运行（安全加固）。
-如果把数据卷改成绑定挂载到 NAS 的真实目录，那个目录的属主必须是 1001。
+容器以 **非 root 用户 uid 1001** 运行（安全加固），而数据目录是 NAS 上的普通目录 ——
+**属主必须是 1001，否则写不进去**。这是本项目最常见的启动失败原因。
 
-**如果你改用了绑定挂载**（而非默认的数据卷），执行：
+典型症状（日志里）：
 
-```bash
-sudo chown -R 1001:1001 /volume1/docker/cc-ledger-data
+```
+SqliteError: unable to open database file     ← 父目录没有写/执行权限
+Error: EACCES: permission denied, mkdir '/data/uploads'
 ```
 
-> ⚠️ 前提：你确实改了 `volumes` 配置。
-> **用默认 named volume 的话不需要任何权限操作** —— Docker 会自动把属主设对。
-> 这是「别多此一举」的地方。
+修法（在 NAS 上执行，目录名按你实际的改）：
+
+```bash
+sudo chown -R 1001:1001 /volume1/docker/cc-ledger/data
+docker compose restart
+```
+
+> **为什么 sudo mkdir 之后还要 chown**：`mkdir` 用 root 建目录，属主是 `root:root`；
+> 容器里的 `nodejs` 用户（1001）对它没有写权限。`chown` 把整个 `data`
+> 连同已有文件一起交给 1001 —— 已经存了数据的目录也能安全执行，不会动内容。
+>
+> **确认改对了**：
+>
+> ```bash
+> ls -ld /volume1/docker/cc-ledger/data     # 属主应显示 1001 1001
+> docker exec cc-ledger id                  # 应显示 uid=1001(nodejs)
+> docker exec cc-ledger touch /data/.probe && echo 可写
+> ```
+>
+> ⚠️ **别用 `chmod 777` 绕过**：那等于把所有用户都放进来，
+> 也绕过了「非 root 运行」这层加固。要的是「换属主」，不是「放开权限」。
 
 ### 8.5 端口被占用
 
@@ -752,8 +806,9 @@ docker system df
 docker system prune -a --volumes
 ```
 
-> ⚠️ **`--volumes` 会删除未被使用的数据卷**。本项目的数据卷正在被容器使用，所以不会被删，
-> 但如果你有别的容器已停止且数据卷没挂载，它们会被清掉。执行前先确认。
+> ⚠️ **`--volumes` 会删除未被使用的命名卷**。本项目的数据不在卷里（在共享文件夹的
+> `data` 目录），所以它删不到账本数据；但如果你有别的容器已停止且卷没挂载，
+> 那些卷会被清掉。执行前先确认。
 
 ---
 
@@ -777,8 +832,14 @@ docker system prune -a --volumes
 
 ### 数据位置
 
+数据是 **NAS 上的普通目录**，不是 Docker 内部卷 —— 用「文件管理」进
+`Docker / cc-ledger / data` 就能看到（可能提示无权访问，因为属主是 1001，见 8.4）。
+
 ```
-Docker 数据卷 cc-ledger_cc-ledger-data  →  容器内 /data
+/volume1/docker/cc-ledger/data        ← NAS 共享文件夹里，看得见
+        │  绑定挂载（compose 的 ${DATA_HOST_DIR:-./data}:/data）
+        ▼
+   容器内 /data
 ├── cc-ledger.db          主数据库（WAL 模式）
 ├── cc-ledger.db-wal      预写日志
 ├── cc-ledger.db-shm      共享内存索引
@@ -788,63 +849,105 @@ Docker 数据卷 cc-ledger_cc-ledger-data  →  容器内 /data
 └── backups/              每日 03:00 自动备份，保留 14 天
 ```
 
-> **卷名的坑**：数据卷全名是 `<项目名>_<卷名>`，其中**项目名默认取项目目录名**。
-> 所以目录叫 `cc-ledger` 时卷名是 `cc-ledger_cc-ledger-data`；
-> 如果你把目录改名了（比如 `ledger`），卷名就变成 `ledger_cc-ledger-data`，下面的备份命令会**静默打包到空目录**。
->
-> 确认当前真实卷名：
->
-> ```bash
-> docker volume ls | grep cc-ledger
-> ```
->
-> 把命令里 `-v` 后面的卷名替换成这里查到的。
+> **想换存放位置**（比如放到另一块盘）：在 `.env` 里加一行
+> `DATA_HOST_DIR=/volume2/cc-ledger-data`，然后
+> `mkdir` + `chown 1001:1001` + `docker compose up -d`。
+> **改路径等于换库**：新目录是空的，旧数据要自己搬过去。
 
-### 应用层备份（自动）
+### 应用层备份（自动，一致性快照）
 
-`ENABLE_SCHEDULER=true` 时，每天 **03:00** 自动做一次一致性快照到 `/data/backups/`，
-保留 14 天。这是为了防「应用层逻辑错误」导致的坏数据。
+`ENABLE_SCHEDULER=true`（调度器总开关）且 `BACKUP_ENABLED=true`（备份任务开关，
+compose 里两个都已开）时，每天 **03:00** 用
+`VACUUM INTO` 生成一份**一致性完整数据库**到 `data/backups/cc-ledger-<时间戳>.db`，
+保留 14 天。这是为了防「应用层逻辑错误」导致的坏数据，也是不停机备份的来源。
 
-### 宿主机层备份（建议手工做）
+> `VACUUM INTO` = SQLite 自带的「导出一份干净副本」命令，
+> 拿到的文件不依赖 `-wal`/`-shm`，可以单独拷走直接当数据库用。
 
-**记账数据丢了无法恢复**，建议定期把数据卷整个打包：
+### 宿主机层备份（建议每月手工做一次）
+
+**记账数据丢了无法恢复。** 最稳的做法是停 5 秒、整目录打包：
 
 ```bash
 mkdir -p /volume1/docker/backup
+cd /volume1/docker/cc-ledger
+docker compose stop
+sudo tar czf /volume1/docker/backup/cc-ledger-$(date +%Y%m%d).tar.gz -C /volume1/docker/cc-ledger/data .
+docker compose start
 ```
+
+> **为什么要停**：SQLite 运行时数据一部分在 `-wal` 里，边跑边打包可能拿到「半截」，
+> 恢复后表现为少几笔账。停容器几秒，一致性就 100% 了。
+> （不能接受停机就用下一段的「不停机备份」。）
+
+**附：不停机备份**（前提是当天自动备份已经跑过，即 `data/backups/` 有当天的 `.db`）：
 
 ```bash
-docker run --rm \
-  -v cc-ledger_cc-ledger-data:/data:ro \
-  -v /volume1/docker/backup:/backup \
-  alpine tar czf /backup/cc-ledger-$(date +%Y%m%d).tar.gz -C /data .
+cd /volume1/docker/cc-ledger/data
+LATEST=$(ls -t backups/cc-ledger-*.db | head -1)
+mkdir -p /volume1/docker/backup
+cp "$LATEST" /volume1/docker/backup/cc-ledger-$(date +%Y%m%d).db
+tar czf /volume1/docker/backup/uploads-$(date +%Y%m%d).tar.gz uploads
 ```
 
-> **用途说明**：把整个数据卷（含数据库、附件、备份）打成一个 `.tar.gz` 存起来。
-> `:ro` 表示只读挂载 —— 这是**安全关键**：打包过程不会修改数据。
-> 建议每月做一次，并**复制一份到另一块硬盘或云盘**（同一台机器上的备份，机器坏了就一起没了）。
+> 数据库取「已经是一致快照的那份」，附件单独打包 —— 全程不停机。
+> 代价是数据库最多落后到当天 03:00。
+
+> 无论哪种方式，都**复制一份到另一块硬盘或云盘**（同一台机器上的备份，机器坏了就一起没了）。
 
 ### 恢复
 
 ```bash
+cd /volume1/docker/cc-ledger
 docker compose stop
 ```
 
 ```bash
-docker run --rm -v cc-ledger_cc-ledger-data:/data -v /volume1/docker/backup:/backup alpine sh -c '
-  cp /data/cc-ledger.db /data/cc-ledger.db.broken-$(date +%s) &&
-  tar xzf /backup/cc-ledger-20261021.tar.gz -C /data &&
-  rm -f /data/cc-ledger.db-wal /data/cc-ledger.db-shm
-'
+cd /volume1/docker/cc-ledger/data
+sudo cp -a cc-ledger.db cc-ledger.db.broken-$(date +%s) 2>/dev/null || true
+sudo rm -f cc-ledger.db-wal cc-ledger.db-shm
+sudo tar xzf /volume1/docker/backup/cc-ledger-20261022.tar.gz -C .
+sudo chown -R 1001:1001 .
 ```
 
 ```bash
-docker compose start
+cd /volume1/docker/cc-ledger && docker compose start
 ```
 
 > 关键是**删掉 `-wal` 和 `-shm`**：这两个是预写日志，删掉后 SQLite 会自动从主库重建。
-> 不删的话旧的日志会和恢复的主库冲突。
+> 不删的话旧日志会和恢复的主库冲突（表现为「恢复了但还是缺数据」）。
 > 第一步的 `cp` 是留一份现场，万一恢复错了还能回头。
+> 最后那次 `chown` 别漏 —— tar 解出来的属主是 root，容器又写不进去了。
+
+### 如果之前用过命名卷，数据怎么搬过来
+
+老版本 compose 用的是命名卷 `cc-ledger-data`。改成共享文件夹后**不会自动搬数据**，
+新目录是空的 —— 需要手动拷一次：
+
+```bash
+cd /volume1/docker/cc-ledger
+docker compose down
+```
+
+```bash
+docker volume ls | grep cc-ledger      # 先确认真实卷名，可能是 <别的目录名>_cc-ledger-data
+```
+
+```bash
+sudo docker run --rm \
+  -v cc-ledger_cc-ledger-data:/from:ro \
+  -v /volume1/docker/cc-ledger/data:/to \
+  alpine sh -c 'cp -a /from/. /to/'
+```
+
+```bash
+sudo chown -R 1001:1001 /volume1/docker/cc-ledger/data
+docker compose up -d
+```
+
+> 拷完先看一眼目录：应有 `cc-ledger.db`、`uploads/`、`backups/`。
+> 确认账目都在之后，旧卷才可以用 `docker volume rm cc-ledger_cc-ledger-data` 删掉
+> （**删之前务必先验证新目录能正常打开账本**）。
 
 ---
 
@@ -857,6 +960,8 @@ docker compose start
 - [ ] `.env` 没有提交到任何代码仓库（`.dockerignore` 已排除，但传给 NAS 时别放到公开网盘）
 - [ ] 容器以非 root（uid 1001）运行 —— `docker exec cc-ledger id` 应显示非 root
 - [ ] `cap_drop: ALL` 保留
+- [ ] 数据目录属主是 1001 —— `ls -ld /volume1/docker/cc-ledger/data` 应显示 `1001 1001`
+- [ ] `data` 目录已纳入 NAS 的定期备份/快照计划（它是普通目录，套件能直接备份到）
 - [ ] 3000 端口**没有**在路由器上做端口转发
 - [ ] 备份至少做过一次，并验证过能打开
 - [ ] SSH 用完关闭，或设了自动关闭时间
@@ -870,7 +975,11 @@ ssh 你的用户名@NAS_IP
 ```
 
 ```bash
-sudo mkdir -p /volume1/docker/cc-ledger && cd /volume1/docker/cc-ledger
+sudo mkdir -p /volume1/docker/cc-ledger/data && cd /volume1/docker/cc-ledger
+```
+
+```bash
+sudo chown -R 1001:1001 /volume1/docker/cc-ledger/data
 ```
 
 （从电脑 `scp` 上传文件）
