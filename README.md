@@ -83,7 +83,8 @@ Base URL：`/api/v1`；除公开接口外均需 `Authorization: Bearer <access_t
 每次推送到 `main`，GitHub Actions 会自动构建并推送镜像到 ghcr：
 
 ```bash
-echo 'CC_IMAGE=ghcr.io/shayi/cc-ledger:latest' >> .env   # 用现成镜像
+cp .env.docker.example .env                              # 模板只有 4 个 compose 变量
+# 改 .env 里的 JWT_SECRET 与 PUBLIC_BASE_URL，CC_IMAGE 已是 ghcr latest
 docker compose pull
 docker compose up -d
 ```

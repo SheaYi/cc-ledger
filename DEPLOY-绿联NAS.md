@@ -308,16 +308,22 @@ GitHub → 你的头像 → Your profile → **Packages** → `cc-ledger` → �
 > 公开镜像里**没有你的任何数据**：`.dockerignore` 已排除 `.env`、`data/`、`node_modules/`。
 > 仓库源码本来就是公开的，镜像只是它编译后的产物。
 
-### 5.1 网页「Docker → 项目」创建（不碰 .env）
+### 5.1 网页「Docker → 项目」创建
 
 **先说清一件事：网页界面里不需要你「创建 docker-compose.yaml 文件」**。
 「项目」是把 compose **内容**贴进编辑框，Docker 自己在项目目录下生成 `docker-compose.yml`。
-只有走 SSH 时你才需要真的有一个文件 —— 那种情况下 `.yml` / `.yaml` 后缀都认。
+只有你自己写文件时才需要关心后缀 —— `.yml` / `.yaml` 都认。
 
-**为什么另给一份文件**：仓库根目录的 `docker-compose.yml` 用了
-`${JWT_SECRET}` / `${CC_IMAGE}` / `${DATA_HOST_DIR}` 这些变量，靠同目录的 `.env` 补齐。
-如果网页项目没有 `.env`，compose 会直接报 `必须设置 JWT_SECRET` 而不启动。
-所以网页界面请贴 **`docker-compose.nas.yml`**（所有值写死，不依赖任何 `.env`）。
+贴哪一份，取决于你要不要用 `.env`：
+
+| 你的选择 | 贴哪份 compose | 变量从哪来 |
+|---|---|---|
+| **我自己建 `.env`**（SSH 或文件管理写文件） | 仓库根目录 `docker-compose.yml` | `.env` 里的 `JWT_SECRET` / `PUBLIC_BASE_URL` / `CC_IMAGE` / `DATA_HOST_DIR` |
+| **不建 `.env`** | `docker-compose.nas.yml` | 值全部写死在 compose 里，只需改 `★` 两处 |
+
+> 两份文件内容等价（端口、挂载、安全项都一样，`npm run audit:deploydoc` 会校验不漂移），
+> 区别只是**变量放哪里**。`.env` 只是给 compose 做文本替换用的，**不会进容器**；
+> 容器里的环境变量始终来自 `environment:` 段。
 
 **第 1 步：建数据目录并交属主**（只有这步必须 SSH，做一次）
 
@@ -333,42 +339,79 @@ ls -ld /volume1/docker/cc-ledger/data      # 期望：drwxr-xr-x 2 1001 1001
 openssl rand -base64 48
 ```
 
-**第 3 步：新建项目**
+**第 3 步（走 `.env` 才需要）：写 .env**
+
+仓库里已备好模板 `.env.docker.example`（只含 compose 要用的 4 个变量），
+
+```bash
+cp .env.docker.example .env
+nano .env          # 改 JWT_SECRET 和 PUBLIC_BASE_URL 两处
+chmod 600 .env
+```
+
+不想用 nano 就整段覆盖：
+
+```bash
+cd /volume1/docker/cc-ledger
+cat > .env <<'ENV'
+# ===== 必填 =====
+JWT_SECRET=把上一步的输出整段粘这里
+PUBLIC_BASE_URL=http://192.168.1.10:3000
+
+# ===== 镜像来源 =====
+CC_IMAGE=ghcr.io/shayi/cc-ledger:latest
+
+# ===== 数据落点（写绝对路径，最稳）=====
+DATA_HOST_DIR=/volume1/docker/cc-ledger/data
+ENV
+chmod 600 .env
+```
+
+> - **不要给值加引号**：`.env` 里 `JWT_SECRET="abc"` 会把引号一起当成密钥的一部分。
+> - `chmod 600` 是防止同机其他账号读到密钥；compose 是 docker 守护进程（root）读的，不影响。
+> - 也可以用「文件管理」建这个文件，但注意别让编辑器存成 `.env.txt`（Windows 记事本的老毛病）。
+> - 这个文件已在 `.gitignore` 里，不会被推上 GitHub。
+
+**第 4 步：新建项目**
 
 Docker → **项目** → **新建**（有的版本叫「创建项目」）：
 
 | 字段 | 填什么 |
 |---|---|
 | 名称 / 项目名 | `cc-ledger` |
-| 路径 / 工作目录 | `/volume1/docker/cc-ledger` |
-| Compose 内容 | 粘贴 `docker-compose.nas.yml` 全文 |
-
-**第 4 步：粘贴前改两处**（文件里已用 `★` 标出，漏改会出问题）
-
-```yaml
-JWT_SECRET: "CHANGE_ME_48位随机串"          # ← 换成第 2 步的输出
-PUBLIC_BASE_URL: "http://192.168.1.10:3000"  # ← 换成 NAS 的真实 IP:端口
-```
-
-> `JWT_SECRET` 漏改也能启动，但所有登录态都用占位符签名 —— 等于谁都能伪造 token。
-> 已经启动过才发现改错：改完重新「部署」一次即可，账目数据不受影响（数据在 `/data`）。
+| 路径 / 工作目录 | `/volume1/docker/cc-ledger`（**必须和 `.env` 同一目录**） |
+| Compose 内容 | 走 `.env` → 贴根目录 `docker-compose.yml`；不建 `.env` → 贴 `docker-compose.nas.yml` |
 
 **第 5 步：部署**，等界面显示 `运行中 / running`（首次拉镜像 1–3 分钟）。
 
-**关于 `.env` 的三种情况**
+**走 `.env` 的三个注意点**
 
-| 新建项目页面看到什么 | 用哪份 | 说明 |
-|---|---|---|
-| 有 `.env` 编辑区 / 「环境变量文件」 | 根目录 `docker-compose.yml` | 把 `.env.example` 内容填进去（改 `JWT_SECRET`、`PUBLIC_BASE_URL`、`CC_IMAGE`、`DATA_HOST_DIR`） |
-| 只有一个「环境变量」键值输入框 | **`docker-compose.nas.yml`** | 那个输入框写的是**容器**的 environment，**不会**替换 compose 里 `${...}` 占位符，不能靠它填 `JWT_SECRET` |
-| 什么都没有，只有一个 YAML 编辑框 | **`docker-compose.nas.yml`** | 值全部写死，最省事 |
+1. **别让界面误触发本地编译**：根 `docker-compose.yml` 带 `build:` 段（给 SSH 场景用的）。
+   如果界面有「重新构建 / Rebuild」选项，**不要勾** —— 勾了会在 NAS 上编译
+   `better-sqlite3`，5–15 分钟。想彻底避免，把贴进去的内容里这两行删掉：
+   ```yaml
+       build:
+         context: .
+         dockerfile: Dockerfile
+   ```
+   （`image:` 指向 ghcr，删掉 `build:` 依然能正常跑。）
+2. **确认 `.env` 真的被读到了**：compose 只读「项目工作目录」下的 `.env`。
+   查真实工作目录：
+   ```bash
+   docker inspect cc-ledger --format '{{index .Config.Labels "com.docker.compose.project.working_dir"}}'
+   ```
+   如果输出的不是 `/volume1/docker/cc-ledger`，就把 `.env` 移到那个目录再重新部署。
+3. **验证值生效**（不用回显密钥）：
+   ```bash
+   docker exec cc-ledger printenv PUBLIC_BASE_URL
+   ```
+   应显示你自己填的地址；如果还是 `http://localhost:3000`，就是 `.env` 没读到。
 
 **两种撞车情况**
 
 - 之前用 SSH 起过同名容器（`container_name: cc-ledger`）→ 网页项目部署会报端口占用。
   先在 SSH 里 `cd /volume1/docker/cc-ledger && docker compose down`，再回网页部署。
-- 网页项目的 compose 里**不要同时留 `build:` 和 `image:`**。`docker-compose.nas.yml` 只留了
-  `image:`，所以永远不会在 NAS 上编译；想改用本地构建就用根目录那份 + SSH。
+- 不要同时留 `build:` 和 `image:` 时点「重新构建」，理由同上。
 
 ### 5.2 首次构建并启动（SSH，本地编译，兜底用）
 

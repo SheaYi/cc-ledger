@@ -151,6 +151,24 @@ if (nas) {
   else check(`文档里 ${docImages.length} 处 ghcr 地址全小写且仓库名正确`, true);
 }
 
+/* 8. .env 模板（docker compose 专用）与 compose 实际引用的变量一一对应 */
+let envTpl = '';
+try {
+  envTpl = readFileSync('.env.docker.example', 'utf8');
+  check('存在 docker compose 用 .env 模板', true);
+} catch {
+  fail('存在 docker compose 用 .env 模板', '.env.docker.example 缺失');
+}
+if (envTpl) {
+  for (const v of ['JWT_SECRET', 'PUBLIC_BASE_URL', 'CC_IMAGE', 'DATA_HOST_DIR']) {
+    if (new RegExp('^' + v + '=', 'm').test(envTpl)) check(`.env 模板含 ${v}`, true);
+    else fail(`.env 模板含 ${v}`, '缺失');
+    /* 模板里多写的变量要么被 compose 用上，要么就是误导 */
+    if (compose.includes('${' + v)) check(`compose 引用 ${v}`, true);
+    else fail(`compose 引用 ${v}`, '模板里有但 compose 没用（误导）');
+  }
+}
+
 const pass = results.filter((r) => r.ok).length;
 for (const r of results.filter((x) => !x.ok)) console.log('  ✗', r.name, '|', r.detail);
 console.log(`\n结果 ==== ${pass} / ${results.length}`);
