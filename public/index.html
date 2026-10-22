@@ -47,6 +47,9 @@
     </script>
     <link rel="stylesheet" href="/assets/tokens.css" />
     <link rel="stylesheet" href="/assets/app.css" />
+    <!-- 手机端样式层（≤1023px）：在 app.css 之后加载，同特异性下由它拍板。
+         桌面完全不吃这个文件（内部全是 max-width 媒体查询）。 -->
+    <link rel="stylesheet" href="/assets/mobile.css" />
   </head>
   <body>
     <div id="app"></div>

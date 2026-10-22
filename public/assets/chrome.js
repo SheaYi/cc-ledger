@@ -75,7 +75,7 @@ const NAV_ITEM_META = {
    * 与导入同属「对已经存在的账做点什么」，而账户页只放「当前待对账的账户」。
    */
   reconciliations: { label: '对账历史', href: '/reconciliations' },
-  settings: { label: '我的', href: '/settings' },
+  settings: { label: '设置', href: '/settings' },
   invite: { label: '成员', href: '/settings' },
 };
 
@@ -203,7 +203,7 @@ function navGroupsHtml(active) {
 function accountGroupHtml(active) {
   const items = [
     { key: 'invite', label: '成员', href: NAV_ITEM_META.invite.href, icon: NAV_ICONS.invite },
-    { key: 'settings', label: '我的', href: NAV_ITEM_META.settings.href, icon: NAV_ICONS.settings },
+    { key: 'settings', label: '设置', href: NAV_ITEM_META.settings.href, icon: NAV_ICONS.settings },
   ];
   return `
       <div class="sidenav__group">
@@ -400,52 +400,56 @@ export function mountTabBar(frame, { active, go, ledger = null }) {
 /**
  * 移动端底部导航（≤1023px 显示）—— 5 槽，正中央是**动作位**不是导航位。
  *
- *       概览   账单   ╭──╮  分类   我的
- *                      │记 │  ← pill 形态、抬升 8px、不参与选中态
+ *       账户   账单   ╭──╮  统计   设置
+ *                      │记 │  ← pill 形态、抬升、不参与选中态
  *                      ╰──╯
  *
- * 槽位为什么是这五个（`docs/13 §3.2` 定 5 槽 + `docs/09 §2.2` 的构成建议）：
- *   · 「记」是动作不是目的地，占中心位但不占导航位；
- *   · **账单**按 `09 §2.2` 是核心 Tab（记账 App 的主界面就是流水）；
- *   · **账户**让位给账单 —— 它在移动端并未失联：概览页的账户快览、
- *     「管理账户」「去添加账户」「去对账」四个入口都指向它（少一次点击，换账单进导航，划算）；
- *   · **分类**留在栏里 —— 它是移动端唯一入口，移出去会变成不可达页面。
+ * 槽位为什么是这五个（2026-10-22 重排，取代旧的「概览/账单/记/分类/我的」）：
+ *   · **账户** 是打开就想知道的「我现在有多少钱、钱在哪」—— 记账 App 的首屏，
+ *     手机端 `/` 也直接落到它（见 app.js 的移动端首页重定向）。
+ *   · **账单** 是流水主界面（`docs/09 §2.2` 定的核心 Tab），记账 App 的第二个屏。
+ *   · **记一笔** 是动作不是目的地：占中心、抬升、不参与选中态（docs/13 §3.2）。
+ *   · **统计** 是「回头看」—— 收支趋势、分类占比、排行，手机上单独成屏才看得了图。
+ *   · **设置** 收账号 / 账本 / 成员 / 安全，也是「我的」那类低频入口的落点。
+ *
+ * 被移出栏的页面全部在 `FALLBACK` 里有归属，**不变成不可达页面** ——
+ * 它们仍从 5 个屏内部的入口进（如账户页的「分类管理」、账单页的「导入」）。
  *
  * 「记」的交互（docs/13 §3.2）：
  *   点击      → /transactions/new
- *   长按 400ms → 带出模板面板（模板模块未上线前给一次性提示）
+ *   长按 400ms → 带出模板面板
  *   手指移动 > 8px → 取消长按（09 §3.2 的冲突处理）
  */
-export function tabBar({ active = 'overview', go, ledger = null } = {}) {
+export function tabBar({ active = 'accounts', go, ledger = null } = {}) {
   const TABS = [
-    { key: 'overview', label: '概览', href: '/', icon: 'home' },
+    { key: 'accounts', label: '账户', href: '/accounts', icon: 'wallet' },
     { key: 'transactions', label: '账单', href: '/transactions', icon: 'book' },
     { key: 'compose', label: '记一笔', href: COMPOSE_HREF, icon: 'plus', action: true },
-    { key: 'categories', label: '分类', href: '/categories', icon: 'list' },
-    { key: 'settings', label: '我的', href: '/settings', icon: 'user' },
+    { key: 'stats', label: '统计', href: '/stats', icon: 'chart' },
+    { key: 'settings', label: '设置', href: '/settings', icon: 'user' },
   ];
 
   /** 不在槽位里的页面 → 高亮它「归属于」的那个槽（避免整条栏没有选中态） */
   //
-  // 5 槽 TabBar 只能放下 5 项，其余 8 项必须归槽。归槽的判据是
-  // 「**用户是从哪个页面的哪个按钮进来的**」，而不是 URL 前缀 ——
+  // 归槽判据是「**用户是从哪个页面的哪个按钮进来的**」，而不是 URL 前缀 ——
   // 前者回答「我刚才在哪」，后者只是字符串匹配。
   //
-  // 「记账」组三项（模板/周期/分期）归到「分类」槽：它们的入口都在记账表单里，
-  // 与分类是同一层「录入效率件」，比归到「概览」贴近用户心智。
+  //   · 概览 / 往来 / 对账历史 → 账户（都是「看余额与状态」，账户是它们的落点）
+  //   · 分类 / 标签 / 模板 / 周期 / 分期 → 账单（都是录入效率件，入口在记账表单与账单页）
+  //   · 预算 → 统计（是约束与对比，不是流水）
+  //   · 导入 → 账单（导入的是账单）
+  //   · 成员 / 邀请 → 设置
   const FALLBACK = {
-    accounts: 'overview',
-    debts: 'overview',
-    tags: 'categories',
-    templates: 'categories',
-    recurring: 'categories',
-    installments: 'categories',
-    budgets: 'overview',
-    stats: 'overview',
-    import: 'overview',
-    // 对账历史是账户的子页 → 归到「概览」槽（同「往来」的道理：
-    // 移动端侧栏本就不在，底栏 5 槽里也放不下，它是「看状态」的一部分）
-    reconciliations: 'overview',
+    overview: 'accounts',
+    debts: 'accounts',
+    reconciliations: 'accounts',
+    categories: 'transactions',
+    tags: 'transactions',
+    templates: 'transactions',
+    recurring: 'transactions',
+    installments: 'transactions',
+    import: 'transactions',
+    budgets: 'stats',
     invite: 'settings',
   };
   const activeKey = TABS.some((t) => t.key === active) ? active : (FALLBACK[active] ?? active);

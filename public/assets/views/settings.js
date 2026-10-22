@@ -249,7 +249,7 @@ export async function renderSettings(container, { go }) {
     ledger: current,
     inner: `
       <div class="page__hero">
-        <h1 class="tt-display-md">我的</h1>
+        <h1 class="tt-display-md">设置</h1>
         <p class="tt-caption text-muted">账号资料、账本与成员、登录安全</p>
       </div>
 

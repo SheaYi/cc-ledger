@@ -1,0 +1,351 @@
+/* ==========================================================================
+   CC记账 · 手机端样式层（≤1023px）
+   --------------------------------------------------------------------------
+   唯一依据：docs/00-DESIGN.md。纪律与 app.css 一致：只引 tokens.css 的变量，
+   不写死任何 hex / rgba；字重只用 300 / 400 / 600 / 700；letter-spacing 用 px。
+
+   ## 为什么单独一个文件
+   app.css 里的移动规则是「桌面布局塌成单列」的补丁，目标是**不坏**；
+   而手机要的是**顺手** —— 这两件事的判据不同，混在一处必然互相让步。
+   本文件在 app.css 之后加载，同特异性下由它拍板。
+
+   ## 八个方面的落点（对应用户给的清单）
+   · 视觉氛围：低密度、无装饰、层次靠面色切换（白卡 / 羊皮纸页底），
+     全系统不给卡片投影 —— 00-DESIGN「投影只给真正浮起的层」。
+   · 颜色：交互只有一个强调蓝；红绿只做收支正负的语义色，不参与可点击信号。
+   · 排版：17px 正文（Apple 的阅读节奏），标题 600，数字统一 tabular-nums。
+   · 组件：按钮 pill + 44px 底线，输入框 pill/44px，卡片 --r-lg + 16px 内边距，
+     导航 = 底部 5 槽（正中央是动作位，不是导航位）。
+   · 布局：8px 基准，页面左右 16px，卡片之间 12px —— 手机上「贴边」比「居中」好按。
+   · 深度：只给顶栏 / 底栏磨砂 + hairline，卡片一律 0 投影。
+   · 护栏：不给第二强调色、不给渐变、不给卡片阴影、不给 500 字重。
+   · 响应式：1023 / 640 / 419 三档；触控一律 ≥44px；安全区用 env() 兜。
+   ========================================================================== */
+
+/* ==========================================================================
+   一、≤1023px：平板竖屏与手机
+   ========================================================================== */
+@media (max-width: 1023px) {
+  :root {
+    --page-gutter: 16px; /* 手机上 20px 太宽：内容被推窄，行更易折 */
+    --card-gap: 12px;
+    --tabbar-h: 58px; /* 5 槽 + 抬升动作位，比桌面 56 再高 2px 给标签呼吸 */
+    --appbar-h: 52px;
+  }
+
+  /* ---------- 页面容器 ---------- */
+  .page {
+    padding: 12px var(--page-gutter)
+      calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px) + 40px);
+    gap: 16px;
+  }
+
+  /* 记账页不挂 TabBar（docs/13 §4.1 全屏页），底部只留操作条与安全区 */
+  .page--compose {
+    padding: 12px var(--page-gutter) calc(24px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .footer-min {
+    padding-bottom: calc(20px + var(--tabbar-h));
+  }
+
+  /* ---------- 顶栏：磨砂 + 安全区 ----------
+     00-DESIGN 的 floating sticky bar 语法：backdrop-blur + hairline，
+     不给投影（投影只给脱离页面流的浮层）。 */
+  .app-bar {
+    z-index: 25;
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  .app-bar__inner {
+    height: var(--appbar-h);
+    padding: 0 var(--page-gutter);
+  }
+
+  .brand__name {
+    font-size: 15px;
+  }
+
+  .app-bar__right .btn,
+  .app-bar__right .user-chip {
+    min-height: 44px;
+  }
+
+  /* ---------- 底部导航（5 槽，正中央是动作位） ---------- */
+  .tabbar__inner {
+    height: var(--tabbar-h);
+  }
+
+  .tabbar__item {
+    gap: 2px;
+    /* 00-DESIGN 的 nav-link：12px / 400 / -0.12px */
+    font-size: 12px;
+    letter-spacing: -0.12px;
+    min-height: 44px;
+  }
+
+  .tabbar__item > svg {
+    width: 22px;
+    height: 22px;
+  }
+
+  .tabbar__compose-pill {
+    width: 52px;
+    height: 52px;
+    top: -12px;
+  }
+
+  /* ---------- 标题层：hero 降级（00-DESIGN：640px → 34px，419px → 28px） ---------- */
+  .page__hero h1,
+  .tt-display-md {
+    font-size: 26px;
+    line-height: 1.19;
+    letter-spacing: -0.374px;
+  }
+
+  .page__hero {
+    gap: 4px;
+  }
+
+  /* ---------- 卡片与区块：单列、16px 内边距、12px 呼吸 ---------- */
+  .card {
+    padding: 16px;
+  }
+
+  .stack,
+  .section {
+    gap: 12px;
+  }
+
+  .grid-cards,
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--card-gap);
+  }
+
+  /* 双列/三列的小指标在手机上保留「并排」——它们要横向比大小，
+     拆成上下两行反而看不出对比。 */
+  .tx-sum,
+  .flow-grid {
+    gap: 8px;
+  }
+
+  /* ---------- 触控底线：所有可点元素 ≥44px ---------- */
+  .btn,
+  .btn--sm,
+  .input,
+  .select,
+  .tx-pill,
+  .chip,
+  .segmented__item,
+  .pick-trigger {
+    min-height: 44px;
+  }
+
+  .btn--sm {
+    padding: 0 16px;
+  }
+
+  /* iOS 聚焦缩放：正文输入不小于 17px（= 00-DESIGN 的 body） */
+  .input,
+  .select {
+    font-size: 17px;
+  }
+
+  /* ---------- 筛选区：宁可换行，不要截断 ----------
+     桌面那套「三等分下拉」在 390px 下会把「全部类别」压成「全部类…」，
+     用户没法知道当前筛的是什么。手机上让它换行成整宽。 */
+  .tx-filters__row {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .tx-pill {
+    flex: 0 1 auto;
+    padding: 0 14px;
+  }
+
+  .st-filter__bar {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .st-filter__picks {
+    flex-wrap: wrap;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .st-filter__picks > * {
+    flex: 1 1 46%;
+    min-width: 132px;
+  }
+
+  .st-filter__search,
+  .st-filter__kw {
+    width: 100%;
+  }
+
+  .st-filter__seg {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* 账期切换器：整行独占，账期文字居中 —— 它挤在快捷段旁边时会被切掉尾巴，
+     而「当前看的是哪个月」是这个屏最重要的上下文。 */
+  .st-filter__stepper {
+    flex: 1 1 100%;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .st-filter__period {
+    flex: 1 1 auto;
+    text-align: center;
+    font-size: 15px;
+    white-space: nowrap;
+  }
+
+  /* ---------- 记账页 ---------- */
+  .compose__card {
+    padding: 16px;
+  }
+
+  .compose__block {
+    gap: 12px;
+  }
+
+  .field-row {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .field-row > .field {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+
+  .amount-input {
+    height: 60px;
+    font-size: 28px;
+  }
+
+  /* 提交条：贴底的「底部抽屉」—— 左右吃掉页面留白、上方两角收圆、下边不留缝。
+     内外边距都用 var(--page-gutter)：app.css 里写死的 -16px 与本文件的
+     12px 小屏留白一旦不等，这条就会横向溢出 4~8px（手机上表现为能左右轻微拖动）。 */
+  .action-bar {
+    position: sticky;
+    bottom: 0;
+    z-index: 10;
+    margin: 0 calc(-1 * var(--page-gutter)) calc(-1 * var(--keyboard-height, 0px));
+    padding: 12px var(--page-gutter) calc(12px + env(safe-area-inset-bottom, 0px));
+    border-radius: var(--r-lg) var(--r-lg) 0 0;
+    border-bottom: 0;
+    border-top: 1px solid var(--c-hairline-soft);
+    background: var(--c-frost-bg-strong);
+    -webkit-backdrop-filter: var(--frost-blur);
+    backdrop-filter: var(--frost-blur);
+  }
+
+  /* 提交是这个屏唯一的主动作：吃掉剩余宽度，拇指最容易够到的右侧最大块留给它 */
+  .action-bar__summary {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .action-bar .btn[type='submit'] {
+    flex: 1 1 auto;
+    min-width: 96px;
+  }
+
+  /* ---------- 列表行：手机上手指要能整行点 ---------- */
+  .acct-row,
+  .ledger-card,
+  .tag-card {
+    min-height: 56px;
+    padding-top: 12px;
+    padding-bottom: 12px;
+  }
+
+  /* 详情页 / 报表里的横向滚动区：贴边滚动，别留内边距把首列切掉 */
+  .table-scroll,
+  .rank-table-wrap {
+    margin-inline: calc(var(--page-gutter) * -1);
+    padding-inline: var(--page-gutter);
+    overflow-x: auto;
+  }
+}
+
+/* ==========================================================================
+   二、≤640px：手机（00-DESIGN 的 Phone 档）
+   ========================================================================== */
+@media (max-width: 640px) {
+  .page__hero h1,
+  .tt-display-md {
+    font-size: 24px;
+  }
+
+  /* 页面级操作（对账历史 / 新建分组 / 新建账户、导出 / 导入）在窄屏并排放不下，
+     整行铺开、等分宽度 —— pill 是 00-DESIGN 里唯一的「动作」语法，
+     三个并排挤在 358px 里会让「新建账户」缩成半截。 */
+  .page__hero .row--between > .row,
+  .page__hero .row--between > .row--md {
+    width: 100%;
+  }
+
+  .page__hero .row > .btn,
+  .page__hero .row--md > .btn {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding-inline: 12px;
+  }
+
+  /* 段头：标题与操作各占一行，避免「标题被按钮挤成两行」 */
+  .section__head {
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+
+  .section__head > h2 {
+    flex: 1 1 100%;
+  }
+
+  .card {
+    padding: 14px;
+  }
+
+  /* 双列指标：手机上「支出 / 收入 / 结余」保留三列会挤到数字换行，
+     压成两列、结余独占一行更稳。 */
+  .tx-sum {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .tx-sum__cell:last-child {
+    grid-column: 1 / -1;
+  }
+}
+
+/* ==========================================================================
+   三、≤419px：小屏手机（00-DESIGN 的 Small phone 档）
+   ========================================================================== */
+@media (max-width: 419px) {
+  :root {
+    --page-gutter: 12px;
+  }
+
+  .page__hero h1,
+  .tt-display-md {
+    font-size: 22px;
+  }
+
+  .tabbar__item {
+    font-size: 11px;
+  }
+
+  .amount-input {
+    height: 56px;
+    font-size: 26px;
+  }
+}

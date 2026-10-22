@@ -216,7 +216,7 @@ export async function renderStats(container, { go } = {}) {
       <div class="page__hero">
         <div class="row row--between row--wrap row--md">
           <div>
-            <h1 class="tt-display-md">报表</h1>
+            <h1 class="tt-display-md">统计</h1>
             <p class="tt-caption text-muted">${esc(ledger.name)} · 口径与概览、对账完全一致</p>
           </div>
           <div class="row">
