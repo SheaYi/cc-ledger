@@ -144,8 +144,13 @@ if (nas) {
   } else {
     fail('docker-compose.nas.yml 镜像地址与 workflow 同构', nasImg || '未找到 image');
   }
-  /* 文档里出现的 ghcr 地址也必须是同一路径（写成 SheaYi 大写会被 registry 拒） */
-  const docImages = [...doc.matchAll(/ghcr\.io\/[A-Za-z0-9_.\-/]+/g)].map((m) => m[0]);
+  /* 文档里出现的 ghcr 地址也必须是同一路径（写成 SheaYi 大写会被 registry 拒）。
+   * 带 ... 或 <占位> 的示例地址不算真实地址，跳过。 */
+  const docImages = [
+    ...doc.matchAll(/ghcr\.io\/[a-z0-9\-_.]+\/[a-z0-9\-_.]+(?::[A-Za-z0-9._\-]+)?/g),
+  ]
+    .map((m) => m[0])
+    .filter((s) => !s.includes('...'));
   const badImg = docImages.find((s) => s !== s.toLowerCase() || !s.includes(`/${pkgName}`));
   if (badImg) fail('文档里的 ghcr 地址合法', badImg);
   else check(`文档里 ${docImages.length} 处 ghcr 地址全小写且仓库名正确`, true);

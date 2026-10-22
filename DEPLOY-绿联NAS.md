@@ -978,6 +978,76 @@ docker system prune -a --volumes
 > `data` 目录），所以它删不到账本数据；但如果你有别的容器已停止且卷没挂载，
 > 那些卷会被清掉。执行前先确认。
 
+### 8.11 拉镜像超时：`registry-1.docker.io ... context deadline exceeded`
+
+完整报错长这样：
+
+```
+Get "https://registry-1.docker.io/v2/": context deadline exceeded
+(Client.Timeout exceeded while awaiting headers)
+```
+
+**先读懂它在说什么**：超时的主机是 `registry-1.docker.io`（Docker Hub），
+**不是** `ghcr.io`。而本项目只在**构建镜像**时才会用到 Docker Hub
+（`Dockerfile` 第一行 `FROM node:22-alpine`）。所以这条报错基本等于：
+**它没在拉 ghcr 的现成镜像，而是在 NAS 上编译** —— 编译第一步要去 Docker Hub 下基础镜像，
+网络到不了，就超时了。
+
+**为什么会莫名其妙开始编译**：`docker-compose.yml` 里同时有 `build:` 和 `image:`。
+`docker compose up -d` 发现本地没有 `ghcr.io/shayi/cc-ledger:latest` 这个镜像，
+就退回用 `build:` 自己造一个。**正确顺序是先 pull 再 up**：
+
+```bash
+cd /volume1/docker/cc-ledger
+docker compose pull          # 只拉镜像，不会触发构建
+docker compose up -d         # 此时镜像已在本地，不会再走 build
+```
+
+**用网页项目部署的**：界面上如果勾了「构建 / Rebuild」，取消它；
+或者直接把 compose 里的 `build:` 三行删掉（`image:` 已经指向 ghcr，删了照样能跑）。
+
+**怎么确认 ghcr 通不通**
+
+```bash
+curl -sS -o /dev/null -w '%{http_code}\n' --max-time 10 https://ghcr.io/v2/
+```
+
+返回 `401`（或 `200`）＝**通的**（401 只是没带凭证，属正常）；`curl: (28)` 超时 ＝ 到 ghcr 也不通。
+
+**如果连 ghcr 也超时**，三条路，按推荐顺序：
+
+1. **换个网络拉**：很多家庭宽带到 ghcr 是间歇性超时，挂 NAS 的代理/VPN 或换时段重试即可。
+2. **在有网的电脑上拉好再导入**（最稳，不依赖 NAS 出网）：
+   ```bash
+   # 电脑上
+   docker pull ghcr.io/shayi/cc-ledger:latest
+   docker save ghcr.io/shayi/cc-ledger:latest -o cc-ledger.tar
+   scp cc-ledger.tar 你的用户名@192.168.1.10:/volume1/docker/cc-ledger/
+   ```
+   ```bash
+   # NAS 上
+   cd /volume1/docker/cc-ledger
+   docker load -i cc-ledger.tar
+   docker compose up -d
+   ```
+   `docker load` 之后本地就有这个 tag，`up` 不会再联网。
+3. **用第三方 ghcr 镜像源**（应急，可能滞后）：把 `CC_IMAGE` 换成镜像站地址，先探活再改：
+   ```bash
+   curl -sS -o /dev/null -w '%{http_code}\n' --max-time 10 https://ghcr.nju.edu.cn/v2/
+   ```
+   > 这类镜像站由第三方维护，随时可能停服或不同步最新镜像，**不要当长期方案**。
+
+**顺手排查两件事**
+
+```bash
+nslookup registry-1.docker.io      # DNS 能不能解析
+docker info | grep -A3 'Registry Mirrors'   # 配了加速器却没生效？
+```
+
+> 镜像加速器（`docker.m.daocloud.io` 之类）**只加速 Docker Hub**，对 ghcr **没有作用** ——
+> 别指望配了它就能拉 ghcr。它只在你确实要本地构建时（下 `node:22-alpine`）才有用：
+> 绿联 `Docker → 设置 → 镜像加速` 里填一个可用地址，然后 `docker info` 确认已生效。
+
 ---
 
 ## 九、日常运维速查

@@ -8,6 +8,11 @@
 
 services:
   cc-ledger:
+    # ⚠️ build 段的坑：同时有 build: 和 image: 时，`docker compose up -d` 若发现本地
+    #    没有 ${CC_IMAGE} 这个镜像，会退回用 build 自己造 —— 在 NAS 上就是 5~15 分钟
+    #    编译，而且第一步要从 Docker Hub 下 node:22-alpine，国内常报
+    #    「registry-1.docker.io ... context deadline exceeded」。
+    #    正确顺序：先 `docker compose pull`，再 `up -d`（见部署文档 8.11）。
     build:
       context: .
       dockerfile: Dockerfile
