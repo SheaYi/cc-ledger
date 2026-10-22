@@ -4,6 +4,14 @@ name: 构建并推送 Docker 镜像
 #   · 推送到 main        → 产出 latest + sha-xxxxxxx
 #   · 打 v1.0.0 这类 tag → 产出 v1.0.0（+ latest 若在默认分支）
 #   · 手动点按钮         → 同 main
+#
+# 推到哪：
+#   · ghcr.io/<owner>/<repo>        —— 始终推（用 GITHUB_TOKEN，无需额外配置）
+#   · docker.io/<user>/cc-ledger    —— 仅当仓库配了下面两个 secret 时才推：
+#         Settings → Secrets and variables → Actions → New repository secret
+#           DOCKERHUB_USERNAME = Docker Hub 用户名
+#           DOCKERHUB_TOKEN    = Docker Hub 的 Access Token（Read & Write）
+#     没配就自动跳过，不会报错。
 on:
   push:
     branches: [main]
@@ -20,12 +28,25 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      # 未配置时为空串 → 只推 ghcr，行为和以前完全一致
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
 
       # ghcr 的路径只接受小写：SheaYi/cc-ledger → shayi/cc-ledger
+      # Docker Hub 用户名同样要小写（大写会被 registry 拒）
       - name: 计算镜像名
-        run: echo "IMAGE_NAME=${REGISTRY}/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+        id: img
+        run: |
+          IMAGES="${REGISTRY}/${GITHUB_REPOSITORY,,}"
+          if [ -n "$DOCKERHUB_USERNAME" ]; then
+            IMAGES="${IMAGES},${DOCKERHUB_USERNAME,,}/cc-ledger"
+          fi
+          echo "images=${IMAGES}" >> "$GITHUB_OUTPUT"
+          echo "IMAGE_NAME=${IMAGES}" >> "$GITHUB_ENV"
+          echo "目标仓库：${IMAGES}"
 
       - name: 准备 Buildx
         uses: docker/setup-buildx-action@v3
@@ -37,11 +58,19 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: 登录 Docker Hub（配了 secret 才跑）
+        if: env.DOCKERHUB_USERNAME != ''
+        uses: docker/login-action@v3
+        with:
+          registry: docker.io
+          username: ${{ env.DOCKERHUB_USERNAME }}
+          password: ${{ env.DOCKERHUB_TOKEN }}
+
       - name: 生成镜像标签
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.IMAGE_NAME }}
+          images: ${{ steps.img.outputs.images }}
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
             type=ref,event=tag
@@ -69,3 +98,7 @@ jobs:
           echo '```' >> "$GITHUB_STEP_SUMMARY"
           echo '${{ steps.meta.outputs.tags }}' >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
+          if [ -z "$DOCKERHUB_USERNAME" ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "> 未配置 DOCKERHUB_USERNAME / DOCKERHUB_TOKEN，本次只推了 ghcr。" >> "$GITHUB_STEP_SUMMARY"
+          fi

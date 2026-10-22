@@ -308,6 +308,69 @@ GitHub → 你的头像 → Your profile → **Packages** → `cc-ledger` → �
 > 公开镜像里**没有你的任何数据**：`.dockerignore` 已排除 `.env`、`data/`、`node_modules/`。
 > 仓库源码本来就是公开的，镜像只是它编译后的产物。
 
+#### 5.0.1 同时推到 Docker Hub（可选）
+
+想让镜像同时出现在 Docker Hub（`docker.io/<用户名>/cc-ledger`），**不需要手动 push**：
+workflow 已经支持，配上两个 secret 就会自动双推。
+
+**第 1 步：在 Docker Hub 建 token**
+
+1. 登录 [hub.docker.com](https://hub.docker.com) → 右上头像 → **Account settings**
+2. **Security** → **New Access Token** → 描述随便写，权限选 **Read & Write** → 生成
+3. 复制那串 token（**只显示一次**，关掉就看不到了）
+
+**第 2 步：填到 GitHub 仓库里**
+
+仓库 → **Settings** → **Secrets and variables** → **Actions** → **New repository secret**：
+
+| Name | Value |
+|---|---|
+| `DOCKERHUB_USERNAME` | 你的 Docker Hub 用户名（**全小写写**，比如 `shayi`） |
+| `DOCKERHUB_TOKEN` | 上一步那串 token |
+
+**第 3 步：触发一次构建**
+
+改任何文件推一下 `main`，或 **Actions → 构建并推送 Docker 镜像 → Run workflow**。
+跑完后镜像会同时出现在两处：
+
+```
+ghcr.io/shayi/cc-ledger:latest
+docker.io/<你的用户名>/cc-ledger:latest
+```
+
+> 第一次 push 时 Docker Hub 会自动创建这个仓库（默认 Public）。
+> 想改成私有：hub.docker.com → 仓库 → Settings → Visibility。
+
+**第 4 步：NAS 上换成 Docker Hub 的地址**
+
+```bash
+sed -i '/^CC_IMAGE=/d' /volume1/docker/cc-ledger/.env
+echo 'CC_IMAGE=<你的用户名>/cc-ledger:latest' >> /volume1/docker/cc-ledger/.env
+cd /volume1/docker/cc-ledger && docker compose pull && docker compose up -d
+```
+
+> `docker.io/` 前缀可以省略，compose 默认就去 Hub 找。
+
+**⚠️ 必须先知道的两件事**
+
+1. **Docker Hub 在国内一样经常超时**，而且比 ghcr 更容易被限流
+   （匿名拉取 100 次/6 小时）。如果你现在卡的就是 `registry-1.docker.io ... context deadline exceeded`，
+   换到 Docker Hub **不会变好** —— 反而更慢。真正省事的是
+   **见 8.11 的「在有网的电脑上 `docker save` → 拷贝 → `docker load`」**。
+2. **镜像加速器一般只代理 `docker.io/library/*`**（也就是 `nginx`、`alpine` 这类官方镜像），
+   对 `<用户名>/cc-ledger` 这种个人仓库**多半不生效**。别指望配个加速器就能拉自己的镜像。
+
+**手动 push（不想走 Actions 时）**
+
+```bash
+# 在能上网的电脑上，先把镜像弄到本地
+docker pull ghcr.io/shayi/cc-ledger:latest
+docker login -u <用户名>              # 密码处粘 Access Token，不是登录密码
+docker tag ghcr.io/shayi/cc-ledger:latest <用户名>/cc-ledger:latest
+docker push <用户名>/cc-ledger:latest
+```
+
+
 ### 5.1 网页「Docker → 项目」创建
 
 **先说清一件事：网页界面里不需要你「创建 docker-compose.yaml 文件」**。

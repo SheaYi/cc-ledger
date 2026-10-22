@@ -174,6 +174,22 @@ if (envTpl) {
   }
 }
 
+/* 9. workflow 的「可选双推 Docker Hub」守卫：
+ *    配了 secret 才推 Hub，没配必须静默跳过（否则每次 Actions 都红） */
+const wfSrc = readFileSync('.github/workflows/docker-image.yml', 'utf8');
+if (wfSrc.includes('DOCKERHUB_USERNAME') && wfSrc.includes('docker.io')) {
+  check('workflow 支持可选推 Docker Hub', true);
+} else {
+  fail('workflow 支持可选推 Docker Hub', '缺少 DOCKERHUB_USERNAME 或 docker.io');
+}
+if (/if:\s*env\.DOCKERHUB_USERNAME\s*!=\s*''/.test(wfSrc)) {
+  check('未配 Docker Hub secret 时跳过登录', true);
+} else {
+  fail('未配 Docker Hub secret 时跳过登录', '缺少条件判断，未配置会构建失败');
+}
+if (doc.includes('DOCKERHUB_TOKEN')) check('文档写明 Docker Hub token 配置', true);
+else fail('文档写明 Docker Hub token 配置', '文档未提');
+
 const pass = results.filter((r) => r.ok).length;
 for (const r of results.filter((x) => !x.ok)) console.log('  ✗', r.name, '|', r.detail);
 console.log(`\n结果 ==== ${pass} / ${results.length}`);

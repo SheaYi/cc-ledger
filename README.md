@@ -96,6 +96,9 @@ docker compose up -d
 > **绿联 NAS 用「Docker → 项目」网页界面创建**：贴 [`docker-compose.nas.yml`](./docker-compose.nas.yml)
 > 全文（值全部写死、不依赖 `.env`，只需改 `JWT_SECRET` 与 `PUBLIC_BASE_URL` 两处）。
 > 根目录的 `docker-compose.yml` 依赖 `.env` 插值，在没有 `.env` 编辑区的界面里会报「必须设置 JWT_SECRET」。
+>
+> **想同时推到 Docker Hub**：仓库 Settings → Secrets → Actions 里加 `DOCKERHUB_USERNAME`
+> 和 `DOCKERHUB_TOKEN`，workflow 就会双推 `docker.io/<用户名>/cc-ledger`（详见部署文档 5.0.1）。
 
 ### 方式二：本地构建
 
