@@ -1,0 +1,91 @@
+# =====================================================================
+#  CC记账 · 「Docker → 项目」网页界面专用 compose
+#
+#  为什么单独一份：网页项目的 compose 编辑器不一定支持 .env 变量插值，
+#  根目录那份 docker-compose.yml 里用了 ${CC_IMAGE} / ${JWT_SECRET} /
+#  ${DATA_HOST_DIR}，在「没有 .env」的环境下会直接报错「必须设置 JWT_SECRET」。
+#  这一份把所有值都写死了，整段复制粘贴即可，不依赖任何 .env。
+#
+#  ⚠️ 部署前必须改两处（文件里已用 ★ 标出）：
+#     1) JWT_SECRET   —— 用 openssl rand -base64 48 生成
+#     2) PUBLIC_BASE_URL —— 改成 NAS 的实际访问地址
+#
+#  ⚠️ 改这个文件时请同步 docker-compose.yml（端口 / 镜像 / 数据目录 / 安全项
+#     必须一致，npm run audit:deploydoc 会校验）。
+#
+#  用法（网页界面）：
+#     Docker → 项目 → 新建 → 名称 cc-ledger → 路径 /volume1/docker/cc-ledger
+#     → 把本文件全部内容粘进 compose 编辑区 → 部署
+#     数据目录需先建好并 chown 1001:1001（见 DEPLOY-绿联NAS.md 3.1）
+# =====================================================================
+
+services:
+  cc-ledger:
+    # 用 GitHub Actions 构建好并推到 ghcr 的镜像，NAS 上不编译
+    image: ghcr.io/shayi/cc-ledger:latest
+    container_name: cc-ledger
+    restart: unless-stopped
+
+    ports:
+      - "3000:3000"
+
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      HOST: "0.0.0.0"
+      TZ: Asia/Shanghai
+
+      DATA_DIR: /data
+      DB_PATH: /data/cc-ledger.db
+      UPLOAD_DIR: /data/uploads
+      BACKUP_DIR: /data/backups
+
+      # ★ 必改：openssl rand -base64 48 的输出，不要用下面这串占位符
+      JWT_SECRET: "CHANGE_ME_48位随机串"
+      JWT_ACCESS_EXPIRES: "15m"
+      JWT_REFRESH_EXPIRES: "30d"
+      JWT_REFRESH_EXPIRES_MOBILE: "90d"
+
+      # ★ 必改：NAS 实际访问地址，否则生成的邀请链接指向 localhost
+      PUBLIC_BASE_URL: "http://192.168.1.10:3000"
+
+      RATE_LIMIT_LOGIN_MAX: "5"
+      RATE_LIMIT_REGISTER_MAX: "3"
+
+      LOG_LEVEL: "info"
+      ENABLE_SCHEDULER: "true"
+      BACKUP_ENABLED: "true"
+      BACKUP_RETENTION_DAYS: "14"
+
+    volumes:
+      # 数据落在 NAS 共享文件夹里（文件管理可见、备份套件可选中）。
+      # 容器以 uid 1001 运行 → 宿主目录必须 chown 1001:1001，否则 SQLITE_CANTOPEN。
+      - /volume1/docker/cc-ledger/data:/data
+
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
+        reservations:
+          memory: 128M
+
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+    stop_grace_period: 30s

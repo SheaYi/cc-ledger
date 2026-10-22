@@ -97,6 +97,60 @@ if (/RATE_LIMIT_LOGIN_MAX,\s*timeWindow:\s*'1 minute'/.test(authTs)) {
   check('登录限流窗口（代码结构变化，跳过断言）', true);
 }
 
+/* 7. 网页项目版 compose（docker-compose.nas.yml）与主配置不漂移
+ *    这份文件给「Docker → 项目」界面用，值全部写死、不能含 ${} 插值，
+ *    否则没有 .env 的环境会直接起不来。 */
+const nasPath = 'docker-compose.nas.yml';
+let nas = '';
+try {
+  nas = readFileSync(nasPath, 'utf8');
+  check('存在网页项目版 compose', true);
+} catch {
+  fail('存在网页项目版 compose', `${nasPath} 缺失（网页「Docker → 项目」要用）`);
+}
+if (nas) {
+  /* 注释里可以出现 ${...}（讲解用），只校验真正的 YAML 内容 */
+  const nasBody = nas.split(/\r?\n/).filter((l) => !l.trim().startsWith('#')).join('\n');
+  if (/\$\{/.test(nasBody)) fail('网页项目版 compose 不含 ${} 插值', '发现 ${…}，无 .env 时会启动失败');
+  else check('网页项目版 compose 不含 ${} 插值', true);
+
+  for (const [name, re] of [
+    ['镜像', /image:\s*ghcr\.io\/shayi\/cc-ledger:latest/],
+    ['端口', /ports:\s*\n\s*-\s*["']?3000:3000["']?/],
+    ['容器名', /container_name:\s*cc-ledger/],
+    ['数据目录', /-\s*\/volume1\/docker\/cc-ledger\/data:\/data/],
+    ['开机自启', /restart:\s*unless-stopped/],
+    ['健康检查', /healthcheck:/],
+    ['非 root 加固', /cap_drop:\s*\n\s*-\s*ALL/],
+  ]) {
+    if (re.test(nas)) check(`网页项目版 compose ${name}与主配置一致`, true);
+    else fail(`网页项目版 compose ${name}与主配置一致`, '与 docker-compose.yml 不一致或缺失');
+  }
+  /* 镜像地址必须和 workflow 推的地址同构：ghcr.io/<owner>/<repo>:<tag>
+   * workflow 用 ${GITHUB_REPOSITORY,,} 转小写，所以这里只校验「小写 + 仓库名与
+   * package.json 的 name 一致 + 标签是 latest」，不硬编码 owner。
+   * 主配置允许默认走本地构建（cc-ledger:1.0.0），但必须能被 CC_IMAGE 覆盖。 */
+  const pkgName = JSON.parse(readFileSync('package.json', 'utf8')).name;
+  const wf = readFileSync('.github/workflows/docker-image.yml', 'utf8');
+  if (!/GITHUB_REPOSITORY,,\}/.test(wf)) fail('workflow 镜像名转小写', 'ghcr 路径只接受小写，需 ${GITHUB_REPOSITORY,,}');
+  else check('workflow 镜像名转小写', true);
+
+  if (/\$\{CC_IMAGE:-/.test(compose)) check('docker-compose.yml 可被 CC_IMAGE 覆盖镜像', true);
+  else fail('docker-compose.yml 可被 CC_IMAGE 覆盖镜像', '缺少 ${CC_IMAGE:-…}');
+
+  const nasImg = (nas.match(/image:\s*(ghcr\.io\/[^\s]+)/) || [])[1] || '';
+  if (nasImg && nasImg === nasImg.toLowerCase() && nasImg.endsWith(`/${pkgName}:latest`)) {
+    check('docker-compose.nas.yml 镜像地址与 workflow 同构', true, nasImg);
+  } else {
+    fail('docker-compose.nas.yml 镜像地址与 workflow 同构', nasImg || '未找到 image');
+  }
+  /* 文档里出现的 ghcr 地址也必须是同一路径（写成 SheaYi 大写会被 registry 拒） */
+  const docImages = [...doc.matchAll(/ghcr\.io\/[A-Za-z0-9_.\-/]+/g)].map((m) => m[0]);
+  const badImg = docImages.find((s) => s !== s.toLowerCase() || !s.includes(`/${pkgName}`));
+  if (badImg) fail('文档里的 ghcr 地址合法', badImg);
+  else check(`文档里 ${docImages.length} 处 ghcr 地址全小写且仓库名正确`, true);
+}
+
 const pass = results.filter((r) => r.ok).length;
 for (const r of results.filter((x) => !x.ok)) console.log('  ✗', r.name, '|', r.detail);
 console.log(`\n结果 ==== ${pass} / ${results.length}`);

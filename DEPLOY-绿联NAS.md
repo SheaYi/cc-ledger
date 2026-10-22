@@ -50,7 +50,8 @@
 ```
 cc-ledger/
 ├── Dockerfile            ← 必需
-├── docker-compose.yml    ← 必需
+├── docker-compose.yml    ← 必需（SSH 部署用，靠 .env 填变量）
+├── docker-compose.nas.yml ← 可选（网页「Docker → 项目」粘贴用，值写死）
 ├── package.json          ← 必需
 ├── package-lock.json     ← 必需（Dockerfile 用 npm ci，缺了会失败）
 ├── tsconfig.json         ← 必需（npm run build 要用）
@@ -248,7 +249,7 @@ cat .env
 |---|---|---|
 | **拉镜像（最省事，推荐）** | `docker compose pull && docker compose up -d` | NAS 上不编译，30 秒起好；镜像由 GitHub 自动构建 |
 | **A. 本地构建** | `docker compose up -d --build` | 改了代码要立刻在 NAS 上生效 |
-| **B. 网页界面「Docker → 项目」** | 新建项目，项目目录选 `docker/cc-ledger`，把 `docker-compose.yml` 内容贴进去，环境变量在界面里填 | 不想开 SSH；但构建失败时看不到完整日志 |
+| **B. 网页界面「Docker → 项目」** | 新建项目，路径填 `docker/cc-ledger`，**粘贴 `docker-compose.nas.yml` 全文**（不是根目录那份） | 不想开 SSH；界面无 `.env` 也能跑，详见 5.1 |
 
 > ⚠️ **不管走哪条路线，第 3.1 步的 `mkdir data` + `chown 1001:1001` 都必须先做**（需要 SSH 一次）。
 > 界面里创建的空目录属主是 root，容器写不进去 —— 这是唯一绕不过 SSH 的一步。
@@ -307,7 +308,71 @@ GitHub → 你的头像 → Your profile → **Packages** → `cc-ledger` → �
 > 公开镜像里**没有你的任何数据**：`.dockerignore` 已排除 `.env`、`data/`、`node_modules/`。
 > 仓库源码本来就是公开的，镜像只是它编译后的产物。
 
-### 5.1 首次构建并启动
+### 5.1 网页「Docker → 项目」创建（不碰 .env）
+
+**先说清一件事：网页界面里不需要你「创建 docker-compose.yaml 文件」**。
+「项目」是把 compose **内容**贴进编辑框，Docker 自己在项目目录下生成 `docker-compose.yml`。
+只有走 SSH 时你才需要真的有一个文件 —— 那种情况下 `.yml` / `.yaml` 后缀都认。
+
+**为什么另给一份文件**：仓库根目录的 `docker-compose.yml` 用了
+`${JWT_SECRET}` / `${CC_IMAGE}` / `${DATA_HOST_DIR}` 这些变量，靠同目录的 `.env` 补齐。
+如果网页项目没有 `.env`，compose 会直接报 `必须设置 JWT_SECRET` 而不启动。
+所以网页界面请贴 **`docker-compose.nas.yml`**（所有值写死，不依赖任何 `.env`）。
+
+**第 1 步：建数据目录并交属主**（只有这步必须 SSH，做一次）
+
+```bash
+sudo mkdir -p /volume1/docker/cc-ledger/data
+sudo chown -R 1001:1001 /volume1/docker/cc-ledger/data
+ls -ld /volume1/docker/cc-ledger/data      # 期望：drwxr-xr-x 2 1001 1001
+```
+
+**第 2 步：生成密钥**
+
+```bash
+openssl rand -base64 48
+```
+
+**第 3 步：新建项目**
+
+Docker → **项目** → **新建**（有的版本叫「创建项目」）：
+
+| 字段 | 填什么 |
+|---|---|
+| 名称 / 项目名 | `cc-ledger` |
+| 路径 / 工作目录 | `/volume1/docker/cc-ledger` |
+| Compose 内容 | 粘贴 `docker-compose.nas.yml` 全文 |
+
+**第 4 步：粘贴前改两处**（文件里已用 `★` 标出，漏改会出问题）
+
+```yaml
+JWT_SECRET: "CHANGE_ME_48位随机串"          # ← 换成第 2 步的输出
+PUBLIC_BASE_URL: "http://192.168.1.10:3000"  # ← 换成 NAS 的真实 IP:端口
+```
+
+> `JWT_SECRET` 漏改也能启动，但所有登录态都用占位符签名 —— 等于谁都能伪造 token。
+> 已经启动过才发现改错：改完重新「部署」一次即可，账目数据不受影响（数据在 `/data`）。
+
+**第 5 步：部署**，等界面显示 `运行中 / running`（首次拉镜像 1–3 分钟）。
+
+**关于 `.env` 的三种情况**
+
+| 新建项目页面看到什么 | 用哪份 | 说明 |
+|---|---|---|
+| 有 `.env` 编辑区 / 「环境变量文件」 | 根目录 `docker-compose.yml` | 把 `.env.example` 内容填进去（改 `JWT_SECRET`、`PUBLIC_BASE_URL`、`CC_IMAGE`、`DATA_HOST_DIR`） |
+| 只有一个「环境变量」键值输入框 | **`docker-compose.nas.yml`** | 那个输入框写的是**容器**的 environment，**不会**替换 compose 里 `${...}` 占位符，不能靠它填 `JWT_SECRET` |
+| 什么都没有，只有一个 YAML 编辑框 | **`docker-compose.nas.yml`** | 值全部写死，最省事 |
+
+**两种撞车情况**
+
+- 之前用 SSH 起过同名容器（`container_name: cc-ledger`）→ 网页项目部署会报端口占用。
+  先在 SSH 里 `cd /volume1/docker/cc-ledger && docker compose down`，再回网页部署。
+- 网页项目的 compose 里**不要同时留 `build:` 和 `image:`**。`docker-compose.nas.yml` 只留了
+  `image:`，所以永远不会在 NAS 上编译；想改用本地构建就用根目录那份 + SSH。
+
+### 5.2 首次构建并启动（SSH，本地编译，兜底用）
+
+> 只有在「拉不到 ghcr 镜像」或「想改源码再跑」时才需要这一步，正常部署走 5.0 / 5.1 即可。
 
 **必须用 SSH 执行**（绿联网页界面的项目编辑器对 `build` 场景支持有限）：
 
@@ -326,7 +391,7 @@ docker compose up -d --build
 >
 > **这一步会花 5–15 分钟**（要在 NAS 上下载依赖并编译），属于正常，请耐心等待。
 
-### 5.2 看启动日志
+### 5.3 看启动日志
 
 ```bash
 docker compose logs -f --tail=100
@@ -336,9 +401,9 @@ docker compose logs -f --tail=100
 > 看到 `CC记账 已启动` 或类似字样就是成功了。
 > **按 `Ctrl + C` 退出日志查看**（容器不会因此停止）。
 
-### 5.3 开机自启
+### 5.4 开机自启
 
-**已经自动生效了。** `docker compose.yml` 里这行就是开机自启：
+**已经自动生效了。** `docker-compose.yml` 里这行就是开机自启：
 
 ```yaml
 restart: unless-stopped
@@ -361,11 +426,14 @@ docker inspect -f '{{.HostConfig.RestartPolicy.Name}}' cc-ledger
 
 > 输出 `unless-stopped` 就对了。
 
-### 5.4 绿联网页界面管理（日常更常用）
+### 5.5 绿联网页界面管理（日常更常用）
 
 SSH 不方便时，用网页界面点：
 
 `Docker` 应用 → **容器** → 找到 `cc-ledger` → 右侧按钮可 **启动 / 停止 / 重启 / 查看日志 / 删除**
+
+**改配置 / 升级镜像**：`Docker` → **项目** → 点项目名 → **编辑** → 改 compose 内容或点 **拉取/重新部署**。
+改完重新部署时，容器会按新配置重建，`/data` 里的数据不动。
 
 > ⚠️ **可以用界面删容器，数据不会跟着走**：数据在共享文件夹的 `data` 目录里，
 > 容器只是个壳，删了重建、重新 `up` 起来数据原样在。

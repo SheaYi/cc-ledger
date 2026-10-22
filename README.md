@@ -92,6 +92,10 @@ docker compose up -d
 镜像私有，需先 `docker login ghcr.io -u SheaYi`（token 勾 `read:packages`），
 或在 GitHub → Packages → Package settings 里把可见性改成 Public。
 
+> **绿联 NAS 用「Docker → 项目」网页界面创建**：贴 [`docker-compose.nas.yml`](./docker-compose.nas.yml)
+> 全文（值全部写死、不依赖 `.env`，只需改 `JWT_SECRET` 与 `PUBLIC_BASE_URL` 两处）。
+> 根目录的 `docker-compose.yml` 依赖 `.env` 插值，在没有 `.env` 编辑区的界面里会报「必须设置 JWT_SECRET」。
+
 ### 方式二：本地构建
 
 ```bash
