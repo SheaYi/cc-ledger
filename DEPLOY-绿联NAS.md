@@ -370,6 +370,8 @@ chmod 600 .env
 > - **不要给值加引号**：`.env` 里 `JWT_SECRET="abc"` 会把引号一起当成密钥的一部分。
 > - `chmod 600` 是防止同机其他账号读到密钥；compose 是 docker 守护进程（root）读的，不影响。
 > - 也可以用「文件管理」建这个文件，但注意别让编辑器存成 `.env.txt`（Windows 记事本的老毛病）。
+> - **别从 Windows 直接拷这个文件过去**（可能带 CRLF 甚至 UTF-8 BOM）。真拷了就修一下：
+>   `sed -i 's/\r$//; 1s/^\xEF\xBB\xBF//' .env`，然后 `head -1 .env | od -c | head -2` 确认行首没有乱码。
 > - 这个文件已在 `.gitignore` 里，不会被推上 GitHub。
 
 **第 4 步：新建项目**
