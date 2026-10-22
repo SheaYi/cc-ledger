@@ -78,6 +78,22 @@ Base URL：`/api/v1`；除公开接口外均需 `Authorization: Bearer <access_t
 
 ## Docker 部署
 
+### 方式一：直接拉镜像（推荐，主机上无需编译）
+
+每次推送到 `main`，GitHub Actions 会自动构建并推送镜像到 ghcr：
+
+```bash
+echo 'CC_IMAGE=ghcr.io/shayi/cc-ledger:latest' >> .env   # 用现成镜像
+docker compose pull
+docker compose up -d
+```
+
+升级：`docker compose pull && docker compose up -d`（数据在 `data/`，不受影响）。
+镜像私有，需先 `docker login ghcr.io -u SheaYi`（token 勾 `read:packages`），
+或在 GitHub → Packages → Package settings 里把可见性改成 Public。
+
+### 方式二：本地构建
+
 ```bash
 cp .env.example .env      # 填 JWT_SECRET 与 PUBLIC_BASE_URL
 docker compose up -d --build

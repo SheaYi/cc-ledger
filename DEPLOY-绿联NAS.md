@@ -215,7 +215,7 @@ cat .env
 | 配置项 | 作用 | 能不能改 |
 |---|---|---|
 | `build: context: .` | 用当前目录的 `Dockerfile` 构建镜像 | 别改 |
-| `image: cc-ledger:1.0.0` | 镜像在本机的名字 | 可改（升级换版本号时用） |
+| `image: ${CC_IMAGE:-cc-ledger:1.0.0}` | 用哪个镜像：不设 `CC_IMAGE` 就用本地构建的这个名字；设成 `ghcr.io/shayi/cc-ledger:latest` 就是拉 GitHub 构建好的 | 可改（见 5.0） |
 | `restart: unless-stopped` | **开机自启的核心**：容器退出就自动拉起；你手动停的则不再拉 | 见第五节 |
 | `ports: "3000:3000"` | **端口映射**，见第六节 | 端口冲突时只改左边 |
 | `JWT_SECRET` | 登录凭证密钥 | **必改**，其余可不动 |
@@ -242,15 +242,70 @@ cat .env
 
 ## 五、启动与开机自启
 
-**两条路线，结果一样**：
+**三条路线，结果一样**：
 
 | 路线 | 怎么做 | 适合谁 |
 |---|---|---|
-| **A. SSH 敲命令**（本文主推） | `docker compose up -d --build` | 想一次跑通、后续好排障 |
+| **拉镜像（最省事，推荐）** | `docker compose pull && docker compose up -d` | NAS 上不编译，30 秒起好；镜像由 GitHub 自动构建 |
+| **A. 本地构建** | `docker compose up -d --build` | 改了代码要立刻在 NAS 上生效 |
 | **B. 网页界面「Docker → 项目」** | 新建项目，项目目录选 `docker/cc-ledger`，把 `docker-compose.yml` 内容贴进去，环境变量在界面里填 | 不想开 SSH；但构建失败时看不到完整日志 |
 
 > ⚠️ **不管走哪条路线，第 3.1 步的 `mkdir data` + `chown 1001:1001` 都必须先做**（需要 SSH 一次）。
 > 界面里创建的空目录属主是 root，容器写不进去 —— 这是唯一绕不过 SSH 的一步。
+
+### 5.0 直接拉镜像（推荐：NAS 上不编译）
+
+镜像由 **GitHub Actions 自动构建**：每次推送到 `main`，仓库里的
+`.github/workflows/docker-image.yml` 就会编译一次，产物推到 GitHub 的镜像仓库（ghcr）。
+
+> **为什么推荐**：Pentium Gold 8505 上编译 `better-sqlite3` 要 5–15 分钟、吃掉 1GB 内存；
+> 拉现成镜像只要几十秒，升级也只是换一个镜像层。
+
+**第 1 步：把镜像地址写进 `.env`**（在 NAS 上）
+
+```bash
+cd /volume1/docker/cc-ledger
+echo 'CC_IMAGE=ghcr.io/shayi/cc-ledger:latest' >> .env
+```
+
+> `CC_IMAGE` 不是应用的环境变量，只被 `docker-compose.yml` 读取，用来决定「用哪个镜像」。
+> 不写这一行 = 走本地构建（默认 `cc-ledger:1.0.0`）。
+
+**第 2 步：登录 ghcr**（镜像设为 public 后可以跳过这步）
+
+```bash
+# 先建一个只读 token：GitHub → Settings → Developer settings →
+#   Personal access tokens → Tokens (classic) → 勾 read:packages
+echo '<粘贴那个 token>' | docker login ghcr.io -u SheaYi --password-stdin
+```
+
+**第 3 步：拉取并启动**
+
+```bash
+docker compose pull
+docker compose up -d
+```
+
+> **以后升级**就重复第 3 步：`docker compose pull && docker compose up -d`。
+> 数据在 `data/` 里，换镜像不动数据。
+
+**镜像地址怎么确认**：GitHub 仓库 → **Actions** → 左侧「构建并推送 Docker 镜像」→ 点最新的运行 →
+页面底部 Summary 里就写着本次的完整镜像地址；也可以在仓库首页右下角 **Packages** 里看到。
+
+可用标签：
+
+| 标签 | 什么时候有 | 用途 |
+|---|---|---|
+| `latest` | 每次推 `main` | 日常用这个 |
+| `sha-626e08c` | 每次构建 | 想钉死到某一次提交 |
+| `v1.0.0` | 打了 `v*` tag | 固定版本 |
+
+**想把镜像设为 public（这样任何机器不用登录就能拉）**：
+GitHub → 你的头像 → Your profile → **Packages** → `cc-ledger` → 右侧 **Package settings** →
+底部 **Danger Zone** → **Change visibility** → Public。
+
+> 公开镜像里**没有你的任何数据**：`.dockerignore` 已排除 `.env`、`data/`、`node_modules/`。
+> 仓库源码本来就是公开的，镜像只是它编译后的产物。
 
 ### 5.1 首次构建并启动
 
