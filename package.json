@@ -1,6 +1,6 @@
 {
   "name": "cc-ledger",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "description": "CC记账 — Docker 化的多人协作记账系统",
   "type": "module",

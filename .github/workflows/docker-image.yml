@@ -2,7 +2,7 @@ name: 构建并推送 Docker 镜像
 
 # 什么时候跑：
 #   · 推送到 main        → 产出 latest + sha-xxxxxxx
-#   · 打 v1.0.0 这类 tag → 产出 v1.0.0（+ latest 若在默认分支）
+#   · 打 v1.1.0 这类 tag → 产出 v1.1.0（+ latest 若在默认分支）
 #   · 手动点按钮         → 同 main
 #
 # 推到哪：
