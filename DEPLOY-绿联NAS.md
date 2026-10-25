@@ -1142,10 +1142,15 @@ curl -sS "https://ghcr.io/token?scope=repository%3Asheayi%2Fcc-ledger%3Apull&ser
 
 在浏览器里做，30 秒完成：
 
-1. 打开 `https://github.com/users/SheaYi/packages/container/cc-ledger/settings`
-   （找不到就：GitHub 右上角头像 → **Your packages** → 点 `cc-ledger` → 右侧 **Package settings**）
+1. 打开 `https://github.com/users/SheaYi/packages`（这是**包**列表，不是仓库）
+   → 点 `cc-ledger` → 右侧 **Package settings**
+   （直达：`https://github.com/users/SheaYi/packages/container/cc-ledger/settings`）
 2. 拉到最下面 **Danger Zone** → **Change visibility** → 选 **Public**
 3. 按提示输入包名 `cc-ledger` 确认
+
+> ⚠️ **最常见的走错路**：进了仓库的 `Settings → Danger Zone → Change repository visibility`。
+> 那是**源码仓库**的可见性，跟镜像包**完全两回事**（仓库本来就是 public，改了等于没改）。
+> 必须是从头像菜单进的 **Your packages**，地址里带 `/packages/` 才对。
 
 改完回 NAS 重拉：
 
