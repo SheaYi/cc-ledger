@@ -184,6 +184,8 @@ export async function renderTransactions(container, { go, query }) {
   let loadSeq = 0;
   let morePending = false;
   let openFilter = null;
+  /** 手机端「更多」折叠区是否展开（桌面端恒常显，这个值不参与桌面渲染） */
+  let moreOpen = false;
 
   const selected = new Set();
   let selectionMode = false;
@@ -237,22 +239,44 @@ export async function renderTransactions(container, { go, query }) {
           </div>
         </div>
 
-        <div class="tx-filters">
+        <!--
+          筛选区两行结构（手机端的核心改动）：
+
+          第一行 = 常驻：搜索框 + 「更多」+ 清除筛选。
+          搜索是**唯一值得常驻**的筛选 —— 它有输入态，收起来就再也看不出
+          「我现在是不是搜着某个词」，而这正是手机上最容易忘的一件事。
+
+          第二行 = 折叠：7 个筛选 pill。
+          它们只在「我要改条件」那一刻才有用，平时是 7 颗永远占两行的按钮。
+          .tx-filters__pills 在桌面用 display:contents 参与父级 flex 排布
+          （与改造前逐字节一致），只有手机端才变成独立的一行。
+        -->
+        <div class="tx-filters" data-role="filters" data-more="off">
           <div class="tx-filters__row" data-role="filter-row">
-            <button class="tx-pill" type="button" data-f="types" aria-expanded="false">类型</button>
-            <button class="tx-pill" type="button" data-f="accountId" aria-expanded="false">账户</button>
-            <button class="tx-pill" type="button" data-f="categoryId" aria-expanded="false">分类</button>
-            <button class="tx-pill" type="button" data-f="tags" aria-expanded="false">标签</button>
-            <button class="tx-pill" type="button" data-f="date" aria-expanded="false">日期</button>
-            <button class="tx-pill" type="button" data-f="extras" aria-expanded="false">附加</button>
-            <button class="tx-pill" type="button" data-f="sort" aria-expanded="false">排序</button>
             <label class="tx-search">
               <span class="visually-hidden">搜索账单</span>
               ${icon('search', 16)}
               <input class="tx-search__input" type="search" data-role="keyword"
                      placeholder="搜索名称 / 商家 / 对象 / 备注" autocomplete="off" />
             </label>
+            <button class="tx-more" type="button" data-role="more"
+                    aria-expanded="false" aria-controls="tx-filter-pills">更多</button>
             <button class="btn btn--quiet btn--sm" type="button" data-role="clear" hidden>清除筛选</button>
+            <div class="tx-filters__pills" id="tx-filter-pills" data-role="pill-row">
+              <button class="tx-pill" type="button" data-f="types" aria-expanded="false">类型</button>
+              <button class="tx-pill" type="button" data-f="accountId" aria-expanded="false">账户</button>
+              <button class="tx-pill" type="button" data-f="categoryId" aria-expanded="false">分类</button>
+              <button class="tx-pill" type="button" data-f="tags" aria-expanded="false">标签</button>
+              <button class="tx-pill" type="button" data-f="date" aria-expanded="false">日期</button>
+              <button class="tx-pill" type="button" data-f="extras" aria-expanded="false">附加</button>
+              <button class="tx-pill" type="button" data-f="sort" aria-expanded="false">排序</button>
+              <!--
+                展开态的收起入口。为什么不能只靠「再点一次更多」：
+                「更多」在顶部，展开后 7 颗 pill 铺满整屏，用户滑到底部时
+                已经看不见它了 —— 收起必须出现在用户**停下来的地方**。
+              -->
+              <button class="tx-pill tx-pill--quiet" type="button" data-role="collapse">收起</button>
+            </div>
           </div>
           <div class="tx-panel" data-role="panel" hidden></div>
         </div>
@@ -550,15 +574,28 @@ export async function renderTransactions(container, { go, query }) {
     $('[data-role=clear]').hidden = count === 0;
     $('[data-role=clear]').textContent = count ? `清除筛选（${count}）` : '清除筛选';
 
-    $('[data-role=filter-row]')
+    $('[data-role=pill-row]')
       .querySelectorAll('.tx-pill')
       .forEach((btn) => {
         const key = btn.dataset.f;
+        if (!key) return; // 末尾那颗「收起」不是筛选 pill
         const { label, on } = pillState(key);
         btn.textContent = label;
         btn.classList.toggle('is-on', on);
         btn.setAttribute('aria-expanded', String(openFilter === key));
       });
+
+    /* 「更多」上的角标：折叠着的时候，用户唯一能知道「还筛着东西」的地方。
+       没有它，折叠 = 把生效中的筛选藏起来，列表怎么短的说不清。 */
+    const more = $('[data-role=more]');
+    if (more) {
+      /* 角标只数**折叠区里的**条件：搜索框是常驻的，已经自己显示着词，
+         再计进来会让角标虚高（看着筛了 2 项，其实只有 1 项藏在里面）。 */
+      const extra = activeFilterCount() - (filters.keyword.trim() ? 1 : 0);
+      more.textContent = extra ? `更多 · ${extra}` : '更多';
+      more.setAttribute('aria-expanded', String(moreOpen));
+      more.classList.toggle('is-on', extra > 0);
+    }
 
     const kw = $('[data-role=keyword]');
     if (kw.value !== filters.keyword) kw.value = filters.keyword;
@@ -566,11 +603,36 @@ export async function renderTransactions(container, { go, query }) {
 
   /* ---------------- 筛选面板 ---------------- */
 
-  $('[data-role=filter-row]')
+  /**
+   * 「更多 / 收起」—— 手机端把 7 颗筛选 pill 收进折叠区。
+   *
+   * 状态只写在 `.tx-filters[data-more]` 上，**显隐交给 CSS**：
+   * 折叠区在桌面端是常显的（`display: contents` 时这个属性被忽略），
+   * 同一个 class 在两种形态下语义不同才是对的 —— 桌面没有「更多」按钮，
+   * 也就永远不会走到这里。
+   *
+   * 收起时必须把当前打开的面板一起关掉：面板是 pill 的下级，
+   * pill 都收起来了，面板留在原地就成了「没有来源的一块浮层」。
+   */
+  function setMore(open) {
+    moreOpen = open;
+    $('[data-role=filters]').dataset.more = open ? 'on' : 'off';
+    if (!open && openFilter) {
+      openFilter = null;
+      paintPanel();
+    }
+    paintFilters();
+  }
+
+  $('[data-role=more]').addEventListener('click', () => setMore(!moreOpen));
+  $('[data-role=collapse]').addEventListener('click', () => setMore(false));
+
+  $('[data-role=pill-row]')
     .querySelectorAll('.tx-pill')
     .forEach((btn) =>
       btn.addEventListener('click', () => {
         const key = btn.dataset.f;
+        if (!key) return; // 末尾那颗「收起」不是筛选 pill
         openFilter = openFilter === key ? null : key;
         paintPanel();
         paintFilters();

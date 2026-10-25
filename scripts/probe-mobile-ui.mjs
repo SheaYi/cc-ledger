@@ -166,6 +166,29 @@ else
     `${gap.gap}px`,
   );
 
+/* =============== 3b. 记账页：日期框不许顶出字段 =============== */
+const dt = JSON.parse(
+  await ev(`(() => {
+  const d = document.querySelector('#tx-date');
+  const f = d && d.closest('.field');
+  if (!d || !f) return 'null';
+  const db = d.getBoundingClientRect();
+  const fb = f.getBoundingClientRect();
+  return JSON.stringify({
+    escapes: Math.round(db.right - fb.right),
+    w: Math.round(db.width),
+    fw: Math.round(fb.width),
+  });
+})()`),
+);
+if (dt === 'null') check('日期框存在', false);
+else
+  check(
+    '日期框不顶出字段（右缘差值 ≤ 0）',
+    dt.escapes <= 0,
+    `右缘差 ${dt.escapes}px · 框宽 ${dt.w} / 字段宽 ${dt.fw}`,
+  );
+
 /* ================= 4. 账单页：三统计同行 ================= */
 console.log('\n── 账单页 ──');
 await go('/transactions', '.tx-sum');
@@ -188,6 +211,137 @@ else {
   check('三列等宽（差值 ≤ 1px）', Math.max(...sum.ws) - Math.min(...sum.ws) <= 1, sum.ws.join('/'));
 }
 console.log('  →', await shot('transactions', { dir: OUT }));
+
+/* ================= 5. 账户页：只留账户组 + 列表 ================= */
+console.log('\n── 账户页精简 ──');
+await go('/accounts', '.page__hero');
+await wait(900);
+const acct = JSON.parse(
+  await ev(`(() => {
+  const vis = (el) => !!el && !!el.offsetParent;
+  const add = document.querySelector('.acct-add');
+  const addBtn = add && add.querySelector('[data-action=new-account]');
+  return JSON.stringify({
+    hero: vis(document.querySelector('.page__hero [data-role=page-actions]')),
+    meta: vis(document.querySelector('[data-role=list-meta]')),
+    add: vis(add),
+    addH: addBtn ? Math.round(addBtn.getBoundingClientRect().height) : 0,
+    groupLink: !!add && !!add.querySelector('[data-action=new-group]'),
+    groups: document.querySelectorAll('.acct-group').length,
+    rows: document.querySelectorAll('.acct-row').length,
+  });
+})()`),
+);
+check('账户页：页头动作组不显示', acct.hero === false);
+check('账户页：计数 / 显示已停用 不显示', acct.meta === false);
+check('账户页：账户组与账户列表仍在', acct.groups >= 1 && acct.rows >= 1, `${acct.groups} 组 / ${acct.rows} 个账户`);
+check('账户页：列表末尾有新建入口', acct.add === true);
+check('账户页：新建入口触控 ≥44px', acct.addH >= 44, `${acct.addH}px`);
+check('账户页：新建分组入口仍在（功能没被精简掉）', acct.groupLink === true);
+console.log('  →', await shot('accounts', { dir: OUT }));
+
+/* ================= 6. 账单页：搜索常驻 + 更多折叠 ================= */
+console.log('\n── 账单页折叠 ──');
+await go('/transactions', '.tx-sum');
+await wait(900);
+const tx1 = JSON.parse(
+  await ev(`(() => {
+  const vis = (el) => !!el && !!el.offsetParent;
+  const more = document.querySelector('[data-role=more]');
+  const pills = document.querySelector('[data-role=pill-row]');
+  const mb = more && more.getBoundingClientRect();
+  const sb = document.querySelector('.tx-search').getBoundingClientRect();
+  return JSON.stringify({
+    search: vis(document.querySelector('.tx-search')),
+    more: vis(more),
+    moreH: mb ? Math.round(mb.height) : 0,
+    moreAfterSearch: mb ? mb.left >= sb.right - 1 : false,
+    pills: vis(pills),
+    pillCount: pills ? pills.querySelectorAll('[data-f]').length : 0,
+  });
+})()`),
+);
+check('账单页：搜索框常驻显示', tx1.search === true);
+check('账单页：「更多」在搜索框之后', tx1.more === true && tx1.moreAfterSearch === true);
+check('账单页：筛选 pill 默认收起', tx1.pills === false);
+check('账单页：7 个筛选都在折叠区里', tx1.pillCount === 7, `${tx1.pillCount} 个`);
+check('账单页：「更多」触控 ≥44px', tx1.moreH >= 44, `${tx1.moreH}px`);
+
+await ev(`document.querySelector('[data-role=more]').click()`);
+await wait(400);
+const tx2 = JSON.parse(
+  await ev(`(() => {
+  const vis = (el) => !!el && !!el.offsetParent;
+  return JSON.stringify({
+    pills: vis(document.querySelector('[data-role=pill-row]')),
+    collapse: vis(document.querySelector('[data-role=collapse]')),
+    expanded: document.querySelector('[data-role=more]').getAttribute('aria-expanded'),
+  });
+})()`),
+);
+check('账单页：点「更多」展开筛选区', tx2.pills === true);
+check('账单页：展开态有收起入口', tx2.collapse === true);
+check('账单页：aria-expanded 同步为 true', tx2.expanded === 'true');
+
+await ev(`document.querySelector('[data-role=collapse]').click()`);
+await wait(400);
+const tx3 = await ev(
+  `(() => { const vis = (el) => !!el && !!el.offsetParent; return String(!vis(document.querySelector('[data-role=pill-row]')) && !vis(document.querySelector('[data-role=panel]'))); })()`,
+);
+check('账单页：点「收起」后折叠，面板一并关掉', tx3 === 'true');
+
+/* ================= 7. 统计页：页头动作移除 + 更多折叠 ================= */
+console.log('\n── 统计页精简 ──');
+await go('/stats', '.st-filter__card');
+await wait(1200);
+const st1 = JSON.parse(
+  await ev(`(() => {
+  const vis = (el) => !!el && !!el.offsetParent;
+  const more = document.querySelector('[data-role=more]');
+  const zone = document.querySelector('[data-role=more-zone]');
+  const seg = document.querySelector('.st-filter__seg');
+  const mb = more && more.getBoundingClientRect();
+  const gb = seg && seg.getBoundingClientRect();
+  return JSON.stringify({
+    hero: vis(document.querySelector('.page__hero [data-role=report-actions]')),
+    more: vis(more),
+    moreH: mb ? Math.round(mb.height) : 0,
+    moreAfterSeg: mb && gb ? mb.left >= gb.right - 1 : false,
+    zone: vis(zone),
+    picks: zone ? zone.querySelectorAll('.st-filter__pick').length : 0,
+    kw: zone ? !!zone.querySelector('#st-f-kw') : false,
+  });
+})()`),
+);
+check('统计页：导出报表 / 导入账目 整行不显示', st1.hero === false);
+check('统计页：「更多」紧跟在账期段（自定义）之后', st1.more === true && st1.moreAfterSeg === true);
+check('统计页：筛选区默认收起', st1.zone === false);
+check('统计页：三个下拉 + 搜索框都在折叠区里', st1.picks === 3 && st1.kw === true, `${st1.picks} 个下拉`);
+check('统计页：「更多」触控 ≥44px', st1.moreH >= 44, `${st1.moreH}px`);
+
+await ev(`document.querySelector('[data-role=more]').click()`);
+await wait(400);
+const st2 = JSON.parse(
+  await ev(`(() => {
+  const vis = (el) => !!el && !!el.offsetParent;
+  return JSON.stringify({
+    zone: vis(document.querySelector('[data-role=more-zone]')),
+    collapse: vis(document.querySelector('[data-role=collapse]')),
+    expanded: document.querySelector('[data-role=more]').getAttribute('aria-expanded'),
+  });
+})()`),
+);
+check('统计页：点「更多」展开折叠区', st2.zone === true);
+check('统计页：展开态有收起入口', st2.collapse === true);
+check('统计页：aria-expanded 同步为 true', st2.expanded === 'true');
+
+await ev(`document.querySelector('[data-role=collapse]').click()`);
+await wait(400);
+const st3 = await ev(
+  `(() => { const vis = (el) => !!el && !!el.offsetParent; return String(!vis(document.querySelector('[data-role=more-zone]'))); })()`,
+);
+check('统计页：点「收起」后折叠', st3 === 'true');
+console.log('  →', await shot('stats', { dir: OUT }));
 
 /* ================= 通用护栏 ================= */
 console.log('\n── 通用护栏 ──');

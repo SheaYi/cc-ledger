@@ -156,6 +156,9 @@ export async function renderStats(container, { go } = {}) {
     return monthRange(0);
   };
 
+  /** 手机端「更多」折叠区是否展开（桌面端恒常显，这个值不参与桌面渲染） */
+  let moreOpen = false;
+
   /** 除账期以外还有没有在筛选 —— 决定「重置」按钮要不要出现 */
   const hasExtraFilters = () =>
     Boolean(filters.types.size || filters.accountId || filters.parentCategoryId || filters.categoryId || filters.keyword);
@@ -219,7 +222,14 @@ export async function renderStats(container, { go } = {}) {
             <h1 class="tt-display-md">统计</h1>
             <p class="tt-caption text-muted">${esc(ledger.name)} · 口径与概览、对账完全一致</p>
           </div>
-          <div class="row">
+          <!--
+            手机端整行不渲染（mobile.css 的 [data-role=report-actions]）：
+            统计页是**看结果**的地方，导出 / 导入是「拿着结果去干活」，
+            不该在看结果之前占掉一整行。账单页顶部已有「导出」，
+            导入也从对账明细里能进，手机上不缺入口。
+            桌面端保留（左栏导航没有导入，报表导出也只在统计页）。
+          -->
+          <div class="row" data-role="report-actions">
             <button class="btn btn--quiet btn--sm" type="button" data-role="export">导出报表</button>
             <a class="btn btn--quiet btn--sm" href="/import" data-link>导入账目</a>
           </div>
@@ -245,6 +255,14 @@ export async function renderStats(container, { go } = {}) {
             <!-- 分段控件与条件芯片都要随筛选状态重画，所以是空槽 -->
             <div class="segmented st-filter__seg" role="group" aria-label="账期快捷选择" data-role="quick"></div>
 
+            <!--
+              「更多」紧跟在「自定义」之后（DOM 上是 seg 的下一个兄弟）。
+              不放进 seg 内部：seg 在手机端是**横滑带**，塞进去的按钮会被滑出屏幕，
+              而它恰恰是最该常驻的那个。
+            -->
+            <button class="st-filter__more" type="button" data-role="more"
+                    aria-expanded="false" aria-controls="st-filter-more-zone">更多</button>
+
             <div class="st-filter__stepper">
               <button class="btn btn--quiet btn--icon btn--sm" type="button" data-role="prev"
                       aria-label="上一账期">‹</button>
@@ -253,16 +271,27 @@ export async function renderStats(container, { go } = {}) {
                       aria-label="下一账期">›</button>
             </div>
 
-            <span class="st-filter__div" aria-hidden="true"></span>
+            <!--
+              折叠区：分隔线 + 三个下拉 + 搜索框。
+              桌面端 display:contents → 三个控件直接参与 .st-filter__bar 排布，
+              与改造前逐像素一致（「筛选栏只有一行」的断言仍成立）；
+              手机端才折叠成一整块，由上面的「更多」控制。
+            -->
+            <div class="st-filter__zone" id="st-filter-more-zone" data-role="more-zone" data-more="off">
+              <span class="st-filter__div" aria-hidden="true"></span>
 
-            <div class="st-filter__picks" data-role="picks"></div>
+              <div class="st-filter__picks" data-role="picks"></div>
 
-            <label class="st-filter__search">
-              <span class="st-filter__search-ico" aria-hidden="true">${icon('search', 14)}</span>
-              <!-- 复用通用的 .input（底色 / 边框 / 字号），这里只覆盖成工具条尺寸 + 胶囊形 -->
-              <input class="input st-filter__kw" type="search" id="st-f-kw"
-                     placeholder="搜索对象 / 名称 / 商家" autocomplete="off" />
-            </label>
+              <label class="st-filter__search">
+                <span class="st-filter__search-ico" aria-hidden="true">${icon('search', 14)}</span>
+                <!-- 复用通用的 .input（底色 / 边框 / 字号），这里只覆盖成工具条尺寸 + 胶囊形 -->
+                <input class="input st-filter__kw" type="search" id="st-f-kw"
+                       placeholder="搜索对象 / 名称 / 商家" autocomplete="off" />
+              </label>
+
+              <!-- 展开态的收起入口：与「更多」同一个动作，但出现在用户滑到的地方 -->
+              <button class="st-filter__zone-collapse" type="button" data-role="collapse">收起</button>
+            </div>
 
             <div class="st-filter__acts">
               <button class="btn btn--quiet btn--sm" type="button" data-role="reset" hidden>重置</button>
@@ -448,7 +477,37 @@ export async function renderStats(container, { go } = {}) {
     const resetBtn = $('[data-role=reset]');
     if (resetBtn) resetBtn.hidden = !filters.manualRange && !hasExtraFilters();
 
+    paintMore();
     paintFilterSummary();
+  }
+
+  /**
+   * 「更多 / 收起」—— 手机端把「三个下拉 + 搜索框」收进折叠区。
+   *
+   * 状态写在 `[data-role=more-zone][data-more]` 上，**显隐交给 CSS**：
+   * 桌面端这块是 `display: contents`（直接参与工具条排布），
+   * 属性写了也不起作用 —— 这正是要的效果：桌面没有「更多」按钮，
+   * 也就永远不会把工具条折叠掉。
+   */
+  function paintMore() {
+    const more = $('[data-role=more]');
+    const zone = $('[data-role=more-zone]');
+    const n =
+      filters.types.size +
+      (filters.accountId ? 1 : 0) +
+      (filters.parentCategoryId || filters.categoryId ? 1 : 0) +
+      (filters.keyword ? 1 : 0);
+    if (more) {
+      more.textContent = n ? `更多 · ${n}` : '更多';
+      more.setAttribute('aria-expanded', String(moreOpen));
+      more.classList.toggle('is-on', n > 0);
+    }
+    if (zone) zone.dataset.more = moreOpen ? 'on' : 'off';
+  }
+
+  function setMore(open) {
+    moreOpen = open;
+    paintMore();
   }
 
   /**
@@ -485,6 +544,14 @@ export async function renderStats(container, { go } = {}) {
         filters.manualRange = true;
         paintFilters();
         load();
+        return;
+      }
+      if (e.target.closest('[data-role=more]')) {
+        setMore(!moreOpen);
+        return;
+      }
+      if (e.target.closest('[data-role=collapse]')) {
+        setMore(false);
         return;
       }
       if (e.target.closest('[data-role=reset]')) {

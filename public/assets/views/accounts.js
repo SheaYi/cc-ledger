@@ -622,7 +622,14 @@ export async function renderAccounts(container, { go }) {
               余额 = 期初 + 全部流水
             </p>
           </div>
-          <div class="row">
+          <!--
+            桌面端的操作组。手机端整组隐藏（见 mobile.css「账户页」）：
+            三个按钮挤在 358px 里会互相压字，而「账户页的主角是账户本身」。
+            手机端改为列表末尾一条 .acct-add：「＋ 新建账户」为主，
+            「新建分组」降成同行的交互色文字链接 —— 两个能力都还在，
+            但都不在开屏第一屏占位置。
+          -->
+          <div class="row" data-role="page-actions">
             <a class="btn btn--quiet btn--sm" href="/reconciliations" data-link>
               ${lucide('scale', 15)} 对账历史
             </a>
@@ -734,7 +741,13 @@ export async function renderAccounts(container, { go }) {
       .join('');
 
     listSlot.innerHTML = `
-      <div class="list-meta">
+      <!--
+        计数文案与「显示已停用」开关：手机端整条隐藏（mobile.css）。
+        ① 计数是**列表自己已经表达过的信息**（分组头上有名字、账户行上有余额），
+           手机上再读一遍纯属噪声；② 「显示已停用」是低频维护开关，
+           手机上放在列表顶部会让人以为它是一个筛选维度。
+      -->
+      <div class="list-meta" data-role="list-meta">
         <span class="tt-fine-print">
           ${shown.length} 个分组 · ${real.length} 个账户 · 分组决定账户归类，可随时改名或停用
         </span>
@@ -784,6 +797,18 @@ export async function renderAccounts(container, { go }) {
              </div>`
           : ''
       }
+      <!--
+        手机端唯一的入口：列表末尾一条全宽「＋ 新建账户」。
+        位置在**列表末尾**而不是页头 —— 单手操作时拇指就在屏幕下半部，
+        且它紧跟在最后一个分组后面，「在哪儿加」这件事不用找。
+        桌面端不显示（页头那组按钮已有）。
+      -->
+      <div class="acct-add">
+        <button class="btn btn--quiet btn--sm" type="button" data-action="new-account">
+          ${lucide('plus', 15)} 新建账户
+        </button>
+        <button class="acct-add__link" type="button" data-action="new-group">新建分组</button>
+      </div>
     `;
 
     /* 停用分组显隐 */
@@ -962,10 +987,13 @@ export async function renderAccounts(container, { go }) {
     form.scrollIntoView({ block: 'nearest' });
   };
 
-  frame.querySelector('[data-action=new-account]')?.addEventListener('click', () => openForm(null));
+  /** 页头按钮组（桌面）与列表末尾入口（手机）是同一个动作，都要绑 —— 不能只取第一个 */
+  frame.querySelectorAll('[data-action=new-account]').forEach((btn) =>
+    btn.addEventListener('click', () => openForm(null)),
+  );
   frame
-    .querySelector('[data-action=new-group]')
-    ?.addEventListener('click', () => openGroupForm(null));
+    .querySelectorAll('[data-action=new-group]')
+    .forEach((btn) => btn.addEventListener('click', () => openGroupForm(null)));
 
   /* ---------------- 对账 ---------------- */
   const openReconcile = (acc) => {

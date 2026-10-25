@@ -23,6 +23,32 @@
    ========================================================================== */
 
 /* ==========================================================================
+   零、基础态（所有宽度）：手机专属构件的默认值
+   --------------------------------------------------------------------------
+   本文件是手机层，但「桌面不显示」这件事必须写在**无条件**的规则里 ——
+   放进媒体查询就变成「桌面没这条规则 → 按默认显示」，正好反了。
+
+   `display: contents` 是这次改造的关键：折叠区在桌面上**不留盒子**，
+   内部控件直接参与父级 flex 排布，与改造前的桌面版式逐像素一致；
+   只有 ≤1023px 才把它变成真正的一块（可折叠）。
+   ========================================================================== */
+
+/* 手机专属：列表末尾的新建行、两块折叠区的开关与收起入口 */
+.acct-add,
+.tx-more,
+.tx-pill--quiet,
+.st-filter__more,
+.st-filter__zone-collapse {
+  display: none;
+}
+
+/* 折叠区外壳：桌面不存在这个盒子（见上） */
+.tx-filters__pills,
+.st-filter__zone {
+  display: contents;
+}
+
+/* ==========================================================================
    一、≤1023px：平板竖屏与手机
    ========================================================================== */
 @media (max-width: 1023px) {
@@ -232,6 +258,191 @@
     white-space: nowrap;
   }
 
+  /* ======================================================================
+     账户页：只留账户组 + 账户列表
+     ======================================================================
+     页头那组「对账历史 / 新建分组 / 新建账户」在 358px 里三个挤一行会互相压字，
+     而这个页的主角是**账户本身** —— 动作不该压在内容上面开屏就占一行。
+     入口改到列表末尾（.acct-add）：单手操作时拇指本来就在屏幕下半部。 */
+  .page__hero [data-role='page-actions'] {
+    display: none;
+  }
+
+  /* 计数文案 + 「显示已停用」：列表自己已经把这两件事说完了
+     —— 分组头上有名字、账户行上有余额与类型；顶部再复述一遍是噪声。
+     停用开关是低频维护项，摆在列表顶部会被误读成一个筛选维度。 */
+  [data-role='list-meta'] {
+    display: none;
+  }
+
+  .acct-add {
+    display: flex;
+    align-items: center;
+    gap: var(--s-sm);
+    padding: 8px 8px 8px 16px;
+    border: 1px solid var(--c-hairline);
+    border-radius: var(--r-lg);
+    background: var(--c-canvas);
+  }
+
+  .acct-add .btn {
+    flex: 1 1 auto;
+  }
+
+  /* 「新建分组」低频：给足 44px 触控底线，但不跟「新建账户」抢分量
+     —— 交互色文字（00-DESIGN：唯一的「可点击」信号）而不是第二颗实心按钮。 */
+  .acct-add__link {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 0 4px;
+    border: 0;
+    background: transparent;
+    color: var(--c-primary);
+    font-size: 14px;
+    letter-spacing: -0.224px;
+  }
+
+  /* ======================================================================
+     账单页：搜索常驻，7 颗筛选 pill 收进折叠区
+     ====================================================================== */
+
+  /* 折叠区在手机上成为独立的一行（桌面是 display:contents，见文件头） */
+  .tx-filters__pills {
+    display: flex;
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .tx-filters[data-more='off'] .tx-filters__pills {
+    display: none;
+  }
+
+  /* 面板是 pill 的下级：pill 收起来了，面板不能孤零零留在页面上 */
+  .tx-filters[data-more='off'] .tx-panel {
+    display: none;
+  }
+
+  /* 搜索框与「更多」同行。
+     app.css 在 ≤480px 让搜索独占一行（flex 1 1 100% + order -1）——
+     那是为「搜索 + 一排 pill」设计的。pill 收进折叠区之后，
+     这一行只剩搜索和「更多」两个，100% 会把「更多」挤到第二行去。 */
+  .tx-search {
+    flex: 1 1 auto;
+    min-width: 0;
+    order: 0;
+  }
+
+  /* 「更多」：与搜索框同行、右端。高度与搜索框一致（34px 是桌面精密件，
+     手机抬到 44px 触控底线），形状用 pill —— 它是这一行唯一的动作。 */
+  .tx-more {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 0 14px;
+    border: 1px solid var(--c-hairline);
+    border-radius: var(--r-pill);
+    background: var(--c-canvas);
+    color: var(--c-ink-muted-80);
+    font-size: 13px;
+    letter-spacing: -0.016em;
+  }
+
+  /* 有生效条件时高亮：折叠起来后，「列表为什么这么短」全靠这个角标回答 */
+  .tx-more.is-on {
+    border-color: var(--c-primary-focus);
+    background: var(--c-accent-2);
+    color: var(--c-primary);
+    font-weight: 600;
+  }
+
+  /* 展开态的收起入口：排在 pill 队尾，用户滑到哪儿都能原地收起 */
+  .tx-pill--quiet {
+    display: inline-flex;
+    color: var(--c-primary);
+  }
+
+  /* ======================================================================
+     统计页：页头动作整行移除，筛选与搜索收进折叠区
+     ======================================================================
+     导出 / 导入是「拿着结果去干活」，不该在看结果之前先占一行。
+     账单页顶部已有「导出」，导入也可从对账明细进入，手机上不缺入口。 */
+  .page__hero [data-role='report-actions'] {
+    display: none;
+  }
+
+  .st-filter__zone {
+    display: flex;
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--s-xs);
+  }
+
+  .st-filter__zone[data-more='off'] {
+    display: none;
+  }
+
+  /* 分隔线是**桌面工具条**里的分组符；折叠区自己独占一行后不再需要它 */
+  .st-filter__zone > .st-filter__div {
+    display: none;
+  }
+
+  /* 折叠区里：下拉保持手机上既有的「两枚一行」（min-width:132px 已验证），
+     搜索框独占一行 —— 它要能容下「搜索对象 / 名称 / 商家」这串 placeholder。 */
+  .st-filter__picks,
+  .st-filter__search {
+    flex: 1 1 100%;
+  }
+
+  /* 账期段让出「更多」的宽度。
+     必须是 `flex: 1 1 **0**` 而不是 auto：auto 的基准尺寸是**内容宽度**
+     （五个账期选项的 max-content ≈ 300px），加上「更多」就超过一行，
+     「更多」会被挤到第二行。基准归零后由它自己横滑（overflow-x:auto）。 */
+  .st-filter__seg {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  /* 「更多」紧跟在「自定义」之后：它必须常驻可见，所以不放进横滑的 seg 里 */
+  .st-filter__more {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 0 14px;
+    border: 1px solid var(--c-hairline);
+    border-radius: var(--r-pill);
+    background: var(--c-canvas);
+    color: var(--c-ink-muted-80);
+    font-size: 13px;
+    letter-spacing: -0.016em;
+  }
+
+  .st-filter__more.is-on {
+    border-color: var(--c-primary-focus);
+    background: var(--c-accent-2);
+    color: var(--c-primary);
+    font-weight: 600;
+  }
+
+  .st-filter__zone-collapse {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 0 4px;
+    border: 0;
+    background: transparent;
+    color: var(--c-primary);
+    font-size: 14px;
+    letter-spacing: -0.224px;
+  }
+
   /* ---------- 记账页 ---------- */
   .compose__card {
     padding: 16px;
@@ -257,6 +468,36 @@
   .amount-input {
     height: 60px;
     font-size: 28px;
+  }
+
+  /* ---------- 日期 / 时间框：不许顶出卡片 ----------
+     `input[type=date]` / `[type=time]` 是**有内在最小宽度**的控件：
+     Chromium 会把它压到容器宽度以内，但 WebKit（iOS Safari）不会 ——
+     它按 `min-content` 撑开，窄屏上就把框顶到卡片外面去（右边缘超出、
+     日历图标被切）。这条只给 iOS：其它内核本来就对，改了反而可能丢样式。
+     三条一起才生效：
+       ① 把 input 的最小宽度归零（去掉 WebKit 的 min-content 下限）
+       ② 关掉原生外观，改用我们自己的 hairline + 圆角语法
+       ③ 值区左对齐 —— 默认居中时它会在窄框里把两边都顶出去 */
+  @supports (-webkit-touch-callout: none) {
+    input[type='date'],
+    input[type='time'] {
+      min-width: 0;
+      -webkit-appearance: none;
+      appearance: none;
+      text-align: left;
+    }
+
+    input[type='date']::-webkit-datetime-edit,
+    input[type='time']::-webkit-datetime-edit {
+      min-width: 0;
+      padding: 0;
+    }
+
+    input[type='date']::-webkit-date-and-time-value {
+      min-width: 0;
+      text-align: left;
+    }
   }
 
   /* ---------- 类型/分类浮层：横滑带里的分组不许被压 ----------
