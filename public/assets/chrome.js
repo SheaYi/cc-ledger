@@ -391,10 +391,61 @@ export function appFrame({ active = '', user, ledger = null, inner = '', hideCom
   return root;
 }
 
-/** 挂载底部导航（需要 go 才能切页；不传则回落到 app.js 注入的全局导航） */
+/**
+ * 底部 dock 的**常驻上下文**。
+ *
+ * dock 建成后不再重建（见 `mountTabBar`），但每次进页仍要把最新的 `go` / `ledger`
+ * 交给它 —— 否则切了账本之后，长按「记」弹出的模板面板还按旧账本渲染。
+ * 这两个值由 `tabBar` 内的处理器读取（`dockCtx.go ?? go`），闭包旧值自动被覆盖。
+ */
+let dockCtx = { go: null, ledger: null };
+
+/** dock 挂在 body 上的固定 id（不在 `.shell` 内：切页时 shell 整棵重建） */
+const DOCK_ID = 'cc-dock';
+
+/** 隐藏底部 dock（记账页 / 登录页 / 邀请页不该出现它） */
+export function hideDock() {
+  const dock = document.getElementById(DOCK_ID);
+  if (dock) dock.hidden = true;
+}
+
+/**
+ * 挂载底部导航。
+ *
+ * ⚠️ **dock 只建一次，之后只改选中态** —— 这是硬要求，不是优化：
+ * 每个页面都是「重建整棵 `.shell` → 往 `tabbar-slot` 里塞一条 dock」，
+ * 于是切一次页 dock 就经历一次「旧节点被移除（视觉上像被推出去）
+ * → 新节点插入 → `.tabbar` 的入场动画 `tabbar-in` 重播（从底部滑入）」。
+ * 手机上表现为切换时底栏闪一下，手指正好落在那块区域，非常明显。
+ *
+ * 修法：dock 从 shell 里摘出来，常驻在 `document.body`，切换页面只更新
+ * `aria-current`。它物理上不动，动画自然只在首次出现时播一次。
+ */
 export function mountTabBar(frame, { active, go, ledger = null }) {
-  const slot = frame.querySelector('[data-role=tabbar-slot]');
-  if (slot) slot.replaceWith(tabBar({ active, go: navOf(go), ledger }));
+  const slot = frame?.querySelector?.('[data-role=tabbar-slot]');
+  if (slot) slot.remove(); // shell 里不再放 dock（留着会盖住 body 上那条）
+
+  dockCtx = { go: navOf(go) ?? dockCtx.go, ledger: ledger ?? dockCtx.ledger };
+
+  let dock = document.getElementById(DOCK_ID);
+  if (!dock) {
+    dock = tabBar({ active, go: navOf(go), ledger });
+    dock.id = DOCK_ID;
+    document.body.appendChild(dock);
+    return dock;
+  }
+  dock.hidden = false;
+  syncDockActive(dock, active);
+  return dock;
+}
+
+/** 只改选中态：不动 DOM 结构，所以不触发任何入场动画 */
+function syncDockActive(dock, active) {
+  const key = resolveTabKey(active);
+  dock.querySelectorAll('[data-tab]').forEach((el) => {
+    if (el.dataset.tab === key) el.setAttribute('aria-current', 'page');
+    else el.removeAttribute('aria-current');
+  });
 }
 
 /**
@@ -420,39 +471,48 @@ export function mountTabBar(frame, { active, go, ledger = null }) {
  *   长按 400ms → 带出模板面板
  *   手指移动 > 8px → 取消长按（09 §3.2 的冲突处理）
  */
-export function tabBar({ active = 'accounts', go, ledger = null } = {}) {
-  const TABS = [
-    { key: 'accounts', label: '账户', href: '/accounts', icon: 'wallet' },
-    { key: 'transactions', label: '账单', href: '/transactions', icon: 'book' },
-    { key: 'compose', label: '记一笔', href: COMPOSE_HREF, icon: 'plus', action: true },
-    { key: 'stats', label: '统计', href: '/stats', icon: 'chart' },
-    { key: 'settings', label: '设置', href: '/settings', icon: 'user' },
-  ];
+/* dock 的 5 个槽。提到模块级：`syncDockActive` 要在不重建 DOM 的前提下
+   单独算选中态，不能每次都从 `tabBar` 里拿。 */
+const DOCK_TABS = [
+  { key: 'accounts', label: '账户', href: '/accounts', icon: 'wallet' },
+  { key: 'transactions', label: '账单', href: '/transactions', icon: 'book' },
+  { key: 'compose', label: '记一笔', href: COMPOSE_HREF, icon: 'plus', action: true },
+  { key: 'stats', label: '统计', href: '/stats', icon: 'chart' },
+  { key: 'settings', label: '设置', href: '/settings', icon: 'user' },
+];
 
-  /** 不在槽位里的页面 → 高亮它「归属于」的那个槽（避免整条栏没有选中态） */
-  //
-  // 归槽判据是「**用户是从哪个页面的哪个按钮进来的**」，而不是 URL 前缀 ——
-  // 前者回答「我刚才在哪」，后者只是字符串匹配。
-  //
-  //   · 概览 / 往来 / 对账历史 → 账户（都是「看余额与状态」，账户是它们的落点）
-  //   · 分类 / 标签 / 模板 / 周期 / 分期 → 账单（都是录入效率件，入口在记账表单与账单页）
-  //   · 预算 → 统计（是约束与对比，不是流水）
-  //   · 导入 → 账单（导入的是账单）
-  //   · 成员 / 邀请 → 设置
-  const FALLBACK = {
-    overview: 'accounts',
-    debts: 'accounts',
-    reconciliations: 'accounts',
-    categories: 'transactions',
-    tags: 'transactions',
-    templates: 'transactions',
-    recurring: 'transactions',
-    installments: 'transactions',
-    import: 'transactions',
-    budgets: 'stats',
-    invite: 'settings',
-  };
-  const activeKey = TABS.some((t) => t.key === active) ? active : (FALLBACK[active] ?? active);
+/** 不在槽位里的页面 → 高亮它「归属于」的那个槽（避免整条栏没有选中态） */
+//
+// 归槽判据是「**用户是从哪个页面的哪个按钮进来的**」，而不是 URL 前缀 ——
+// 前者回答「我刚才在哪」，后者只是字符串匹配。
+//
+//   · 概览 / 往来 / 对账历史 → 账户（都是「看余额与状态」，账户是它们的落点）
+//   · 分类 / 标签 / 模板 / 周期 / 分期 → 账单（都是录入效率件，入口在记账表单与账单页）
+//   · 预算 → 统计（是约束与对比，不是流水）
+//   · 导入 → 账单（导入的是账单）
+//   · 成员 / 邀请 → 设置
+const DOCK_FALLBACK = {
+  overview: 'accounts',
+  debts: 'accounts',
+  reconciliations: 'accounts',
+  categories: 'transactions',
+  tags: 'transactions',
+  templates: 'transactions',
+  recurring: 'transactions',
+  installments: 'transactions',
+  import: 'transactions',
+  budgets: 'stats',
+  invite: 'settings',
+};
+
+/** 页面 key → dock 上该亮的槽（不在 5 槽里的走 FALLBACK） */
+function resolveTabKey(active) {
+  return DOCK_TABS.some((t) => t.key === active) ? active : (DOCK_FALLBACK[active] ?? active);
+}
+
+export function tabBar({ active = 'accounts', go, ledger = null } = {}) {
+  const TABS = DOCK_TABS;
+  const activeKey = resolveTabKey(active);
 
   const bar = h(`
     <nav class="tabbar" aria-label="主导航">
@@ -473,11 +533,14 @@ export function tabBar({ active = 'accounts', go, ledger = null } = {}) {
     </nav>
   `);
 
+  /* dock 常驻后这里的 `go` 是建栏那一刻的闭包值。导航函数本身是 app.js 注入的
+     全局函数（稳定），但**账本会换** —— 所以两个处理器都优先读 `dockCtx`，
+     它由每次 `mountTabBar` 刷新。否则切账本后长按「记」仍按旧账本出模板。 */
   bar.querySelectorAll('[data-tab]').forEach((el) => {
     el.addEventListener('click', (e) => {
       e.preventDefault();
       const tab = TABS.find((t) => t.key === el.dataset.tab);
-      go?.(tab?.href ?? '/');
+      (dockCtx.go ?? go)?.(tab?.href ?? '/');
     });
   });
 
@@ -492,9 +555,13 @@ export function tabBar({ active = 'accounts', go, ledger = null } = {}) {
     compose.replaceWith(wrap);
     wrap.appendChild(compose);
     wireComposeAction(compose, {
-      go,
+      go: navOf(go),
       onLongPress: () =>
-        openTemplatePanel({ ledger: ledger ?? currentLedger(), go: navOf(go), anchor: compose }),
+        openTemplatePanel({
+          ledger: dockCtx.ledger ?? ledger ?? currentLedger(),
+          go: dockCtx.go ?? navOf(go),
+          anchor: compose,
+        }),
     });
   }
   return bar;

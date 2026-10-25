@@ -4,6 +4,32 @@
 打 `v*` tag 时 GitHub Actions 会产出同名的固定版本镜像（如 `v1.1.0`），
 推 `main` 时产出 `latest` 与 `sha-xxxxxxx`。
 
+## 1.1.1 — 2026-10-25
+
+### 修复
+- **底部 dock 切页时闪动**：每个页面都重建整棵 `.shell`，dock 随之被
+  `replaceWith` 换新节点，`tabbar-in` 入场动画重播 —— 表现为「先被推出去、
+  再从底部滑回来」。dock 改为挂在 `document.body` 的**常驻节点**（id `cc-dock`），
+  切页只更新 `aria-current`，物理上不再位移。记账页 / 登录页 / 邀请页由
+  `hideDock()` 显式隐藏。
+- **顶栏头像偏心**：桌面那颗「头像 + 昵称」胶囊 padding 是 `4px 12px 4px 4px`，
+  昵称一占位头像就被推到左侧（实测中心偏左 4px）。手机端改为 00-DESIGN 的
+  `button-icon-circular`：44×44 正圆、内边距对称、不显示昵称，头像精确居中。
+- **记账页类型 pill 重叠**：窄屏「类型」列是横滑带，两个分组
+  （常用 / 债权债务）默认可收缩，而组内 pill 是 `flex: none` 压不动，
+  于是 pill 溢出分组边界 —— 「转账」与「应收款项」实测重叠 36×44px。
+  给分组加 `flex: none`，超宽交给带子横滑。
+- **记账页名称 → 日期间距过宽**：桌面的即时预览块用 `visibility: hidden`
+  保留占位（防抖动），手机上没填金额时也吃掉 40px。手机端改为 `display: none`；
+  块内 / 块间间距收到 8px（spacing.xs）。实测 85px → 29px。
+- **账单页「支出 / 收入 / 结余」折行**：窄屏被压成 2 列、结余独占一行。
+  改回三列等分，数值降到 14px；390px 下每列 108px，六位金额不折行。
+
+### 新增
+- `scripts/probe-mobile-ui.mjs`（`npm run probe:mobile`）：26 项断言 ——
+  dock 不重建、头像居中、pill 不重叠、三统计同行，外加各页无横向溢出、
+  触控目标 ≥44px。种子用户抽到 `scripts/lib/mobile-seed.mjs`（与截图脚本共用）。
+
 ## 1.1.0 — 2026-10-23
 
 ### 新增

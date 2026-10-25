@@ -71,6 +71,31 @@
     min-height: 44px;
   }
 
+  /* ---------- 顶栏头像：收成正圆，头像在圆内精确居中 ----------
+     桌面那颗 `.user-chip` 是「头像 + 昵称」的胶囊：padding 左 4 右 12，
+     昵称一进去，头像就被挤到胶囊左侧（实测中心偏左 4px）—— 在手机上
+     这条胶囊又窄又被昵称占掉一半，头像看着明显偏心。
+     手机端改成 00-DESIGN 的 `button-icon-circular`：44×44 正圆、内边距对称、
+     昵称不显示（昵称在设置页里有，顶栏不需要重复）。 */
+  .app-bar .user-chip {
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    gap: 0;
+    justify-content: center;
+    border-radius: var(--r-full);
+  }
+
+  .app-bar .user-chip__name {
+    display: none;
+  }
+
+  /* 头像字符（无图时取昵称首字）在圆内居中：grid 居中只管盒子，
+     字符本身还会被字体行高带偏，显式压掉行高才真正居中。 */
+  .avatar {
+    line-height: 1;
+  }
+
   /* ---------- 底部导航（5 槽，正中央是动作位） ---------- */
   .tabbar__inner {
     height: var(--tabbar-h);
@@ -212,8 +237,11 @@
     padding: 16px;
   }
 
+  /* 块内字段间距 12 → 8（00-DESIGN spacing.xs）：桌面上一条卡片里
+     字段少、留白够；手机上同屏要塞下金额/账户/名称/日期/时间，
+     12px 的块内 + 12px 的块间叠起来就成了「空荡荡的一大块」。 */
   .compose__block {
-    gap: 12px;
+    gap: 8px;
   }
 
   .field-row {
@@ -229,6 +257,44 @@
   .amount-input {
     height: 60px;
     font-size: 28px;
+  }
+
+  /* ---------- 类型/分类浮层：横滑带里的分组不许被压 ----------
+     窄屏下「类型」列是横滑 pill 带：`.mega__col--type` 是 flex row，
+     里面的两个 `.mega__group`（常用 / 债权债务）也是 flex row。
+     group 默认 `flex-shrink: 1`，带子超宽时 group 会被压扁，
+     而它内部的 pill 是 `flex: none` 压不动 —— 于是 pill 溢出 group 边界，
+     「转账」和「应收款项」在带上叠在一起（实测重叠 36×44px）。
+     分组本身不收缩，超宽交给外层带子横滑，才是这套语法的本意。 */
+  .mega__col--type .mega__group,
+  .mega__col--parent .mega__list {
+    flex: none;
+  }
+
+  /* 段间距：桌面用 20px 上内边距做分隔，手机上连续字段之间这个数偏宽
+     （名称 → 日期 实测 ≈ 44px）。00-DESIGN 的 spacing.sm = 12px 足够。 */
+  .compose__block + .compose__block {
+    padding-top: 8px;
+  }
+
+  /* 「这次实际动了多少钱」的即时预览：桌面用 `visibility: hidden` 保留占位，
+     免得金额一填进来整页往上跳；但手机上它是**空的**时候也吃掉 40px，
+     于是「名称」和「日期」之间凭空多出一块（实测 85px）。
+     手机屏幕是按「屏」计的，为一条还没出现的提示留位置不划算 ——
+     这里直接不占位，出现时的那一次位移远小于长期占着的空白。 */
+  .preview[data-hidden='true'] {
+    display: none;
+  }
+
+  .preview {
+    padding: 8px 12px;
+  }
+
+  /* 复选框本体是系统控件（16px，改不动），触控靠**整行 label** 撑到 44px ——
+     手指点的从来是那行字，不是那个方框。 */
+  label:has(> input[type='checkbox']),
+  label:has(> input[type='radio']) {
+    min-height: 44px;
   }
 
   /* 提交条：贴底的「底部抽屉」—— 左右吃掉页面留白、上方两角收圆、下边不留缝。
@@ -315,15 +381,17 @@
     padding: 14px;
   }
 
-  /* 双列指标：手机上「支出 / 收入 / 结余」保留三列会挤到数字换行，
-     压成两列、结余独占一行更稳。 */
+  /* 「支出 / 收入 / 结余」必须同一行 —— 这三项是拿来横向比的，
+     折成两行（结余独占）就失去了「一眼看收支差」的意义。
+     三列等分 + 数值降到 caption-strong（14px / 600）+ 列间距收到 8px，
+     390px 下每列约 114px，六位金额带千分位也不折行。 */
   .tx-sum {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
   }
 
-  .tx-sum__cell:last-child {
-    grid-column: 1 / -1;
+  .tx-sum__value {
+    font-size: 14px;
   }
 }
 

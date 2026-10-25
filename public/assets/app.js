@@ -19,7 +19,7 @@
 import { auth } from './store.js';
 import { init as initTheme } from './theme.js';
 import { rememberComposeSource } from './session.js';
-import { setChromeNav } from './chrome.js';
+import { setChromeNav, hideDock } from './chrome.js';
 import { renderLogin, renderRegister } from './views/auth.js';
 import { renderOverview } from './views/overview.js';
 import { renderAccounts } from './views/accounts.js';
@@ -76,6 +76,9 @@ function currentPath() {
  */
 const isCompact = () => window.matchMedia('(max-width: 1023px)').matches;
 
+/** 记账页（新建 / 编辑）：全屏页，不挂底部 dock */
+const isComposePath = (path) => /^\/transactions\/new$/.test(path) || /^\/transactions\/[^/]+\/edit$/.test(path);
+
 function go(path, { replace = false } = {}) {
   if (replace) window.history.replaceState({}, '', path);
   else window.history.pushState({}, '', path);
@@ -96,6 +99,12 @@ setChromeNav(go);
 async function render() {
   const path = currentPath();
   const inviteMatch = /^\/invite\/([A-Za-z0-9]+)$/.exec(path);
+
+  /* 底部 dock 是 body 上的**常驻**节点（切页不重建，避免位移动画），
+     所以「哪些页面不该有它」必须在这里显式说一次：
+     认证页、邀请页、以及记账页（docs/13 §4.1 全屏页，底部只留操作条）。
+     其余页面由各自的 `mountTabBar` 把它显示出来。 */
+  if (inviteMatch || path === '/login' || path === '/register' || isComposePath(path)) hideDock();
 
   // 记账页的兼容别名：/tx/new → /transactions/new（保留 query），文档与代码的首选出厂值
   // 一律用规范路径，别名只为兜住已经发出去的链接（docs/13 §3.4 解决 D4）。
