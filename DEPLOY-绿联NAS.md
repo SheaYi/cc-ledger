@@ -1075,7 +1075,8 @@ docker compose up -d         # 此时镜像已在本地，不会再走 build
 curl -sS -o /dev/null -w '%{http_code}\n' --max-time 10 https://ghcr.io/v2/
 ```
 
-返回 `401`（或 `200`）＝**通的**（401 只是没带凭证，属正常）；`curl: (28)` 超时 ＝ 到 ghcr 也不通。
+返回 `401`＝**通的**（匿名没带凭证，属正常）；`curl: (28)` 超时 ＝ 到 ghcr 也不通。
+（注意：`401` 只证明网络可达，不代表镜像能拉 —— 包是私有的话也会 `401`，见 8.12。）
 
 **如果连 ghcr 也超时**，三条路，按推荐顺序：
 
@@ -1110,6 +1111,94 @@ docker info | grep -A3 'Registry Mirrors'   # 配了加速器却没生效？
 > 镜像加速器（`docker.m.daocloud.io` 之类）**只加速 Docker Hub**，对 ghcr **没有作用** ——
 > 别指望配了它就能拉 ghcr。它只在你确实要本地构建时（下 `node:22-alpine`）才有用：
 > 绿联 `Docker → 设置 → 镜像加速` 里填一个可用地址，然后 `docker info` 确认已生效。
+
+---
+
+### 8.12 拉镜像被拒：`ghcr.io/... : unauthorized`
+
+完整报错长这样：
+
+```
+✘ Image ghcr.io/sheayi/cc-ledger:latest Error  Head "https://ghcr.io/v2/sheayi/cc-ledger/manifests/latest": unauthorized   1.1s
+Error response from daemon: Head "https://ghcr.io/v2/sheayi/cc-ledger/manifests/latest": unauthorized
+```
+
+**先读懂它在说什么**：`unauthorized` ＝ **GHCR 认得这个地址，但不让你匿名读**。
+也就是说网络是通的、镜像名字也没写错，**问题出在「这个包是私有的」**。
+
+> GitHub Container Registry 的包**默认就是私有**，哪怕仓库本身是公开的也一样。
+> 所以第一次在 NAS 上拉，几乎必然撞这一下。
+
+**怎么确认**（不用登录也能测）：
+
+```bash
+curl -sS "https://ghcr.io/token?scope=repository%3Asheayi%2Fcc-ledger%3Apull&service=ghcr.io"
+```
+
+- 返回 `{"errors":[{"code":"UNAUTHORIZED"...` → **私有包**，需要按下面处理；
+- 返回带 `"token":"..."` → 已公开，匿名可直接拉。
+
+**方案 A：把包改成公开（推荐，NAS 上不用存任何密钥）**
+
+在浏览器里做，30 秒完成：
+
+1. 打开 `https://github.com/users/SheaYi/packages/container/cc-ledger/settings`
+   （找不到就：GitHub 右上角头像 → **Your packages** → 点 `cc-ledger` → 右侧 **Package settings**）
+2. 拉到最下面 **Danger Zone** → **Change visibility** → 选 **Public**
+3. 按提示输入包名 `cc-ledger` 确认
+
+改完回 NAS 重拉：
+
+```bash
+cd /volume1/docker/cc-ledger
+docker compose pull
+docker compose up -d
+```
+
+> 公开只是**允许匿名拉取**，不会泄露源码（源码在仓库里，本来就是公开的）。
+> 但镜像里若打包了敏感配置才需要私有 —— 本项目镜像只有编译产物，无密钥。
+
+**方案 B：不动可见性，在 NAS 上登录 ghcr**
+
+1. 造一个只用来拉镜像的令牌：
+   GitHub 右上角头像 → **Settings** → **Developer settings**
+   → **Personal access tokens → Tokens (classic)** → **Generate new token (classic)**
+   → 勾 **`read:packages`**（别的都别勾）→ 生成后复制保存（关页面就看不见了）
+2. 在 NAS 上登录一次（凭据会存进 `~/.docker/config.json`，之后 `compose up` 自动带上）：
+
+   ```bash
+   docker login ghcr.io -u SheaYi
+   # Password 粘贴刚才那个 PAT（输入时不显示，直接回车）
+   ```
+
+   看到 `Login Succeeded` 就成了。一行版（不推荐，密码会进 shell 历史）：
+
+   ```bash
+   echo '你的PAT' | docker login ghcr.io -u SheaYi --password-stdin
+   ```
+
+3. 重新部署：
+
+   ```bash
+   cd /volume1/docker/cc-ledger
+   docker compose pull
+   docker compose up -d
+   ```
+
+> 绿联网页「项目」里没有登录入口，**必须先 SSH 登录 NAS 执行一次 `docker login`**，
+> 再回网页点部署 —— 登录状态是存在 NAS 上的，网页部署时会复用。
+
+**方案 C：干脆换成 Docker Hub**
+
+如果你已经按上一节配好了 `DOCKERHUB_USERNAME` / `DOCKERHUB_TOKEN` 两个 secret，
+也可以把 compose 里的镜像换成：
+
+```yaml
+image: <你的dockerhub用户名>/cc-ledger:latest
+```
+
+Docker Hub 的个人仓库默认公开，NAS 不用登录。改完记得同步 `docker-compose.yml`
+里的 `CC_IMAGE` 与 `.env`（`npm run audit:deploydoc` 会校验两处一致）。
 
 ---
 

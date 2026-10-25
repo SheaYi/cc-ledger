@@ -150,7 +150,9 @@ if (nas) {
     ...doc.matchAll(/ghcr\.io\/[a-z0-9\-_.]+\/[a-z0-9\-_.]+(?::[A-Za-z0-9._\-]+)?/g),
   ]
     .map((m) => m[0])
-    .filter((s) => !s.includes('...'));
+    /* 注册表 API 地址（ghcr.io/v2/<owner>/<repo>/manifests/<tag>）不是镜像引用，
+     * 且第二段是 owner 不含仓库名，跳过校验；带 ... 或 <占位> 的示例同理。 */
+    .filter((s) => !s.includes('...') && !s.includes('/v2/'));
   const badImg = docImages.find((s) => s !== s.toLowerCase() || !s.includes(`/${pkgName}`));
   if (badImg) fail('文档里的 ghcr 地址合法', badImg);
   else check(`文档里 ${docImages.length} 处 ghcr 地址全小写且仓库名正确`, true);
