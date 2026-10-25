@@ -205,6 +205,18 @@ check(
 const colOf = (name) => cols.find((x) => x.column.startsWith(name));
 check('「日期」必填 → 映射到日期', colOf('日期').required === '必填' && colOf('日期').target === '日期', JSON.stringify(colOf('日期')));
 check('「金额」必填 → 映射到金额', colOf('金额').required === '必填' && colOf('金额').target === '金额', JSON.stringify(colOf('金额')));
+/**
+ * 「账户」列必须是**被读取**且去向为「账户」——按行归集。
+ *
+ * ⚠️ 此前它被标成「不读取」，导出的 18 列文件导回来时所有流水
+ *    被压进「导入到哪个账户」那一个账户，账户余额集体失真而报告零失败行。
+ */
+check(
+  '「账户」可选 → 映射到账户（按行归集，不是整批落到一个账户）',
+  colOf('账户').required === '可选' && colOf('账户').target === '账户',
+  JSON.stringify(colOf('账户')),
+);
+check('「转入账户」不读取（转账不支持批量导入）', colOf('转入账户').target === '不读取', JSON.stringify(colOf('转入账户')));
 check('「商家」可选', colOf('商家').required === '可选', JSON.stringify(colOf('商家')));
 check('「备注」可选', colOf('备注').required === '可选', JSON.stringify(colOf('备注')));
 check('「类型」可选', colOf('类型').required === '可选', JSON.stringify(colOf('类型')));
@@ -267,7 +279,7 @@ check(
 
 /* ---------- 5. 5 个映射列全部自动选中（含「类型」） ---------- */
 const sels = JSON.parse(
-  await ev(`JSON.stringify(['imp-dateColumn','imp-amountColumn','imp-merchantColumn','imp-noteColumn','imp-recordTypeColumn','imp-mainCategoryColumn','imp-subCategoryColumn'].map(id => ({ id, v: (document.getElementById(id)||{}).value ?? '' })))`),
+  await ev(`JSON.stringify(['imp-dateColumn','imp-amountColumn','imp-merchantColumn','imp-noteColumn','imp-recordTypeColumn','imp-accountColumn','imp-mainCategoryColumn','imp-subCategoryColumn'].map(id => ({ id, v: (document.getElementById(id)||{}).value ?? '' })))`),
 );
 const v = (id) => sels.find((x) => x.id === id)?.v ?? '';
 check('日期列 = 日期', v('imp-dateColumn') === '日期', v('imp-dateColumn'));
@@ -275,6 +287,7 @@ check('金额列 = 金额', v('imp-amountColumn') === '金额', v('imp-amountCol
 check('商家列 = 商家', v('imp-merchantColumn') === '商家', v('imp-merchantColumn'));
 check('备注列 = 备注', v('imp-noteColumn') === '备注', v('imp-noteColumn'));
 check('类型列 = 类型（此前完全丢失）', v('imp-recordTypeColumn') === '类型', v('imp-recordTypeColumn'));
+check('账户列 = 账户（此前被当作「不读取」，整批落到一个账户）', v('imp-accountColumn') === '账户', v('imp-accountColumn'));
 if (fileCols.includes('主类别')) {
   check('主类别列 = 主类别', v('imp-mainCategoryColumn') === '主类别', v('imp-mainCategoryColumn'));
   check('子类别列 = 子类别', v('imp-subCategoryColumn') === '子类别', v('imp-subCategoryColumn'));
@@ -322,6 +335,23 @@ c.shot(await probe.shot('import-map-table', { dir: OUT, focus: '[data-role=col-r
 
 /* ---------- 7. 必填常显 / 可选折叠：结构与状态 ---------- */
 /**
+ * 可选映射项总数 = 前端 `MAPPING_FIELDS` 里非必填的项数。
+ *
+ * ⚠️ 加了「账户列」之后是 12（此前 11）。新增可映射列时必须同步改这里 ——
+ *    否则这一组「已配置/总数」断言会全红，而红的唯一原因是清单变长，
+ *    不是折叠功能坏了。写成常量而不是散落的 11，改一处即可。
+ */
+const OPT_TOTAL = 12;
+const OPT_RE = new RegExp(`（\\d+/${OPT_TOTAL}）$`);
+/**
+ * 从按钮文案里取出「已配置」的数。
+ *
+ * ⚠️ 不能假设初始只有 3 项被映射：服务端猜中多少列就填多少列
+ *    （此前 preview 漏了 guess 兜底，这里只填 3 项；补齐后是 10 项）。
+ *    断言要**按增量**写（清空一项 = 减 1），而不是钉死一个绝对数。
+ */
+const optCountOf = (label) => Number((label.match(/（(\d+)\//) ?? [])[1] ?? -1);
+/**
  * 这一段的操作用 `change` 事件合成即可，**不花 preview 配额** ——
  * 折叠与映射状态全是前端状态，不请求服务端。
  */
@@ -346,8 +376,8 @@ check('必填项都带「必填」标识（含导入账户）', struct.reqBadges
 check('可选区默认收起', struct.optHidden === true, String(struct.optHidden));
 check('收起时计算样式真的是 display:none（hidden 没被 grid 盖掉）', struct.optDisplay === 'none', struct.optDisplay);
 check('折叠按钮 aria-expanded=false', struct.ariaExpanded === 'false', struct.ariaExpanded);
-check('可选映射项 11 个（含主类别 / 子类别）', struct.optCount === 11, String(struct.optCount));
-check('按钮文案带「已配置/总数」', /（\d\/11）$/.test(struct.label), struct.label);
+check(`可选映射项 ${OPT_TOTAL} 个（含账户 / 主类别 / 子类别）`, struct.optCount === OPT_TOTAL, String(struct.optCount));
+check('按钮文案带「已配置/总数」', OPT_RE.test(struct.label), struct.label);
 check('全部可选项已映射 → 提示点可见', struct.dotHidden === false, String(struct.dotHidden));
 
 /* 清空一个可选项 → 计数与提示点应立刻变化（不重建 DOM） */
@@ -363,13 +393,22 @@ const afterClear = JSON.parse(
     dotHidden: document.querySelector('[data-role=more-dot]').hidden,
   })`),
 );
-check('清空一项后计数实时减 1（2/3）', /（\d\/11）$/.test(afterClear.label), afterClear.label);
+check(
+  '清空一项后计数实时减 1',
+  optCountOf(afterClear.label) === optCountOf(struct.label) - 1,
+  `${struct.label} → ${afterClear.label}`,
+);
 check('仍有已映射项 → 提示点保留', afterClear.dotHidden === false, String(afterClear.dotHidden));
 
-/* 把三个可选项全清空 → 折叠区里没有已映射项，提示点必须消失 */
+/**
+ * 把**所有**可选项清空 → 折叠区里没有已映射项，提示点必须消失。
+ *
+ * ⚠️ 不能只清 2~3 个固定 id：服务端猜中多少列就有多少项被填上，
+ *    只清固定的几个会剩下已映射项，提示点不消失 ——
+ *    断言红的真因是「清单变长了」，不是折叠逻辑坏了。
+ */
 await ev(`(() => {
-  for (const id of ['imp-noteColumn', 'imp-recordTypeColumn']) {
-    const s = document.getElementById(id);
+  for (const s of document.querySelectorAll('[data-role=optional-fields] select')) {
     s.value = '';
     s.dispatchEvent(new Event('change', { bubbles: true }));
   }
@@ -381,7 +420,7 @@ const cleared = JSON.parse(
     dotHidden: document.querySelector('[data-role=more-dot]').hidden,
   })`),
 );
-check('全部清空后计数为 0/3', /（\d\/11）$/.test(cleared.label), cleared.label);
+check('全部清空后计数为 0', optCountOf(cleared.label) === 0, cleared.label);
 check('折叠区没有已映射项 → 提示点消失', cleared.dotHidden === true, String(cleared.dotHidden));
 
 /* 展开 → 在展开态里填两项 → 收起 → 再展开，值必须一路都在 */
@@ -425,7 +464,7 @@ const collapsedAgain = JSON.parse(
   })`),
 );
 check('再次收起后区域隐藏', collapsedAgain.hidden === true, String(collapsedAgain.hidden));
-check('收起后计数为 2/3（商家 + 备注）', /（\d\/11）$/.test(collapsedAgain.label), collapsedAgain.label);
+check('收起后计数为 2/3（商家 + 备注）', OPT_RE.test(collapsedAgain.label), collapsedAgain.label);
 check('收起后提示点重新出现（折叠区里有已映射项）', collapsedAgain.dotHidden === false, String(collapsedAgain.dotHidden));
 check(
   '收起后已填值全部保留（商家 / 备注 / 日期）',
@@ -448,7 +487,7 @@ check(
   reopened.hidden === false && reopened.merchant === '商家' && reopened.note === '备注',
   JSON.stringify(reopened),
 );
-check('计数在展开态同样正确（2/3）', /（\d\/11）$/.test(reopened.label), reopened.label);
+check('计数在展开态同样正确（2/3）', OPT_RE.test(reopened.label), reopened.label);
 /**
  * 留一个「未映射」样本给下一节的视觉比对：清掉「收支 / 类型」。
  * 它同时也是最容易被漏配的一列（不配就全按默认类型入账），

@@ -33,6 +33,7 @@ const MAPPING_FIELDS = [
   { key: 'dateColumn', label: '日期列', required: true, hint: '账单日期取这一列' },
   { key: 'amountColumn', label: '金额列', required: true, hint: '账单金额取这一列（导入取绝对值，正负由类型决定）' },
   { key: 'recordTypeColumn', label: '类型列', hint: '留空则整份文件按下方「默认记录类型」入账' },
+  { key: 'accountColumn', label: '账户列', hint: '每行按这一列的账户名入账；留空或该行没有值，才记到下方「导入到哪个账户」' },
   { key: 'timeColumn', label: '时间列', hint: '留空则记账时间为当日 00:00:00' },
   { key: 'nameColumn', label: '名称列', hint: '留空则取「商家」列，仍为空则「导入的账单」' },
   { key: 'mainCategoryColumn', label: '主类别列', hint: '留空则走自动分类规则，再退回兜底分类' },
@@ -66,6 +67,7 @@ const FIELD_LABEL = {
   dateColumn: '日期',
   amountColumn: '金额',
   recordTypeColumn: '类型',
+  accountColumn: '账户',
   directionColumn: '收支',
   timeColumn: '时间',
   nameColumn: '名称',
@@ -116,6 +118,7 @@ export async function renderImport(container, { go } = {}) {
     dateColumn: '',
     amountColumn: '',
     recordTypeColumn: null,
+    accountColumn: null,
     directionColumn: null,
     timeColumn: null,
   nameColumn: null,
@@ -493,7 +496,7 @@ export async function renderImport(container, { go } = {}) {
                     .map((a) => `<option value="${esc(a.id)}"${mapping.defaultAccountId === a.id ? ' selected' : ''}>${esc(a.name)}</option>`)
                     .join('')}
                 </select>
-                <span class="map-item__hint">整批账单都记到这个账户名下</span>
+                <span class="map-item__hint">兜底账户：没映射「账户列」、或该行账户为空时才用它</span>
                 <span class="field__error"></span>
               </div>
             </div>
@@ -692,8 +695,19 @@ export async function renderImport(container, { go } = {}) {
       toast('请选择导入到哪个账户', 'error');
       return;
     }
-    if (!window.confirm(`确认导入 ${preview?.total ?? 0} 行到「${accounts.find((a) => a.id === mapping.defaultAccountId)?.name ?? ''}」？\n\n导入的账单与手记的账单完全同路，可用账单列表筛选出来核对`))
-      return;
+    /**
+     * 确认文案要**按实际归集方式**说清楚。
+     *
+     * ⚠️ 映射了「账户列」之后，账单是**按行分散**入账的，
+     *    再写「导入 N 行到「现金」」就是假的——用户看完以为全进现金，
+     *    实际进了五张卡。文案必须跟着归集方式变。
+     */
+    const fallbackName = accounts.find((a) => a.id === mapping.defaultAccountId)?.name ?? '';
+    const byColumn = Boolean(mapping.accountColumn);
+    const confirmText = byColumn
+      ? `确认导入 ${preview?.total ?? 0} 行？\n\n· 按「${mapping.accountColumn}」列的账户名分别入账\n· 该列为空或名字对不上的行：记到「${fallbackName}」（名字对不上的会失败并列进报告）`
+      : `确认导入 ${preview?.total ?? 0} 行到「${fallbackName}」？\n\n（可选映射里的「账户列」没配，所以整批都进这一个账户）`;
+    if (!window.confirm(`${confirmText}\n\n导入的账单与手记的账单完全同路，可用账单列表筛选出来核对`)) return;
     setLoading(btn, true, '导入中');
     try {
       report = (await Api.commitImport(ledger.id, file, mapping)).data;

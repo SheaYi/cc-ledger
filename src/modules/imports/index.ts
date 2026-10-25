@@ -33,6 +33,8 @@ const mappingSchema = z.object({
   dateColumn: z.string().min(1, '必须指定日期列'),
   amountColumn: z.string().min(1, '必须指定金额列'),
   recordTypeColumn: z.string().nullish(),
+  /** 每行自带的账户名所在列；留空 → 整批落到 defaultAccountId */
+  accountColumn: z.string().nullish(),
   directionColumn: z.string().nullish(),
   timeColumn: z.string().nullish(),
   nameColumn: z.string().nullish(),

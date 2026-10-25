@@ -88,10 +88,13 @@ describe('导入模板 · CC记账导出账单（18 列契约）', () => {
     expect(tpl.doc!.find((d) => d.column === '实际值')!.consume).toBeNull();
   });
 
-  it('引用列（账户 / 转入账户）不读取：导入不做隐式建账户', () => {
-    for (const n of ['账户', '转入账户']) {
-      expect(tpl.doc!.find((d) => d.column === n)!.consume).toBeNull();
-    }
+  /**
+   * 「账户」列**必须读取**（按行归集），「转入账户」仍然不读 ——
+   * 转账本来就不支持批量导入，读它也没有落点。
+   */
+  it('「账户」列按行归集；「转入账户」不读取（转账不支持导入）', () => {
+    expect(tpl.doc!.find((d) => d.column === '账户')!.consume).toBe('accountColumn');
+    expect(tpl.doc!.find((d) => d.column === '转入账户')!.consume).toBeNull();
   });
 
   it('可选列均可映射（时间 / 名称 / 对象 / 主类别 / 子类别 / 手续费 / 折扣 / 标签）', () => {
@@ -127,6 +130,26 @@ describe('guessMapping · 自己的导出文件要能被完整识别', () => {
     expect(mapping.recordTypeColumn).toBe('类型');
     expect(mapping.mainCategoryColumn).toBe('主类别');
     expect(mapping.subCategoryColumn).toBe('子类别');
+    /** 账户列命中，否则整份文件会被压进 defaultAccountId 一个账户 */
+    expect(mapping.accountColumn).toBe('账户');
+  });
+
+  it('parseRows 逐行取出账户名（未映射时为 null → 走兜底账户）', () => {
+    const rows = [
+      EXPORT_HEADERS,
+      ['2026-10-18', '12:30:00', '支出', '减少', '餐饮', '外卖', '招行卡', '', '午餐', '美团', '', '100.00', '0', '0', '100.00', '', '', ''],
+      ['2026-10-19', '', '支出', '减少', '餐饮', '外卖', '', '', '午餐', '美团', '', '20.00', '0', '0', '20.00', '', '', ''],
+    ];
+    const { parsed } = parseRows(rows, {
+      dateColumn: '日期',
+      amountColumn: '金额',
+      accountColumn: '账户',
+      recordType: 'expense',
+      defaultAccountId: 'acc_x',
+    }, 10);
+    expect(parsed[0]!.accountName).toBe('招行卡');
+    /** 该行账户格为空 → null，由 commit 兜底到 defaultAccountId */
+    expect(parsed[1]!.accountName).toBeNull();
   });
 
   it('解析真实参考文档：类型列按行还原记录类型', () => {

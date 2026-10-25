@@ -197,6 +197,13 @@ export const MAPPING_TEMPLATES: MappingTemplate[] = [
       dateColumn: ['日期'],
       amountColumn: ['金额'],
       recordTypeColumn: ['类型'],
+      /**
+       * 每行自带的账户名 —— 导出端写的是 `account.name`（`rowsToCsv()` 第 7 列）。
+       *
+       * ⚠️ 这一列此前标成「不读取」，所有行落到「导入到哪个账户」那一个账户上，
+       *    自己的导出文件导回来 = 整份流水被压进同一个账户，账户余额集体失真。
+       */
+      accountColumn: ['账户'],
       timeColumn: ['时间'],
       nameColumn: ['名称'],
       mainCategoryColumn: ['主类别'],
@@ -217,7 +224,10 @@ export const MAPPING_TEMPLATES: MappingTemplate[] = [
      *    再让系统按 amount 重算一遍手续费会**双重计入**（`docs/03 §1.2`）。
      *
      * 「分类」在此拆为「主类别」「子类别」两列，分别反查一级 / 二级分类。
-     * 共消费 13 列（日期/时间/类型/主类别/子类别/名称/商家/对象/金额/手续费/折扣/标签/备注），其余 5 列（方向/账户/转入账户/实际值/记账人）不读取。
+     * 共消费 14 列（日期/时间/类型/账户/主类别/子类别/名称/商家/对象/金额/手续费/折扣/标签/备注），
+     * 其余 4 列（方向/转入账户/实际值/记账人）不读取。
+     *
+     * ⚠️ 「账户」列**必须读取**：不读它，整份文件就只能落到一个账户上。
      */
 doc: [
       {
@@ -286,9 +296,9 @@ doc: [
         kind: 'ref',
         values: null,
         required: false,
-        consume: null,
-        hint: '不读取。导入统一写入「导入到哪个账户」所选账户，不按行分散',
-        defaultValue: '下方「导入到哪个账户」所选账户',
+        consume: 'accountColumn',
+        hint: '可选，但强烈建议映射：账单按**每行自己的**账户名入账；不映射则整批落到「导入到哪个账户」',
+        defaultValue: '该行账户为空（或本列不映射）时，取下方「导入到哪个账户」所选账户',
       },
       {
         column: '转入账户',
@@ -489,6 +499,16 @@ export const IMPORT_COLUMN_FIELDS = [
   'dateColumn',
   'amountColumn',
   'recordTypeColumn',
+  /**
+   * 「账户」列：按**每行自己的**账户名入账。
+   *
+   * ⚠️ 这一列曾经被当成「不读取」，所有行一律落到 `defaultAccountId`
+   *   （界面上那个「导入到哪个账户」）—— 于是从本系统导出的 18 列文件
+   *   导回来时，原本分散在现金/银行卡/信用卡里的流水**全被塞进同一个账户**，
+   *   账户余额集体失真，而报告里没有一条失败行（静默的归集错误）。
+   *   「导入到哪个账户」的正确定位是**兜底**：账户列没映射、或该行这一格为空时才用。
+   */
+  'accountColumn',
   'directionColumn',
   'timeColumn',
   'nameColumn',
@@ -521,6 +541,17 @@ export interface Mapping {
    * 改名后两列各归其位，不会再有人照着字段名理解错。
    */
   recordTypeColumn?: string | null;
+  /**
+   * 每行自带的账户名所在的列。
+   *
+   * ⚠️ 它与 `defaultAccountId` 是**两回事**，不能互相顶替：
+   *   · `accountColumn` —— **逐行**取值，本行写了「招行信用卡」就记到那张卡；
+   *   · `defaultAccountId` —— **整批兜底**，账户列没映射或该行为空时才用。
+   * 留空 → 整批落到 `defaultAccountId`（改之前的行为）。
+   * 行列了名字但账本里查不到 → **该行失败**并明确报出名字，
+   * 绝不静默退回兜底账户（那等于把钱记到别的账户上）。
+   */
+  accountColumn?: string | null;
   /**
    * 支付宝/微信的「收/支」列：只能区分收支两种，
    * 是 `recordTypeColumn` 的弱化兜底 —— 两者都命中时以 `recordTypeColumn` 为准。
@@ -576,6 +607,8 @@ export interface ParsedRow {
   /** 「类型/收支」列的原文，报错时回显（用户要能对上自己文件里的那一格） */
   rawType: string | null;
   /** 以下均为可选列：未映射时留 null，由 commit 兜底 */
+  /** 该行自带的账户名（原文）。null = 未映射或该格为空 → 落到 defaultAccountId */
+  accountName: string | null;
   txTime: string | null;
   name: string | null;
   mainCategoryName: string | null;
@@ -711,6 +744,8 @@ export function parseRows(
   const iRecordType = idx(mapping.recordTypeColumn);
   /** 「收/支」列：支付宝/微信的弱化兜底（只能区分收支），二者都命中时以 recordTypeColumn 为准 */
   const iDirection = idx(mapping.directionColumn);
+  /** 每行自带的账户名（「账户」列）；-1 = 未映射，全部走 defaultAccountId */
+  const iAccount = idx(mapping.accountColumn);
   const iTime = idx(mapping.timeColumn);
   const iName = idx(mapping.nameColumn);
   const iMain = idx(mapping.mainCategoryColumn);
@@ -792,6 +827,7 @@ export function parseRows(
       note: iNote >= 0 ? (r[iNote]?.trim() || null) : null,
       recordType,
       rawType,
+      accountName: at(iAccount),
       txTime: normalizeTime(at(iTime)),
       name: at(iName),
       mainCategoryName: at(iMain),
@@ -868,27 +904,30 @@ export function preview(
 
   const header = (rows[0] ?? []).map((c) => c.trim());
   const guess = guessMapping(header);
-  const eff: Mapping = {
+  /**
+   * 逐列兜底：**所有**列字段统一走「用户指定 → guess 猜的 → null」。
+   *
+   * ⚠️ 此前只给 recordType / 主类别 / 子类别 等 5 个字段写了 guess 兜底，
+   *    时间 / 名称 / 账户 / 对象 / 手续费 / 折扣 / 标签 **漏了**，
+   *    于是「表头明明有这一列、服务端也猜中了、表单里却是空的」——
+   *    与早先「方向列被当不存在、工资导成支出」是**同一个坑的不同列**。
+   *    改成按 `IMPORT_COLUMN_FIELDS` 统一派生：新增列自动获得兜底，不会再漏。
+   *
+   * 必填的日期 / 金额额外退回「第一列 / 第二列」，保证首次预览总有东西可看。
+   */
+  const eff = {
     dateColumn: mapping?.dateColumn ?? guess.mapping.dateColumn ?? header[0] ?? '',
     amountColumn: mapping?.amountColumn ?? guess.mapping.amountColumn ?? header[1] ?? '',
-    merchantColumn: mapping?.merchantColumn ?? guess.mapping.merchantColumn ?? null,
-    noteColumn: mapping?.noteColumn ?? guess.mapping.noteColumn ?? null,
-    /**
-     * ⚠️ 这里原先是 `mapping?.recordTypeColumn ?? null` —— **不走 guess 兜底**，
-     * 于是即使 `guessMapping()` 已经从表头认出了「收/支」列，也被丢弃。
-     * 前端首次预览不传 mapping（`previewImport(id, file, null)`），
-     * 结果就是「表头明明有方向列、解析却当它不存在」：
-     * 所有正数行按 recordType（默认 expense）落表，**工资被导成支出**。
-     * 与 `guessMapping` 漏字段是同一处缺陷的两端，两头都得补才生效。
-     */
-    recordTypeColumn: mapping?.recordTypeColumn ?? guess.mapping.recordTypeColumn ?? null,
-    mainCategoryColumn: mapping?.mainCategoryColumn ?? guess.mapping.mainCategoryColumn ?? null,
-    subCategoryColumn: mapping?.subCategoryColumn ?? guess.mapping.subCategoryColumn ?? null,
     recordType: (mapping?.recordType as RecordType) ?? 'expense',
     defaultAccountId: mapping?.defaultAccountId ?? '',
     defaultCategoryId: mapping?.defaultCategoryId ?? null,
     incomeCategoryId: mapping?.incomeCategoryId ?? null,
-  };
+  } as Mapping;
+  for (const f of IMPORT_COLUMN_FIELDS) {
+    if (f === 'dateColumn' || f === 'amountColumn') continue;
+    (eff as unknown as Record<string, string | null>)[f] =
+      (mapping?.[f] as string | null | undefined) ?? (guess.mapping[f] as string | null | undefined) ?? null;
+  }
 
   const { parsed, errors } = parseRows(rows, eff, 20);
   const errByRow = new Map(errors.map((e) => [e.row, e.message]));
@@ -980,10 +1019,15 @@ function describeColumns(
     return {
       column,
       index: i + 1,
-      kind: (consume === 'dateColumn' ? 'date' : consume === 'amountColumn' ? 'money' : 'text') as
-        | 'date'
-        | 'money'
-        | 'text',
+      kind: (
+        consume === 'dateColumn'
+          ? 'date'
+          : consume === 'amountColumn'
+            ? 'money'
+            : consume === 'accountColumn'
+              ? 'ref'
+              : 'text'
+      ) as 'date' | 'money' | 'ref' | 'text',
       required: consume === 'dateColumn' || consume === 'amountColumn',
       consume,
       hint: consume
@@ -1152,6 +1196,24 @@ export function commit(
   }
   const { parsed, errors, total } = parseRows(rows, mapping, LIMITS.IMPORT_MAX_ROWS);
 
+  /**
+   * 账户名 → 账户（整批只查一次，建缓存）。
+   *
+   * ⚠️ 为什么要按名反查而不是沿用 `defaultAccountId`：
+   *    从本系统导出的文件第 7 列就是账户名，不读它的话，
+   *    原本分散在现金 / 银行卡 / 信用卡的流水会被**全部塞进同一个账户**，
+   *    账户余额集体失真，而报告里零失败行 —— 静默的归集错误比报错糟糕得多。
+   *
+   * 只认账本内**已存在**的账户：导入不隐式建账户（与标签同一条纪律 ——
+   * 新建账户属于「改变用户账本结构」的副作用，不该由导入悄悄做）。
+   */
+  const accRows = ctx.db
+    .select({ id: accounts.id, name: accounts.name, kind: accounts.kind, archivedAt: accounts.archivedAt })
+    .from(accounts)
+    .where(eq(accounts.ledgerId, ledgerId))
+    .all();
+  const accByName = new Map(accRows.map((a) => [a.name.trim(), a]));
+
   const known = allowDuplicate ? new Set<string>() : existingKeys(ctx, ledgerId);
   const batch = new Set<string>();
 
@@ -1202,6 +1264,50 @@ export function commit(
         message: `「${RECORD_TYPE_LABEL[p.recordType]}」暂不支持批量导入（转账需指定对方账户、余额调整需指定方向、应收/应付走债权债务账户），请导入后单独补录`,
       });
       continue;
+    }
+
+    /**
+     * 账户归属：**优先用本行「账户」列写的名字**，没写才退回 `defaultAccountId`。
+     *
+     * ⚠️ 查不到时**该行失败**，绝不静默退回兜底账户 ——
+     *    把一笔「招行信用卡」的消费记到「现金」上，是方向性的错账，
+     *    且用户在报告里看不到任何提示（这是改之前最危险的地方）。
+     */
+    let accountId = mapping.defaultAccountId;
+    const accName = p.accountName?.trim();
+    if (accName) {
+      const hit = accByName.get(accName);
+      if (!hit) {
+        report.failed += 1;
+        report.errors.push({
+          row: p.row,
+          column: mapping.accountColumn ?? mapping.amountColumn,
+          value: accName,
+          message: `账户「${accName}」在本账本里不存在（导入不会自动建账户，请先建好同名账户）`,
+        });
+        continue;
+      }
+      if (hit.archivedAt) {
+        report.failed += 1;
+        report.errors.push({
+          row: p.row,
+          column: mapping.accountColumn ?? mapping.amountColumn,
+          value: accName,
+          message: `账户「${accName}」已停用，请先在账户页恢复`,
+        });
+        continue;
+      }
+      if (hit.kind === 'virtual') {
+        report.failed += 1;
+        report.errors.push({
+          row: p.row,
+          column: mapping.accountColumn ?? mapping.amountColumn,
+          value: accName,
+          message: `「${accName}」是债权债务 / 系统账户，不能作为导入目标`,
+        });
+        continue;
+      }
+      accountId = hit.id;
     }
 
     /** 收入行用收入兜底分类 —— 分类树按 record_type 分开，支出分类配收入行必被拒 */
@@ -1261,7 +1367,7 @@ export function commit(
       const discount = p.discount && DISCOUNT_APPLICABLE[p.recordType].length ? p.discount : '0';
       createTransaction(ctx, actorId, ledgerId, {
         recordType: p.recordType,
-        accountId: mapping.defaultAccountId,
+        accountId,
         categoryId,
         name: p.name || p.merchant || '导入的账单',
         merchant: p.merchant,
@@ -1305,7 +1411,9 @@ export function commit(
       failed: report.failed,
       skipped: report.skipped,
       total: report.total,
+      /** 兜底账户；`accountColumn` 有值时大部分行并不落在它上面，故一并记录列映射 */
       accountId: mapping.defaultAccountId,
+      accountColumn: mapping.accountColumn ?? null,
     },
   });
 
