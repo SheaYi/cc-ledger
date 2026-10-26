@@ -2116,6 +2116,21 @@ a.acct-row:active {
 }
 
 /* --------- 账户分组与账户行 --------- */
+
+/* 列表内部统一档间距（24px，手机端降到 12px，见 mobile.css）。
+   `listSlot` 里的块此前没有任何间距规则：分组块彼此紧贴（0），
+   而「标题区 → 列表」却吃着 .page 的 32px，同一页出现两种节奏。 */
+.acct-list {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* 计数条自带的 8px 下外边距会与 .acct-list 的 gap 叠加成 32px —— 归零，只留 gap */
+.acct-list .list-meta {
+  margin-bottom: 0;
+}
+
 .acct-group {
   display: flex;
   flex-direction: column;
@@ -2128,6 +2143,11 @@ a.acct-row:active {
   flex-wrap: wrap;
   gap: 8px 12px;
   padding: 0 4px;
+}
+
+/* 已归档账户：与已停用分组同一套「退到背景里」的处理（半透明 + 徽标） */
+.acct-row.is-archived {
+  opacity: 0.62;
 }
 
 /* 分组管理动作：与账户行的动作按钮区分开，默认安静，靠分组头右侧 */

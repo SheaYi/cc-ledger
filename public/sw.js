@@ -21,7 +21,7 @@
  * 静态资源走 SWR，不换版本号的话用户第一次刷新拿到的仍是旧 JS ——
  * 正好是要修的那份，会被当成「没修好」。
  */
-const VERSION = 'cc-ledger-v18';
+const VERSION = 'cc-ledger-v19';
 const SHELL = `${VERSION}-shell`;
 const STATIC = `${VERSION}-static`;
 const API = `${VERSION}-api`;

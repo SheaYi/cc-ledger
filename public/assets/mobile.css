@@ -268,11 +268,21 @@
     display: none;
   }
 
-  /* 计数文案 + 「显示已停用」：列表自己已经把这两件事说完了
-     —— 分组头上有名字、账户行上有余额与类型；顶部再复述一遍是噪声。
-     停用开关是低频维护项，摆在列表顶部会被误读成一个筛选维度。 */
-  [data-role='list-meta'] {
+  /* 只隐藏**计数文案** —— 分组头上有名字、账户行上有余额与类型，
+     手机上再复述一遍是噪声。
+     但「显示已停用」开关**必须留着**：它是归档账户唯一的召回入口，
+     藏掉就等于手机上「归档后这个账户永远找不回来」。 */
+  [data-role='list-meta'] .list-meta__count {
     display: none;
+  }
+
+  [data-role='list-meta'] {
+    justify-content: flex-end;
+  }
+
+  /* 列表内部块间距：与 .page 的块间距（16px）保持一档之差，层级清楚 */
+  .acct-list {
+    gap: var(--card-gap);
   }
 
   .acct-add {

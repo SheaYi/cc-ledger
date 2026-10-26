@@ -599,14 +599,27 @@ export async function renderAccounts(container, { go }) {
     return loading;
   }
 
+  /**
+   * 「显示已停用」这一个开关，同时管**分组**和**账户**两件事。
+   *
+   * 之前它只作用于分组：账户列表请求的 `includeArchived` 从来不传，
+   * 而后端 `accounts/service.ts › listAccounts()` 默认会 `isNull(archivedAt)`
+   * 把已归档账户过滤掉 —— 于是勾了开关也**拿不到**归档账户的数据，
+   * 表现就是「勾了没反应」。现在请求与本地过滤都以这个值为准。
+   */
+  let showArchivedGroups = false;
+
+  /** 账户列表请求：后端默认排除已归档，开关打开才一起取回来 */
+  const fetchAccounts = () =>
+    Api.listAccounts(ledger.id, { includeArchived: showArchivedGroups }).then((r) => r.data);
+
   const [allGroups, accounts] = await Promise.all([
     Api.listAccountGroups(ledger.id, { includeArchived: true }).then((r) => r.data),
-    Api.listAccounts(ledger.id).then((r) => r.data),
+    fetchAccounts(),
   ]);
 
   /** 仅未停用的分组可用于「所属分组」选择 */
   const activeGroups = () => allGroups.filter((g) => !g.archivedAt);
-  let showArchivedGroups = false;
 
   const frame = appFrame({
     active: 'accounts',
@@ -641,7 +654,11 @@ export async function renderAccounts(container, { go }) {
         </div>
       </div>
       <div data-role="form-slot"></div>
-      <div data-role="list-slot"></div>
+      <!-- .acct-list：列表内部所有块（计数条 / 分组块 / 虚拟账户 / 末尾新建行）
+           共用**同一档**间距。之前这一层没有任何间距规则，
+           分组块之间是 0，只有「标题区 → 列表」之间有 .page 的 gap，
+           于是看上去「这块贴着、那块很松」。 -->
+      <div class="acct-list" data-role="list-slot"></div>
       <div data-role="recon-slot"></div>
     `,
   });
@@ -656,7 +673,7 @@ export async function renderAccounts(container, { go }) {
   const renderList = async () => {
     const [freshGroups, freshAccounts] = await Promise.all([
       Api.listAccountGroups(ledger.id, { includeArchived: true }).then((r) => r.data),
-      Api.listAccounts(ledger.id).then((r) => r.data),
+      fetchAccounts(),
     ]);
     allGroups.length = 0;
     allGroups.push(...freshGroups);
@@ -666,7 +683,15 @@ export async function renderAccounts(container, { go }) {
   };
 
   const paint = () => {
-    const real = accounts.filter((a) => a.kind !== 'virtual');
+    /**
+     * 真实账户也要按归档态过滤，而且**必须与请求口径同源**：
+     * 关着开关时后端本来就不返回归档账户，这里再过滤一次是为了防御
+     * 「开关刚被关上、手上还是上一份带归档的数据」这半秒窗口；
+     * 开着开关时 `includeArchived=true` 拿回来的归档账户才进列表。
+     */
+    const real = accounts.filter(
+      (a) => a.kind !== 'virtual' && (showArchivedGroups || !a.archivedAt),
+    );
     const virtual = accounts.filter((a) => a.kind === 'virtual');
     const archivedGroups = allGroups.filter((g) => g.archivedAt);
     const shown = allGroups.filter((g) => showArchivedGroups || !g.archivedAt);
@@ -708,12 +733,15 @@ export async function renderAccounts(container, { go }) {
               ${
                 list.length
                   ? list
-                      .map(
-                        (a) => `
-                <div class="acct-row">
+                      .map((a) => {
+                        const isArch = Boolean(a.archivedAt);
+                        return `
+                <div class="acct-row${isArch ? ' is-archived' : ''}">
                   <span class="acct-row__icon">${accountIcon(a, 16)}</span>
                   <span class="acct-row__main">
-                    <span class="tt-body-strong">${esc(a.name)}</span>
+                    <span class="tt-body-strong">${esc(a.name)}${
+                      isArch ? ' <span class="badge badge--dark">已归档</span>' : ''
+                    }</span>
                     <span class="tt-fine-print">
                       ${esc(ACCOUNT_TYPE_LABEL[a.type] ?? a.type)}${
                         a.openingBalance !== '0.00' ? ` · 期初 ${money(a.openingBalance)}` : ''
@@ -722,15 +750,21 @@ export async function renderAccounts(container, { go }) {
                   </span>
                   <span class="acct-row__amount ${toneClass(a.balance)} tnum">${money(a.balance)}</span>
                   <span class="acct-row__actions">
-                    <button class="btn btn--pearl btn--sm" type="button"
+                    ${
+                      isArch
+                        ? /* 已归档账户只展示，不再给「对账 / 编辑 / 归档」——
+                              它已经不在日常账里，给可点按钮是假动作。 */
+                          ''
+                        : `<button class="btn btn--pearl btn--sm" type="button"
                             data-act="recon" data-id="${esc(a.id)}">对账</button>
                     <button class="btn btn--quiet btn--sm" type="button"
                             data-act="edit" data-id="${esc(a.id)}">编辑</button>
                     <button class="btn btn--quiet btn--sm" type="button"
-                            data-act="archive" data-id="${esc(a.id)}">归档</button>
+                            data-act="archive" data-id="${esc(a.id)}">归档</button>`
+                    }
                   </span>
-                </div>`,
-                      )
+                </div>`;
+                      })
                       .join('')
                   : '<div class="empty">该分组下暂无账户</div>'
               }
@@ -742,13 +776,14 @@ export async function renderAccounts(container, { go }) {
 
     listSlot.innerHTML = `
       <!--
-        计数文案与「显示已停用」开关：手机端整条隐藏（mobile.css）。
-        ① 计数是**列表自己已经表达过的信息**（分组头上有名字、账户行上有余额），
-           手机上再读一遍纯属噪声；② 「显示已停用」是低频维护开关，
-           手机上放在列表顶部会让人以为它是一个筛选维度。
+        计数文案与「显示已停用」开关。手机端只隐藏计数文案（list-meta__count），
+        开关必须留着：它是归档账户唯一的召回入口，藏了就等于手机上
+        「账户归档后永远找不回来」。计数则是列表自己已经表达过的信息
+        （分组头上有名字、账户行上有余额），手机上再读一遍是噪声。
+        ⚠️ 这段注释在模板字符串里，禁止出现反引号 —— 反引号会提前闭合模板。
       -->
       <div class="list-meta" data-role="list-meta">
-        <span class="tt-fine-print">
+        <span class="tt-fine-print list-meta__count">
           ${shown.length} 个分组 · ${real.length} 个账户 · 分组决定账户归类，可随时改名或停用
         </span>
         <label class="check">
@@ -811,12 +846,19 @@ export async function renderAccounts(container, { go }) {
       </div>
     `;
 
-    /* 停用分组显隐 */
+    /**
+     * 停用显隐。这里**必须重新请求**而不能只 `paint()`：
+     * 关着开关时后端压根没返回归档账户，本地重画也变不出来。
+     */
     listSlot
       .querySelector('[data-role=show-archived-groups]')
-      ?.addEventListener('change', (e) => {
+      ?.addEventListener('change', async (e) => {
         showArchivedGroups = e.target.checked;
-        paint();
+        try {
+          await renderList();
+        } catch (err) {
+          toast(err.message ?? '刷新账户列表失败', 'error');
+        }
       });
 
     /* 分组级动作（与账户行动作区分开） */
@@ -987,13 +1029,22 @@ export async function renderAccounts(container, { go }) {
     form.scrollIntoView({ block: 'nearest' });
   };
 
-  /** 页头按钮组（桌面）与列表末尾入口（手机）是同一个动作，都要绑 —— 不能只取第一个 */
-  frame.querySelectorAll('[data-action=new-account]').forEach((btn) =>
-    btn.addEventListener('click', () => openForm(null)),
-  );
-  frame
-    .querySelectorAll('[data-action=new-group]')
-    .forEach((btn) => btn.addEventListener('click', () => openGroupForm(null)));
+  /**
+   * 页头按钮组（桌面）与列表末尾入口（手机）是同一个动作，两处都要生效。
+   *
+   * ⚠️ 这里**必须用事件委托**，不能 `querySelectorAll` 逐个绑：
+   * 手机端的 `.acct-add` 是 `paint()` 写进 `listSlot.innerHTML` 的，
+   * 每重画一次就是一批全新的 DOM 节点；而绑定代码只执行一次、且排在首次
+   * `paint()` **之前**（那一刻 listSlot 还是空的）—— 于是手机端这两个按钮
+   * 从来没挂上监听器，点了毫无反应。委托挂在常驻的 `frame` 上，
+   * 列表重画多少次都不受影响。
+   */
+  frame.addEventListener('click', (e) => {
+    const btn = e.target.closest?.('[data-action]');
+    if (!btn || !frame.contains(btn)) return;
+    if (btn.dataset.action === 'new-account') openForm(null);
+    else if (btn.dataset.action === 'new-group') openGroupForm(null);
+  });
 
   /* ---------------- 对账 ---------------- */
   const openReconcile = (acc) => {

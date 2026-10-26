@@ -421,9 +421,11 @@ const acct = JSON.parse(
   const vis = (el) => !!el && !!el.offsetParent;
   const add = document.querySelector('.acct-add');
   const addBtn = add && add.querySelector('[data-action=new-account]');
+  const meta = document.querySelector('[data-role=list-meta]');
   return JSON.stringify({
     hero: vis(document.querySelector('.page__hero [data-role=page-actions]')),
-    meta: vis(document.querySelector('[data-role=list-meta]')),
+    meta: vis(meta),
+    metaCount: vis(meta && meta.querySelector('.list-meta__count')),
     add: vis(add),
     addH: addBtn ? Math.round(addBtn.getBoundingClientRect().height) : 0,
     groupLink: !!add && !!add.querySelector('[data-action=new-group]'),
@@ -433,11 +435,98 @@ const acct = JSON.parse(
 })()`),
 );
 check('账户页：页头动作组不显示', acct.hero === false);
-check('账户页：计数 / 显示已停用 不显示', acct.meta === false);
+check('账户页：计数文案不显示', acct.metaCount === false);
+check('账户页：「显示已停用」开关手机上可达（归档账户唯一的召回入口）', acct.meta === true);
 check('账户页：账户组与账户列表仍在', acct.groups >= 1 && acct.rows >= 1, `${acct.groups} 组 / ${acct.rows} 个账户`);
 check('账户页：列表末尾有新建入口', acct.add === true);
 check('账户页：新建入口触控 ≥44px', acct.addH >= 44, `${acct.addH}px`);
 check('账户页：新建分组入口仍在（功能没被精简掉）', acct.groupLink === true);
+
+/* 列表内部相邻块的间距必须**只有一档**。
+   之前 `.acct-list` 这一层没有任何间距规则：分组块彼此紧贴（0），
+   而「标题区 → 列表」却吃着 `.page` 的 gap，同一页出现两种节奏。 */
+const acctGaps = JSON.parse(
+  await ev(`(() => {
+  // 只量**可见**的块：.acct-add 在桌面是 display:none，它的 rect 全是 0，
+  // 混进来会得到一条 -1388 的假间距。
+  const kids = [...(document.querySelector('.acct-list')?.children ?? [])].filter((k) => k.offsetParent !== null);
+  const gaps = [];
+  for (let i = 1; i < kids.length; i++) {
+    gaps.push(Math.round(kids[i].getBoundingClientRect().top - kids[i - 1].getBoundingClientRect().bottom));
+  }
+  return JSON.stringify({ gaps, n: kids.length });
+})()`),
+);
+check(
+  '账户页：列表内相邻块间距只有一档（不再忽紧忽松）',
+  acctGaps.gaps.length >= 2 && new Set(acctGaps.gaps).size === 1,
+  `${acctGaps.gaps.length} 处间距：${acctGaps.gaps.join(' / ')}`,
+);
+
+/* ---- 归档 → 「显示已停用」召回（后端默认过滤，前端必须显式带上开关） ---- */
+const archName = JSON.parse(
+  await ev(`(() => {
+  const btn = document.querySelector('.acct-row [data-act=archive]');
+  if (!btn) return JSON.stringify({ name: null });
+  const row = btn.closest('.acct-row');
+  const name = row.querySelector('.tt-body-strong').textContent.trim();
+  btn.click();
+  return JSON.stringify({ name });
+})()`),
+);
+await wait(1600);
+const afterArchive = JSON.parse(
+  await ev(`(() => {
+  const names = [...document.querySelectorAll('.acct-row .tt-body-strong')].map((el) => el.textContent.trim());
+  return JSON.stringify({ rows: names.length, has: names.some((n) => n.includes(${JSON.stringify(
+    archName.name,
+  )})) });
+})()`),
+);
+check('归档后账户从列表里移出', archName.name !== null && afterArchive.has === false, `${archName.name} · 剩 ${afterArchive.rows} 行`);
+
+await ev(`(() => { const c = document.querySelector('[data-role=show-archived-groups]'); c.checked = true; c.dispatchEvent(new Event('change', { bubbles: true })); return true; })()`);
+await wait(1800);
+const afterShow = JSON.parse(
+  await ev(`(() => {
+  const hit = [...document.querySelectorAll('.acct-row')].find((r) =>
+    r.querySelector('.tt-body-strong')?.textContent?.includes(${JSON.stringify(archName.name)}));
+  return JSON.stringify({
+    rows: document.querySelectorAll('.acct-row').length,
+    back: !!hit,
+    badge: hit ? /已归档/.test(hit.textContent) : false,
+    noActions: hit ? hit.querySelectorAll('[data-act]').length === 0 : false,
+  });
+})()`),
+);
+check('勾选「显示已停用」后归档账户重新出现', afterShow.back === true, `${archName.name} · ${afterShow.rows} 行`);
+check(
+  '召回的归档账户带「已归档」徽标且不再给可点动作',
+  afterShow.badge === true && afterShow.noActions === true,
+  JSON.stringify(afterShow),
+);
+await ev(`(() => { const c = document.querySelector('[data-role=show-archived-groups]'); c.checked = false; c.dispatchEvent(new Event('change', { bubbles: true })); return true; })()`);
+await wait(1600);
+
+/* ---- 手机端新建入口必须真的能用（列表重画后监听器还在） ---- */
+await ev(`(() => { const b = document.querySelector('.acct-add [data-action=new-account]'); b && b.click(); return true; })()`);
+await wait(700);
+const acctForm = JSON.parse(
+  await ev(`JSON.stringify(!!document.querySelector('[data-role=form-slot] form input[name=name]'))`),
+);
+check('账户页：手机端「新建账户」能真的打开表单', acctForm === true);
+await ev(`(() => { document.querySelector('[data-role=form-slot] [data-role=cancel]')?.click(); return true; })()`);
+await wait(500);
+
+await ev(`(() => { const b = document.querySelector('.acct-add [data-action=new-group]'); b && b.click(); return true; })()`);
+await wait(700);
+const groupForm = JSON.parse(
+  await ev(`JSON.stringify(!!document.querySelector('[data-role=form-slot] form input[name=name]'))`),
+);
+check('账户页：手机端「新建分组」能真的打开表单', groupForm === true);
+await ev(`(() => { document.querySelector('[data-role=form-slot] [data-role=cancel]')?.click(); return true; })()`);
+await wait(500);
+
 console.log('  →', await shot('accounts', { dir: OUT }));
 
 /* ================= 6. 账单页：搜索常驻 + 更多折叠 ================= */

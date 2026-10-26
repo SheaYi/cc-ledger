@@ -40,6 +40,32 @@ const files = [];
 
 const problems = [];
 
+/**
+ * 第二道独立的检查：**HTML 注释块里不许有反引号**。
+ *
+ * ## 为什么状态机抓不住，必须再加这一条
+ *
+ * 状态机按「反引号成对」判断是否在模板内，可模板里**嵌套模板**
+ * （`${cond ? `a` : 'b'}`）会把奇偶打乱：外层的**结束**反引号被当成
+ * 「开始」，于是后面的 HTML 注释被判定在模板之外 → 直接跳过。
+ * 2026-10-26 账户页就是这么漏过去的：一个 `class` 名写成了反引号引用，
+ * 整页白屏，报错行号还指到几十行之后。
+ *
+ * 这一条不依赖上下文：**视图文件里的 HTML 注释只可能写在模板字符串里**
+ * （真实 DOM 注释节点在零构建视图里不存在），所以注释内出现反引号就是 bug。
+ */
+const BT = String.fromCharCode(96);
+for (const file of files) {
+  const src = fs.readFileSync(file, 'utf8');
+  const re = /<!--[\s\S]*?-->/g;
+  let m;
+  while ((m = re.exec(src))) {
+    if (!m[0].includes(BT)) continue;
+    const line = src.slice(0, m.index).split('\n').length;
+    problems.push({ file, line, kind: 'htmlcomment(raw)', fromLine: line });
+  }
+}
+
 for (const file of files) {
   const src = fs.readFileSync(file, 'utf8');
   let i = 0;
