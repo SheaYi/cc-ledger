@@ -35,14 +35,14 @@ const MAPPING_FIELDS = [
   { key: 'recordTypeColumn', label: '类型列', hint: '留空则整份文件按下方「默认记录类型」入账' },
   { key: 'accountColumn', label: '账户列', hint: '每行按这一列的账户名入账；留空或该行没有值，才记到下方「导入到哪个账户」' },
   { key: 'timeColumn', label: '时间列', hint: '留空则记账时间为当日 00:00:00' },
-  { key: 'nameColumn', label: '名称列', hint: '留空则取「商家」列，仍为空则「导入的账单」' },
+  { key: 'nameColumn', label: '名称列', hint: '按这一列原样写入账单名称；留空则名称为空（不再取商家兜底）' },
   { key: 'mainCategoryColumn', label: '主类别列', hint: '留空则走自动分类规则，再退回兜底分类' },
   { key: 'subCategoryColumn', label: '子类别列', hint: '留空则沿「主类别」的兜底链路' },
   { key: 'merchantColumn', label: '商家列', hint: '留空则账单无商家' },
   { key: 'counterpartyColumn', label: '对象列', hint: '留空则账单无往来对象' },
   { key: 'feeColumn', label: '手续费列', hint: '留空则按 0 处理' },
   { key: 'discountColumn', label: '折扣列', hint: '留空则按 0 处理' },
-  { key: 'tagsColumn', label: '标签列', hint: '留空则无标签；只认账本内已有标签' },
+  { key: 'tagsColumn', label: '标签列', hint: '留空则无标签；按这一列原样写入，账本里没有的同名标签会自动新建' },
   { key: 'noteColumn', label: '备注列', hint: '留空则账单无备注' },
 ];
 

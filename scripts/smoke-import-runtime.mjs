@@ -57,7 +57,11 @@ const incCat = createCategory(ctx, UID, ledger.id, { recordType: 'income', name:
 const incChild = createCategory(ctx, UID, ledger.id, { recordType: 'income', parentId: incCat.id, name: '月薪冒烟' });
 check('父子分类创建成功', !!catChild?.id && !!incChild?.id);
 
-// 导入只认账本内已存在的标签（见 doc：匹配不到的名字不会新建）
+/**
+ * 名称 / 商家 / 对象 / 标签 / 备注五列是**按列直写**：
+ * 不做匹配、不转换、不校验、不兜底填充。
+ * 标签列更是「原样落库」—— 账本里没有的同名标签会新建，而不是被悄悄丢掉。
+ */
 const tagLunch = createTag(ctx, UID, ledger.id, { name: '午餐' });
 const tagReimb = createTag(ctx, UID, ledger.id, { name: '报销' });
 const tagSalary = createTag(ctx, UID, ledger.id, { name: '工资' });
@@ -75,6 +79,9 @@ const rows = [
   ['2026-10-20', '10:00:00', '转账', '', '', '', '', '', '转给老婆', '', '', '500.00', '0', '0', '', '', '', ''],
   // 账户列写了账本里没有的名字 → 该行必须**失败并点名**，绝不静默退回兜底账户
   ['2026-10-21', '11:00:00', '支出', '', '餐饮冒烟', '外卖冒烟', '不存在的卡', '', '午餐', '美团', '美团', '66.00', '0', '0', '', '', '账户不存在测试', ''],
+  // 直写行：名称列**故意留空** → 名称就必须是空（不能被兜底成商家 / 「导入的账单」）；
+  // 标签列写了两个账本里都没有的标签 → 必须按原样新建并挂上，不能丢弃也不能报错
+  ['2026-10-22', '08:15:00', '支出', '', '餐饮冒烟', '外卖冒烟', '现金', '', '', '楼下便利店', '老王', '25.00', '0', '0', '', '夜宵、临时标签', '', ''],
 ];
 const csv = [header.join(','), ...rows.map((r) => r.join(','))].join('\r\n');
 
@@ -102,7 +109,7 @@ const mapping = {
 const report = commit(ctx, UID, ledger.id, Buffer.from(csv), mapping, false);
 console.log('report:', JSON.stringify({ total: report.total, succeeded: report.succeeded, failed: report.failed, skipped: report.skipped }));
 for (const e of report.errors) console.log(`  row ${e.row} [${e.column}] ${e.message}`);
-check('成功 2 行（支出+收入）', report.succeeded === 2, `succeeded=${report.succeeded}`);
+check('成功 3 行（支出+收入+直写行）', report.succeeded === 3, `succeeded=${report.succeeded}`);
 check('失败 2 行（转账不支持 + 账户不存在）', report.failed === 2, `failed=${report.failed}`);
 check('转账失败行给出人话原因', report.errors.some((e) => /暂不支持批量导入/.test(e.message)), JSON.stringify(report.errors[0]?.message ?? ''));
 /**
@@ -117,7 +124,7 @@ check(
 
 // 读回账单做字段级断言（金额列存「分」整数）
 const txs = handle.db.select().from(transactions).where(eq(transactions.ledgerId, ledger.id)).all();
-check('落库 2 笔账单', txs.length === 2, `len=${txs.length}`);
+check('落库 3 笔账单', txs.length === 3, `len=${txs.length}`);
 
 const exp = txs.find((t) => t.note === '测试备注');
 check('支出行手续费=3.00(分300)', exp?.fee === 300, `fee=${exp?.fee}`);
@@ -148,6 +155,42 @@ const inc = txs.find((t) => t.note === '月薪');
 check('收入行分类=月薪子类别(incomeCategoryId 兜底)', inc?.categoryId === incChild.id, `cat=${inc?.categoryId}`);
 check('收入行手续费按 0 处理（列里就是 0）', inc?.fee === 0, `fee=${inc?.fee}`);
 check('收入行按「账户」列落到现金', inc?.accountId === acc.id, `accountId=${inc?.accountId} expect=${acc.id}`);
+
+/* ---- 五个文本列「按列直写」的断言 ---- */
+const plain = txs.find((t) => t.merchant === '楼下便利店');
+check('直写行落库（空名称不拦导入）', !!plain?.id, plain?.id ?? 'none');
+/**
+ * 名称列为空 → 名称必须是 null。
+ * 旧行为是「取商家兜底，再兜底成『导入的账单』」，凭空造出文件里没有的值。
+ */
+check(
+  '名称列为空 → 名称就是空（不取商家兜底、不填「导入的账单」）',
+  plain?.name === null,
+  `name=${JSON.stringify(plain?.name)}`,
+);
+check('商家列原样写入', plain?.merchant === '楼下便利店', `merchant=${plain?.merchant}`);
+check('对象列原样写入', plain?.counterparty === '老王', `cp=${plain?.counterparty}`);
+check('备注列为空 → 备注就是空', plain?.note === null, `note=${JSON.stringify(plain?.note)}`);
+
+const plainTagRows = handle.db
+  .select({ name: tags.name })
+  .from(transactionTags)
+  .innerJoin(tags, eq(transactionTags.tagId, tags.id))
+  .where(eq(transactionTags.transactionId, plain?.id ?? ''))
+  .all();
+const plainTagNames = plainTagRows.map((r) => r.name).sort();
+check(
+  '标签列原样写入（账本里没有的同名标签自动新建，不丢弃不报错）',
+  JSON.stringify(plainTagNames) === JSON.stringify(['夜宵', '临时标签'].sort()),
+  JSON.stringify(plainTagNames),
+);
+/** 已有同名标签必须被复用，不能因为导入又建一个重名的 */
+const lunchCount = handle.db
+  .select({ id: tags.id })
+  .from(tags)
+  .where(eq(tags.name, '午餐'))
+  .all();
+check('已有同名标签被复用（没有建出第二个「午餐」）', lunchCount.length === 1, `count=${lunchCount.length}`);
 
 handle.close();
 try { unlinkSync(TMP_DB); } catch {}

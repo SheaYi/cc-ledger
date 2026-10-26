@@ -42,6 +42,8 @@ import { AppError, HttpError } from '../../utils/errors.js';
 import { parseAmountToCents, today as todayStr } from '../../utils/money.js';
 import { writeAudit } from '../../utils/audit.js';
 import { createTransaction, normalizeTime } from '../transactions/service.js';
+/** 标签列直写时用它按名新建（`transaction_tags` 只存 id，名字必须先落到标签表） */
+import { createTag } from '../tags/service.js';
 import { DISCOUNT_APPLICABLE, FEE_APPLICABLE } from '../transactions/amounts.js';
 import { bumpHitCounts, classifyRows } from '../categoryRules/service.js';
 
@@ -317,8 +319,8 @@ doc: [
         values: null,
         required: false,
         consume: 'nameColumn',
-        hint: '可选。账单的展示名称',
-        defaultValue: '取「商家」列；商家也为空则「导入的账单」',
+        hint: '可选。账单的展示名称，按列原样写入（不与已有账单做任何匹配）',
+        defaultValue: '空 —— 本列为空则名称为空，不再取商家兜底、不再填「导入的账单」',
       },
       {
         column: '商家',
@@ -327,7 +329,7 @@ doc: [
         values: null,
         required: false,
         consume: 'merchantColumn',
-        hint: '可选。同时参与去重键比对',
+        hint: '可选。按列原样写入；同时参与去重键（日期+金额+商家）比对',
         defaultValue: '空（账单无商家）',
       },
       {
@@ -337,7 +339,7 @@ doc: [
         values: null,
         required: false,
         consume: 'counterpartyColumn',
-        hint: '可选。往来对象（借给谁 / 欠谁的）',
+        hint: '可选。往来对象（借给谁 / 欠谁的），按列原样写入',
         defaultValue: '空',
       },
       {
@@ -387,8 +389,8 @@ doc: [
         values: null,
         required: false,
         consume: 'tagsColumn',
-        hint: '可选。多个标签以「、」分隔；只认账本内已存在的标签名',
-        defaultValue: '无标签（匹配不到的名字不会新建）',
+        hint: '可选。多个标签以「、」分隔，按列原样写入',
+        defaultValue: '无标签（账本里没有的同名标签会自动新建，不会丢弃也不会报错）',
       },
       {
         column: '备注',
@@ -397,7 +399,7 @@ doc: [
         values: null,
         required: false,
         consume: 'noteColumn',
-        hint: '可选。账单备注，最多 2000 字',
+        hint: '可选。账单备注，最多 2000 字，按列原样写入',
         defaultValue: '空',
       },
       {
@@ -559,7 +561,13 @@ export interface Mapping {
   directionColumn?: string | null;
   /** 时分秒；留空 → occurred_at 取当日 00:00:00 */
   timeColumn?: string | null;
-  /** 账单名称；留空 → 取商家，仍为空则「导入的账单」 */
+  /**
+   * 账单名称。
+   *
+   * ⚠️ **按列直写**：列里是什么就写什么，为空就是空（null）。
+   *    不再「取商家兜底、再兜底成『导入的账单』」—— 那是凭空造出文件里没有的值，
+   *    用户按名称核对时会对不上。
+   */
   nameColumn?: string | null;
   /** 主类别（一级分类）名；留空 → 自动分类规则 → 兜底分类 */
   mainCategoryColumn?: string | null;
@@ -571,7 +579,12 @@ export interface Mapping {
   feeColumn?: string | null;
   /** 折扣；留空 → 0。同上 */
   discountColumn?: string | null;
-  /** 标签名，多个以「、」分隔；留空 → 无标签 */
+  /**
+   * 标签名，多个以「、」分隔；留空 → 无标签。
+   *
+   * ⚠️ **按列直写**：名字原样落到标签上，账本里没有的同名标签会新建，
+   *    不做「匹配不到就丢弃」的过滤，也不因它让整行失败。
+   */
   tagsColumn?: string | null;
   recordType: RecordType;
   defaultAccountId: string;
@@ -747,6 +760,17 @@ export function parseRows(
   /** 每行自带的账户名（「账户」列）；-1 = 未映射，全部走 defaultAccountId */
   const iAccount = idx(mapping.accountColumn);
   const iTime = idx(mapping.timeColumn);
+  /**
+   * 五个「文本直通」列：名称 / 商家 / 对象 / 标签 / 备注。
+   *
+   * ⚠️ 它们**只按列取值**，后续不做任何匹配、转换、校验或过滤：
+   *    · 不拿名称 / 商家去匹配系统里已有的记录；
+   *    · 不把商家 / 对象 / 标签转成内部 id 或枚举（标签 id 的落库见 `ensureTagIds`）；
+   *    · 不校验它们在系统里是否存在；
+   *    · 空值即留空（null），不会因此让这一行失败。
+   * 这里唯一的加工是 `at()` 的**外层空白裁剪**（CSV 常带尾随空格，
+   * 不裁会把「 美团 」当成与「美团」不同的商家），值本身一字不改。
+   */
   const iName = idx(mapping.nameColumn);
   const iMain = idx(mapping.mainCategoryColumn);
   const iSub = idx(mapping.subCategoryColumn);
@@ -1127,28 +1151,44 @@ function resolveCategoryByNames(
 }
 
 /**
- * 标签名 → 标签 id。
+ * 标签列 → 标签 id。
  *
- * ⚠️ 与导出端一致：导入的「标签」列是**名字**（`、「」` 分隔），而 `createTransaction`
- *     要的是 **id**（`docs/05 §14.4` 的 transaction_tags 关联表只存 id）。
- *     此前漏了这层转换，导致整行报「标签不存在」而建不了账 —— 一个可选列的错误
- *     放大成整笔账单丢失（违反「可选列不该比必填列更严格」）。
+ * ⚠️ **按列直写**：「标签」列写的是**名字**（`、「」` 分隔），而 `transaction_tags`
+ *     关联表只存 tag_id（`docs/05 §14.4`），所以这里以**列里的原名**为键：
+ *       · 账本里已有同名标签 → 复用它的 id；
+ *       · 没有 → 用**这个名字原样新建**（不归一化、不做别名匹配、不改名）。
  *
- * 映射不到的名字**静默丢弃**（不新建）：导入只认账本内已有的标签，
- * 新建标签属于「改变用户账本结构」的副作用，不该由导入悄悄做。
+ * 为什么不再「匹配不到就静默丢弃」：那等于把文件里写了的值悄悄抹掉，
+ * 用户看到的是「导入成功，但标签没进来」，既无报错也无痕迹。
+ * 直写的代价是可能新增标签，换来的是「导入的值 = 文件里的值」这条可核对的保证。
+ *
+ * 任何一步拿不到 id 都只丢掉这一个标签，**绝不让整行失败** ——
+ * 标签是可选列，可选列不该比必填列更严格。
  */
-function resolveTagNames(ctx: AppCtx, ledgerId: string, names: string[]): string[] {
+function ensureTagIds(ctx: AppCtx, actorId: string, ledgerId: string, names: string[]): string[] {
   if (!names.length) return [];
-  const rows = ctx.db
-    .select({ id: tags.id, name: tags.name })
-    .from(tags)
-    .where(eq(tags.ledgerId, ledgerId))
-    .all();
-  const byName = new Map(rows.map((r) => [r.name, r.id]));
   const ids: string[] = [];
-  for (const n of names) {
-    const id = byName.get(n);
-    if (id) ids.push(id);
+  for (const name of names) {
+    const found = ctx.db
+      .select({ id: tags.id })
+      .from(tags)
+      .where(and(eq(tags.ledgerId, ledgerId), eq(tags.name, name)))
+      .get();
+    if (found) {
+      ids.push(found.id);
+      continue;
+    }
+    try {
+      ids.push(createTag(ctx, actorId, ledgerId, { name }).id);
+    } catch {
+      /* 并发下可能已被别人建了同名标签：再查一次；仍然拿不到就跳过这一个标签 */
+      const again = ctx.db
+        .select({ id: tags.id })
+        .from(tags)
+        .where(and(eq(tags.ledgerId, ledgerId), eq(tags.name, name)))
+        .get();
+      if (again) ids.push(again.id);
+    }
   }
   return ids;
 }
@@ -1369,7 +1409,15 @@ export function commit(
         recordType: p.recordType,
         accountId,
         categoryId,
-        name: p.name || p.merchant || '导入的账单',
+        /**
+         * 五个文本字段**按列直写**（名称 / 商家 / 对象 / 标签 / 备注）：
+         * 取的就是文件里那一格的原始值 —— 不做匹配、不转换、不校验、不兜底填充。
+         *
+         * ⚠️ 名称不再「取商家 → 再兜底成『导入的账单』」：那是凭空造出文件里没有的值，
+         *    用户按名称核对时对不上，且永远看不出哪条是被兜底填出来的。
+         *    本列为空 → 名称就是空（null），账单照常入库。
+         */
+        name: p.name,
         merchant: p.merchant,
         note: p.note,
         amount: p.amount,
@@ -1378,7 +1426,8 @@ export function commit(
         txDate: p.txDate > todayStr() ? todayStr() : p.txDate,
         txTime: p.txTime,
         counterparty: p.counterparty,
-        tags: resolveTagNames(ctx, ledgerId, p.tags),
+        /** 标签同样按列直写：名字原样落库，账本里没有的同名标签自动新建，不会因此失败 */
+        tags: ensureTagIds(ctx, actorId, ledgerId, p.tags),
         clientRequestId: `import:${ledgerId}:${p.row}:${Math.abs(Math.round(Number(p.amount) * 100))}:${p.merchant ?? ''}`,
       });
       batch.add(k);
