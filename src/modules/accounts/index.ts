@@ -11,10 +11,12 @@ import { parseOrThrow } from '../../utils/validate.js';
 import { membershipFromRequest } from '../ledgers/access.js';
 import {
   archiveAccount,
+  archiveGroup,
   assertAccountType,
   balanceView,
   createAccount,
   createGroup,
+  deleteAccount,
   deleteGroup,
   findAccount,
   listAccounts,
@@ -22,6 +24,7 @@ import {
   periodFlow,
   reorderAccounts,
   reorderGroups,
+  restoreAccount,
   restoreGroup,
   totals,
   updateAccount,
@@ -123,6 +126,17 @@ export async function registerAccountRoutes(app: FastifyInstance, ctx: AppCtx): 
       const body = parseOrThrow(groupUpdateSchema, req.body);
       updateGroup(ctx, m.userId, m.ledgerId, groupId, body);
       return ok(listGroups(ctx, m.ledgerId).find((g) => g.id === groupId)!);
+    },
+  );
+
+  /** 停用分组（组内无活跃账户时；可恢复）。与「删除」的区别见 service.ts 的同名函数。 */
+  app.post(
+    '/api/v1/ledgers/:ledgerId/account-groups/:groupId/archive',
+    { preHandler: app.requireAuth },
+    async (req) => {
+      const m = membershipFromRequest(ctx, req);
+      const { groupId } = req.params as { groupId: string };
+      return ok(archiveGroup(ctx, m.userId, m.ledgerId, groupId));
     },
   );
 
@@ -245,6 +259,7 @@ export async function registerAccountRoutes(app: FastifyInstance, ctx: AppCtx): 
     },
   );
 
+  /** 归档（软删除）。DELETE 这个动词沿用了早期版本，归档与物理删除在语义上是两件事。 */
   app.delete(
     '/api/v1/ledgers/:ledgerId/accounts/:accountId',
     { preHandler: app.requireAuth },
@@ -253,6 +268,28 @@ export async function registerAccountRoutes(app: FastifyInstance, ctx: AppCtx): 
       const { accountId } = req.params as { accountId: string };
       archiveAccount(ctx, m.userId, m.ledgerId, accountId);
       return reply.code(204).send();
+    },
+  );
+
+  /** 取消归档：账户重新回到日常列表（与 `DELETE` 归档互为逆操作） */
+  app.post(
+    '/api/v1/ledgers/:ledgerId/accounts/:accountId/restore',
+    { preHandler: app.requireAuth },
+    async (req) => {
+      const m = membershipFromRequest(ctx, req);
+      const { accountId } = req.params as { accountId: string };
+      return ok(restoreAccount(ctx, m.userId, m.ledgerId, accountId));
+    },
+  );
+
+  /** 物理删除（不可恢复）。有账单或其它记录引用时拒绝 —— 那种情况应走归档。 */
+  app.post(
+    '/api/v1/ledgers/:ledgerId/accounts/:accountId/purge',
+    { preHandler: app.requireAuth },
+    async (req) => {
+      const m = membershipFromRequest(ctx, req);
+      const { accountId } = req.params as { accountId: string };
+      return ok(deleteAccount(ctx, m.userId, m.ledgerId, accountId));
     },
   );
 }

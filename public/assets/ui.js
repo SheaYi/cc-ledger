@@ -203,6 +203,75 @@ export function actionToast(message, actions = [], { ttl = 5000, kind = 'success
   return { close };
 }
 
+/**
+ * 二次确认弹窗（删除类操作的统一入口）。
+ *
+ * 为什么不用 `window.confirm`：
+ *   · 原生弹窗不支持多行排版 —— 「删除后会发生什么」需要分段说清（对象名、
+ *     不可恢复、连带影响），挤在一行里没人读；
+ *   · 它不受主题与 token 约束，暗色下是系统配色；
+ *   · 无法给确认按钮上语义色（危险动作要能看到「红」）。
+ *
+ * 结构上复用项目已有的 `.modal / .modal__panel`（记账形态弹窗、导入账单弹窗
+ * 同款），不新造一套浮层：圆角、遮罩、窄屏贴底 Sheet 的表现与全站一致。
+ *
+ * @param {object} opts
+ * @param {string} opts.title      标题
+ * @param {string} opts.confirmText 确认按钮文案（默认「删除」）
+ * @param {boolean} [opts.danger]  确认按钮用危险色
+ * @param {string[]} opts.lines    正文分段（每段一行，按顺序渲染）
+ * @returns {Promise<boolean>} 用户点了确认才 true
+ */
+export function confirmDialog({ title, lines = [], confirmText = '确认', danger = true }) {
+  return new Promise((resolve) => {
+    const wrap = h(`
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+        <div class="modal__scrim" data-role="scrim"></div>
+        <div class="modal__panel modal__panel--confirm" tabindex="-1">
+          <div class="modal__head">
+            <h3 class="modal__title" id="confirm-title">${esc(title)}</h3>
+            <button class="btn btn--icon" type="button" data-role="close" aria-label="关闭">${icon('close', 18)}</button>
+          </div>
+          <div class="modal__body stack stack--sm">
+            ${lines
+              .map(
+                (line) =>
+                  `<p class="${line.strong ? 'tt-body-strong' : 'tt-caption text-muted'}">${esc(line.text ?? line)}</p>`,
+              )
+              .join('')}
+          </div>
+          <div class="modal__foot">
+            <button class="btn btn--secondary btn--sm" type="button" data-role="cancel">取消</button>
+            <button class="btn ${danger ? 'btn--danger' : ''} btn--sm" type="button" data-role="ok">${esc(confirmText)}</button>
+          </div>
+        </div>
+      </div>
+    `);
+
+    const done = (v) => {
+      document.removeEventListener('keydown', onKey);
+      wrap.remove();
+      resolve(v);
+    };
+    const onKey = (e) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        done(false);
+      }
+    };
+
+    wrap.querySelector('[data-role=scrim]').addEventListener('click', () => done(false));
+    wrap.querySelector('[data-role=close]').addEventListener('click', () => done(false));
+    wrap.querySelector('[data-role=cancel]').addEventListener('click', () => done(false));
+    wrap.querySelector('[data-role=ok]').addEventListener('click', () => done(true));
+    document.addEventListener('keydown', onKey);
+
+    document.body.appendChild(wrap);
+    /* 焦点落在「取消」：危险动作的默认值必须是「不动手」 */
+    wrap.querySelector('[data-role=cancel]').focus();
+  });
+}
+
 /* ---------------- 按钮 loading 态 ---------------- */
 export function setLoading(btn, loading, loadingText = '处理中') {
   if (!btn) return;

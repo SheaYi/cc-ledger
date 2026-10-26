@@ -217,7 +217,9 @@ export async function renderMobileHome(container, { go }) {
   const range = recentRange(TREND_DAYS);
   const [summary, accounts, trend, recent] = await Promise.all([
     Api.accountSummary(ledger.id).then((r) => r.data).catch(() => null),
-    Api.listAccounts(ledger.id).then((r) => r.data).catch(() => []),
+    /* 连已归档的一起取，只为分清「真没有账户」和「账户都归档了」两种空态；
+       展示时归档账户一律不出现（归档 = 退出日常视图，不是消失） */
+    Api.listAccounts(ledger.id, { includeArchived: true }).then((r) => r.data).catch(() => []),
     Api.statsTrend(ledger.id, { dateFrom: range.from, dateTo: range.to, granularity: 'day' })
       .then((r) => r.data)
       .catch(() => []),
@@ -226,7 +228,8 @@ export async function renderMobileHome(container, { go }) {
       .catch(() => []),
   ]);
 
-  const realAccounts = (accounts ?? []).filter((a) => a.kind !== 'virtual');
+  const realAccounts = (accounts ?? []).filter((a) => a.kind !== 'virtual' && !a.archivedAt);
+  const archivedCount = (accounts ?? []).filter((a) => a.kind !== 'virtual' && a.archivedAt).length;
   const flow = summary?.period ?? { expense: 0, income: 0, net: 0, txCount: 0, dateFrom: '' };
   const monthName = flow.dateFrom ? monthLabel(flow.dateFrom.slice(0, 7)) : '本月';
 
@@ -288,9 +291,13 @@ export async function renderMobileHome(container, { go }) {
         ${
           realAccounts.length === 0
             ? `<div class="card mh-empty">
-                 <p class="tt-body-strong">还没有账户</p>
-                 <p class="tt-caption text-muted">先建一张银行卡或现金账户，才能开始记账</p>
-                 <a class="btn btn--sm" href="/accounts" data-link>去添加账户</a>
+                 <p class="tt-body-strong">${archivedCount > 0 ? '账户都已归档' : '还没有账户'}</p>
+                 <p class="tt-caption text-muted">${
+                   archivedCount > 0
+                     ? `${archivedCount} 个账户已归档，到账户页可取消归档让它们回到这里`
+                     : '先建一张银行卡或现金账户，才能开始记账'
+                 }</p>
+                 <a class="btn btn--sm" href="/accounts" data-link>去账户页</a>
                </div>`
             : `<div class="card card--flush mh-list">
                  ${realAccounts.slice(0, 4).map((a) => {

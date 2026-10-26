@@ -212,6 +212,9 @@ export const Api = {
   /** 删除：返回 { mode: 'removed' | 'archived', accountCount } */
   deleteAccountGroup: (ledgerId, groupId) =>
     request('DELETE', `/ledgers/${seg(ledgerId)}/account-groups/${seg(groupId)}`),
+  /** 停用分组（可恢复；组内无活跃账户时才行） */
+  archiveAccountGroup: (ledgerId, groupId) =>
+    request('POST', `/ledgers/${seg(ledgerId)}/account-groups/${seg(groupId)}/archive`),
   restoreAccountGroup: (ledgerId, groupId) =>
     request('POST', `/ledgers/${seg(ledgerId)}/account-groups/${seg(groupId)}/restore`),
   reorderAccountGroups: (ledgerId, ids) =>
@@ -231,6 +234,12 @@ export const Api = {
     request('PATCH', `/ledgers/${seg(ledgerId)}/accounts/${seg(accountId)}`, { body: payload }),
   archiveAccount: (ledgerId, accountId) =>
     request('DELETE', `/ledgers/${seg(ledgerId)}/accounts/${seg(accountId)}`),
+  /** 取消归档（归档的逆操作） */
+  restoreAccount: (ledgerId, accountId) =>
+    request('POST', `/ledgers/${seg(ledgerId)}/accounts/${seg(accountId)}/restore`),
+  /** 物理删除（不可恢复）。返回 { deleted, txCount }；有账单引用时后端拒绝 */
+  purgeAccount: (ledgerId, accountId) =>
+    request('POST', `/ledgers/${seg(ledgerId)}/accounts/${seg(accountId)}/purge`),
   reorderAccounts: (ledgerId, ids) =>
     request('POST', `/ledgers/${seg(ledgerId)}/accounts/reorder`, { body: { ids } }),
 

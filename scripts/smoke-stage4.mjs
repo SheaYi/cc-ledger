@@ -604,8 +604,24 @@ check('归档后默认列表不含该账户', !r.json.data.some((a) => a.id === 
 r = await call('GET', `/ledgers/${ledgerA}/accounts?includeArchived=true`, { token: tokenA });
 check('includeArchived=true 可查到', r.json.data.some((a) => a.id === cardId));
 
+/**
+ * 删分组**不带走账户**：组内账户统一移到「未分组」，分组本身物理删除。
+ * 之前这里是「分组下仍有账户 → 400」，那等于把账户锁死在一个不想用的分类里。
+ */
 r = await call('DELETE', `/ledgers/${ledgerA}/account-groups/${newGroupId}`, { token: tokenA });
-check('分组下仍有账户 → 禁止删除 400', r.status === 400, `got ${r.status}`);
+check(
+  '删分组 → 组内账户移到「未分组」（mode=removed）200',
+  r.status === 200 && r.json.data.mode === 'removed' && r.json.data.movedAccounts >= 1,
+  `got ${r.status} ${JSON.stringify(r.json?.data)}`,
+);
+r = await call('GET', `/ledgers/${ledgerA}/accounts?includeArchived=true`, { token: tokenA });
+check(
+  '被删分组的账户仍在，且归属「未分组」',
+  r.json.data.some(
+    (a) => a.id === cardId && (a.groupName === '未分组' || /未分组/.test(a.groupName ?? '')),
+  ),
+  `cardId 归属 ${r.json.data.find((a) => a.id === cardId)?.groupName}`,
+);
 
 /* =================== 9.5) 账户分组生命周期 =================== */
 console.log('\n=== 9.5) 账户分组：增 / 改 / 停用 / 恢复 ===');
@@ -638,7 +654,7 @@ check('分组名超过 20 字 → 400', r.status === 400, `got ${r.status}`);
 
 // 空分组直接物理删除
 r = await call('DELETE', `/ledgers/${ledgerA}/account-groups/${lifeGroup.id}`, { token: tokenA });
-check('空分组 → 物理删除（mode=removed）200', r.status === 200 && r.json.data.mode === 'removed' && r.json.data.accountCount === 0, `got ${r.status} ${JSON.stringify(r.json?.data)}`);
+check('空分组 → 物理删除（mode=removed）200', r.status === 200 && r.json.data.mode === 'removed' && r.json.data.movedAccounts === 0, `got ${r.status} ${JSON.stringify(r.json?.data)}`);
 r = await call('GET', `/ledgers/${ledgerA}/account-groups`, { token: tokenA });
 check('物理删除后列表不含该分组', !r.json.data.some((g) => g.id === lifeGroup.id));
 r = await call('GET', `/ledgers/${ledgerA}/account-groups?includeArchived=true`, { token: tokenA });
@@ -651,55 +667,67 @@ r = await call('POST', `/ledgers/${ledgerA}/account-groups`, {
 check('删除后同名可重建 201', r.status === 201, `got ${r.status}`);
 const lifeGroup2 = r.json?.data;
 
-// 分组下建账户 → 有活跃账户时不可删除
+// 分组下建账户 → 删除时账户保留并搬走（有活跃账户时**停用**才被拒）
 r = await call('POST', `/ledgers/${ledgerA}/accounts`, {
   token: tokenA,
   body: { groupId: lifeGroup2.id, name: '房贷账户（冒烟）', type: 'loan', openingBalance: '-1200000.00', openingDate: day(-40) },
 });
 check('在分组下建账户 201', r.status === 201, `got ${r.status}`);
 const lifeAcc = r.json?.data;
-r = await call('DELETE', `/ledgers/${ledgerA}/account-groups/${lifeGroup2.id}`, { token: tokenA });
-check('有活跃账户 → 400 且提示数量', r.status === 400 && /1 个账户/.test(r.json?.error?.message ?? ''), `got ${r.status} ${r.json?.error?.message}`);
+/* 用 lifeGroup3 承接后面的「停用 → 恢复」生命周期：lifeGroup2 在本段已被删除 */
+let lifeGroup3 = null;
+r = await call('POST', `/ledgers/${ledgerA}/account-groups/${lifeGroup2.id}/archive`, { token: tokenA });
+check('有活跃账户 → 停用 400 且提示数量', r.status === 400 && /1 个账户/.test(r.json?.error?.message ?? ''), `got ${r.status} ${r.json?.error?.message}`);
 
-// 归档账户后 → 分组转为停用（历史归属保留）
-r = await call('DELETE', `/ledgers/${ledgerA}/accounts/${lifeAcc.id}`, { token: tokenA });
-check('归档分组内账户 204', r.status === 204, `got ${r.status}`);
+// 删掉分组 → 账户搬到「未分组」，分组本身物理删除（不再是「转为停用」）
 r = await call('DELETE', `/ledgers/${ledgerA}/account-groups/${lifeGroup2.id}`, { token: tokenA });
-check('仅剩归档账户 → 停用（mode=archived）200', r.status === 200 && r.json.data.mode === 'archived' && r.json.data.accountCount === 1, `got ${r.status} ${JSON.stringify(r.json?.data)}`);
+check('有活跃账户 → 删除 200 且搬走账户', r.status === 200 && r.json.data.movedAccounts === 1, `got ${r.status} ${JSON.stringify(r.json?.data)}`);
+r = await call('GET', `/ledgers/${ledgerA}/accounts`, { token: tokenA });
+check('账户仍在且已归属「未分组」', r.json.data.some((a) => a.id === lifeAcc.id && /未分组/.test(a.groupName ?? '')), `got ${r.json.data.find((a) => a.id === lifeAcc.id)?.groupName}`);
+
+// 停用走**显式**停用接口：空分组可停用，停用的分组可恢复
+r = await call('POST', `/ledgers/${ledgerA}/account-groups`, {
+  token: tokenA, body: { name: '房贷专项（停用用）', kind: 'asset' },
+});
+check('另建一个空分组 201', r.status === 201, `got ${r.status}`);
+lifeGroup3 = r.json?.data;
+r = await call('POST', `/ledgers/${ledgerA}/account-groups/${lifeGroup3.id}/archive`, { token: tokenA });
+check('空分组可停用 200', r.status === 200 && r.json.data.archivedAt, `got ${r.status}`);
+const archivedGroup = lifeGroup3;
 r = await call('GET', `/ledgers/${ledgerA}/account-groups`, { token: tokenA });
-check('停用分组默认不可见', !r.json.data.some((g) => g.id === lifeGroup2.id));
+check('停用分组默认不可见', !r.json.data.some((g) => g.id === archivedGroup.id));
 r = await call('GET', `/ledgers/${ledgerA}/account-groups?includeArchived=true`, { token: tokenA });
-check('includeArchived=true 可查到停用分组', r.json.data.some((g) => g.id === lifeGroup2.id && g.archivedAt));
+check('includeArchived=true 可查到停用分组', r.json.data.some((g) => g.id === archivedGroup.id && g.archivedAt));
 
 // 停用即释放名字：同名新分组可建（部分唯一索引）
 r = await call('POST', `/ledgers/${ledgerA}/account-groups`, {
-  token: tokenA, body: { name: '房贷专项（改名）', kind: 'asset' },
+  token: tokenA, body: { name: archivedGroup.name, kind: 'asset' },
 });
 check('停用后同名可重建 201（部分唯一索引）', r.status === 201, `got ${r.status}`);
 const clashGroup = r.json?.data;
 
 // 恢复同名 → 409
-r = await call('POST', `/ledgers/${ledgerA}/account-groups/${lifeGroup2.id}/restore`, { token: tokenA });
+r = await call('POST', `/ledgers/${ledgerA}/account-groups/${archivedGroup.id}/restore`, { token: tokenA });
 check('同名活跃分组存在时恢复 → 409', r.status === 409, `got ${r.status}`);
 
 // 清掉同名活跃分组后恢复成功
 r = await call('DELETE', `/ledgers/${ledgerA}/account-groups/${clashGroup.id}`, { token: tokenA });
 check('删除同名活跃分组（空）→ removed', r.status === 200 && r.json.data.mode === 'removed', `got ${r.status}`);
-r = await call('POST', `/ledgers/${ledgerA}/account-groups/${lifeGroup2.id}/restore`, { token: tokenA });
+r = await call('POST', `/ledgers/${ledgerA}/account-groups/${archivedGroup.id}/restore`, { token: tokenA });
 check('恢复停用分组 200', r.status === 200 && r.json.data.archivedAt === null, `got ${r.status}`);
 r = await call('GET', `/ledgers/${ledgerA}/account-groups`, { token: tokenA });
-check('恢复后默认列表可见', r.json.data.some((g) => g.id === lifeGroup2.id));
+check('恢复后默认列表可见', r.json.data.some((g) => g.id === archivedGroup.id));
 
 // 幂等：重复恢复不报错
-r = await call('POST', `/ledgers/${ledgerA}/account-groups/${lifeGroup2.id}/restore`, { token: tokenA });
+r = await call('POST', `/ledgers/${ledgerA}/account-groups/${archivedGroup.id}/restore`, { token: tokenA });
 check('重复恢复幂等 200', r.status === 200, `got ${r.status}`);
 
 // 隔离与鉴权
-r = await call('PATCH', `/ledgers/${ledgerB}/account-groups/${lifeGroup2.id}`, {
+r = await call('PATCH', `/ledgers/${ledgerB}/account-groups/${archivedGroup.id}`, {
   token: tokenA, body: { name: '越权改名' },
 });
 check('跨账本改分组 → 404', r.status === 404, `got ${r.status}`);
-r = await call('POST', `/ledgers/${ledgerB}/account-groups/${lifeGroup2.id}/restore`, { token: tokenA });
+r = await call('POST', `/ledgers/${ledgerB}/account-groups/${archivedGroup.id}/restore`, { token: tokenA });
 check('跨账本恢复分组 → 404', r.status === 404, `got ${r.status}`);
 r = await call('DELETE', `/ledgers/${ledgerA}/account-groups/grp_not_exist_${stamp}`, { token: tokenA });
 check('删除不存在的分组 → 404', r.status === 404, `got ${r.status}`);
@@ -714,7 +742,7 @@ r = await call('PATCH', `/ledgers/${ledgerA}/accounts/${acc2.id}`, {
 });
 check('更新账户 200 且名称已变', r.status === 200 && r.json.data.name === '转入户（改名）', `got ${r.status} ${r.json?.data?.name}`);
 
-r = await call('PATCH', `/ledgers/${ledgerA}/account-groups/${lifeGroup2.id}`, {
+r = await call('PATCH', `/ledgers/${ledgerA}/account-groups/${archivedGroup.id}`, {
   token: tokenA,
   body: { name: '境外账户（改名）' },
 });

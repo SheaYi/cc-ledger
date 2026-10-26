@@ -135,6 +135,29 @@ console.log('\n── 金额键盘 ──');
 await go('/transactions/new', '.compose__card');
 await wait(900);
 
+/**
+ * 进页面**不许**自动弹键盘。
+ *
+ * 桌面时代「自动聚焦金额框」是对的，但手机端金额框挂着模态键盘，
+ * 自动聚焦 = 一进页面就弹出半屏键盘 + 整页遮罩，看着就是「页面整体发灰变暗」，
+ * 而且 `html.has-amount-pad` 会锁住背景滚动。键盘只能由用户去点金额唤起。
+ */
+const onLoad = JSON.parse(
+  await ev(`(() => {
+  const root = document.getElementById('cc-amount-pad');
+  return JSON.stringify({
+    exists: !!root,
+    open: !!root && root.classList.contains('is-open'),
+    hidden: root ? root.hidden : null,
+    dimmed: document.documentElement.classList.contains('has-amount-pad'),
+    locked: getComputedStyle(document.documentElement).overflow,
+  });
+})()`),
+);
+check('进记账页不自动弹出金额键盘', onLoad.open === false, JSON.stringify(onLoad));
+check('进记账页没有全屏遮罩（html 无 has-amount-pad）', onLoad.dimmed === false);
+check('进记账页背景滚动没被锁死', onLoad.locked !== 'hidden', `html overflow=${onLoad.locked}`);
+
 check('紧凑形态金额框只读（不弹系统键盘）',
   (await ev(`document.querySelector('[name=amount]')?.hasAttribute('readonly')`)) === true);
 check('金额框标了 inputmode=none（双保险，防安卓仍弹系统键盘）',
@@ -165,6 +188,77 @@ check('键盘是 18 键（0-9 · 点 · 四则 · 退格 · 清空 · 等号）'
 check('键盘触控目标 ≥44px', padOpen.tooSmall === 0 && padOpen.minKeyH >= 44, `最小键高 ${padOpen.minKeyH}px`);
 check('键盘贴合视口底部', Math.abs(padOpen.bottom - padOpen.vh) <= 1, `bottom=${padOpen.bottom} vh=${padOpen.vh}`);
 check('被编辑的金额框有视觉指示（不可依赖 focus，已被 blur）', padOpen.editing === true);
+
+/**
+ * 焦点移到别的输入框 → 键盘必须让路。
+ *
+ * 这是「点输入框 → 整页发灰」的正解：键盘只在用户还在用它时才该模态。
+ * 用户去点「备注」= 金额这块弄完了；此时若还压着半屏 + 盖着遮罩，
+ * 页面就是灰的，而且焦点还会被抢回键盘打开前的元素（表现为要点第二下）。
+ */
+await ev(`(() => { document.querySelector('[name=note]')?.focus(); return true; })()`);
+await wait(500);
+const afterFocus = JSON.parse(
+  await ev(`(() => {
+  const root = document.getElementById('cc-amount-pad');
+  return JSON.stringify({
+    open: !!root && root.classList.contains('is-open'),
+    dimmed: document.documentElement.classList.contains('has-amount-pad'),
+    activeName: document.activeElement?.getAttribute?.('name') ?? document.activeElement?.tagName,
+    locked: getComputedStyle(document.documentElement).overflow,
+  });
+})()`),
+);
+check('聚焦普通输入框时金额键盘自动收起', afterFocus.open === false, JSON.stringify(afterFocus));
+check('收起后遮罩一并消失（页面不再发灰）', afterFocus.dimmed === false);
+check('收起后焦点留在用户刚点的输入框上（不被抢回）', afterFocus.activeName === 'note', String(afterFocus.activeName));
+check('收起后背景滚动恢复', afterFocus.locked !== 'hidden', `html overflow=${afterFocus.locked}`);
+
+/* 重新打开键盘，供后面的按键断言使用 */
+await ev(`(() => { document.querySelector('[name=amount]')?.click(); return true; })()`);
+await wait(500);
+
+/* =============== 3a-2. 提交条：与卡片同宽同高 =============== */
+const bar = JSON.parse(
+  await ev(`(() => {
+  const el = document.querySelector('.action-bar');
+  const card = document.querySelector('.compose__card') ?? document.querySelector('.card');
+  if (!el || !card) return 'null';
+  const b = el.getBoundingClientRect(), c = card.getBoundingClientRect();
+  const cs = getComputedStyle(el), ccs = getComputedStyle(card);
+  const btns = [...el.querySelectorAll('.btn')].map((x) => Math.round(x.getBoundingClientRect().height));
+  return JSON.stringify({
+    barL: Math.round(b.left), barR: Math.round(b.right), barW: Math.round(b.width), barH: Math.round(b.height),
+    cardL: Math.round(c.left), cardR: Math.round(c.right), cardW: Math.round(c.width),
+    radius: cs.borderTopLeftRadius + '/' + cs.borderBottomLeftRadius,
+    cardRadius: ccs.borderTopLeftRadius,
+    btns,
+  });
+})()`),
+);
+if (bar === 'null') check('提交条与卡片都存在', false);
+else {
+  check(
+    '提交条与卡片左右缘对齐（同宽，不再是贴底通栏）',
+    Math.abs(bar.barL - bar.cardL) <= 1 && Math.abs(bar.barR - bar.cardR) <= 1,
+    `条 ${bar.barL}~${bar.barR} / 卡 ${bar.cardL}~${bar.cardR}`,
+  );
+  check(
+    '提交条四角圆角与卡片一致（上下同半径）',
+    bar.radius.split('/')[0] === bar.radius.split('/')[1] && bar.radius.split('/')[0] === bar.cardRadius,
+    `条 ${bar.radius} / 卡 ${bar.cardRadius}`,
+  );
+  check(
+    '提交条高度 = 44px 按钮 + 上下留白（66~72）',
+    bar.barH >= 66 && bar.barH <= 72,
+    `${bar.barH}px`,
+  );
+  check(
+    '提交条内按钮同高（都是 44px 触控底线）',
+    bar.btns.length >= 2 && new Set(bar.btns).size === 1 && bar.btns[0] === 44,
+    bar.btns.join('/'),
+  );
+}
 
 /* 真实敲一遍「12 ＋ 5 × 2」：先乘除后加减 = 22.00 */
 /**
@@ -495,18 +589,145 @@ const afterShow = JSON.parse(
     rows: document.querySelectorAll('.acct-row').length,
     back: !!hit,
     badge: hit ? /已归档/.test(hit.textContent) : false,
-    noActions: hit ? hit.querySelectorAll('[data-act]').length === 0 : false,
+    acts: hit ? [...hit.querySelectorAll('[data-act]')].map((b) => b.dataset.act) : [],
   });
 })()`),
 );
 check('勾选「显示已停用」后归档账户重新出现', afterShow.back === true, `${archName.name} · ${afterShow.rows} 行`);
 check(
-  '召回的归档账户带「已归档」徽标且不再给可点动作',
-  afterShow.badge === true && afterShow.noActions === true,
+  '召回的归档账户带「已归档」徽标',
+  afterShow.badge === true,
   JSON.stringify(afterShow),
 );
+/**
+ * 归档账户该有的动作：只有「取消归档 / 编辑」。
+ * 归档不是删除 —— 它随时可以回来；但「对账 / 归档」是假动作（它已不在日常账里），
+ * 「删除」也不在行上（收在编辑表单里，避免误触）。
+ */
+check(
+  '召回的归档账户只给「取消归档 + 编辑」，不给对账 / 归档',
+  afterShow.acts.includes('restore') &&
+    afterShow.acts.includes('edit') &&
+    !afterShow.acts.includes('recon') &&
+    !afterShow.acts.includes('archive') &&
+    !afterShow.acts.includes('remove'),
+  JSON.stringify(afterShow.acts),
+);
+/* ---- 取消归档：归档不是删除，账户要能原样回来 ---- */
+await ev(`(() => {
+  const hit = [...document.querySelectorAll('.acct-row')].find((r) =>
+    r.querySelector('.tt-body-strong')?.textContent?.includes(${JSON.stringify(archName.name)}));
+  hit?.querySelector('[data-act=restore]')?.click();
+  return true;
+})()`);
+await wait(1800);
+const afterRestore = JSON.parse(
+  await ev(`(() => {
+  const names = [...document.querySelectorAll('.acct-row .tt-body-strong')].map((el) => el.textContent.trim());
+  return JSON.stringify({
+    back: names.some((n) => n.includes(${JSON.stringify(archName.name)})),
+    archivedBadgeLeft: document.querySelectorAll('.acct-row .badge--dark').length,
+  });
+})()`),
+);
+check('取消归档后账户回到日常列表', afterRestore.back === true, `${archName.name} · 剩余归档徽标 ${afterRestore.archivedBadgeLeft}`);
+check(
+  '取消归档后自动关掉「显示已停用」（否则看起来像没生效）',
+  (await ev(`document.querySelector('[data-role=show-archived-groups]')?.checked`)) === false,
+);
+
 await ev(`(() => { const c = document.querySelector('[data-role=show-archived-groups]'); c.checked = false; c.dispatchEvent(new Event('change', { bubbles: true })); return true; })()`);
 await wait(1600);
+
+/* ---- 删除账户：入口在编辑表单里，且必须先过二次确认弹窗 ---- */
+const NEW_ACC = `探针待删账户${Date.now().toString().slice(-6)}`;
+await ev(`(() => { const b = document.querySelector('.acct-add [data-action=new-account]'); b && b.click(); return true; })()`);
+await wait(700);
+await ev(`(() => {
+  const f = document.querySelector('[data-role=form-slot] form');
+  f.querySelector('input[name=name]').value = ${JSON.stringify(NEW_ACC)};
+  f.querySelector('input[name=name]').dispatchEvent(new Event('input', { bubbles: true }));
+  f.querySelector('button[type=submit]').click();
+  return true;
+})()`);
+await wait(2200);
+const createdRow = JSON.parse(
+  await ev(`(() => {
+  const hit = [...document.querySelectorAll('.acct-row')].find((r) =>
+    r.querySelector('.tt-body-strong')?.textContent?.includes(${JSON.stringify(NEW_ACC)}));
+  return JSON.stringify({ created: !!hit, removeOnRow: !!hit?.querySelector('[data-act=remove]') });
+})()`),
+);
+check('新建的账户出现在列表里', createdRow.created === true, NEW_ACC);
+check('删除入口不在行上（收在编辑表单里，避免误触）', createdRow.removeOnRow === false);
+
+/* 打开编辑表单 → 里面才有删除按钮 */
+await ev(`(() => {
+  const hit = [...document.querySelectorAll('.acct-row')].find((r) =>
+    r.querySelector('.tt-body-strong')?.textContent?.includes(${JSON.stringify(NEW_ACC)}));
+  hit?.querySelector('[data-act=edit]')?.click();
+  return true;
+})()`);
+await wait(800);
+const editForm = JSON.parse(
+  await ev(`JSON.stringify({
+    hasRemove: !!document.querySelector('[data-role=form-slot] [data-role=remove]'),
+    label: document.querySelector('[data-role=form-slot] [data-role=remove]')?.textContent?.trim() ?? '',
+  })`),
+);
+check('编辑表单里有「删除账户」入口', editForm.hasRemove === true, editForm.label);
+
+/* 点删除 → 二次确认弹窗，且必须点出被删对象的名字 */
+await ev(`(() => { document.querySelector('[data-role=form-slot] [data-role=remove]').click(); return true; })()`);
+await wait(600);
+const confirmBox = JSON.parse(
+  await ev(`(() => {
+  const m = document.querySelector('.modal__panel--confirm');
+  if (!m) return JSON.stringify({ open: false });
+  return JSON.stringify({
+    open: true,
+    title: m.querySelector('.modal__title')?.textContent?.trim() ?? '',
+    body: m.querySelector('.modal__body')?.textContent ?? '',
+    ok: m.querySelector('[data-role=ok]')?.textContent?.trim() ?? '',
+    danger: !!m.querySelector('[data-role=ok].btn--danger'),
+    focusOnCancel: document.activeElement === m.querySelector('[data-role=cancel]'),
+  });
+})()`),
+);
+check('删除前弹二次确认', confirmBox.open === true, JSON.stringify(confirmBox).slice(0, 120));
+check('确认弹窗里点出了将被删除的账户名', String(confirmBox.body ?? '').includes(NEW_ACC), confirmBox.body?.slice(0, 60));
+check('确认弹窗说明了不可恢复', /不可恢复/.test(String(confirmBox.body ?? '')));
+check('确认按钮是危险色，且默认焦点在「取消」', confirmBox.danger === true && confirmBox.focusOnCancel === true);
+
+/* 先取消一次：账户必须还在 */
+await ev(`(() => { document.querySelector('.modal__panel--confirm [data-role=cancel]').click(); return true; })()`);
+await wait(500);
+check(
+  '取消确认后弹窗关闭且账户还在',
+  (await ev(`!!document.querySelector('.modal__panel--confirm')`)) === false &&
+    JSON.parse(
+      await ev(`(() => {
+        const hit = [...document.querySelectorAll('.acct-row')].find((r) =>
+          r.querySelector('.tt-body-strong')?.textContent?.includes(${JSON.stringify(NEW_ACC)}));
+        return JSON.stringify(!!hit);
+      })()`),
+    ) === true,
+);
+
+/* 再确认一次：账户真的被删掉 */
+await ev(`(() => { document.querySelector('[data-role=form-slot] [data-role=remove]')?.click(); return true; })()`);
+await wait(600);
+await ev(`(() => { document.querySelector('.modal__panel--confirm [data-role=ok]')?.click(); return true; })()`);
+await wait(2200);
+const afterDelete = JSON.parse(
+  await ev(`(() => {
+  const hit = [...document.querySelectorAll('.acct-row')].find((r) =>
+    r.querySelector('.tt-body-strong')?.textContent?.includes(${JSON.stringify(NEW_ACC)}));
+  return JSON.stringify({ gone: !hit, formClosed: !document.querySelector('[data-role=form-slot] form') });
+})()`),
+);
+check('确认后账户被删除（列表不再有它）', afterDelete.gone === true, NEW_ACC);
+check('删除后编辑表单一并关掉（不留指向空的表单）', afterDelete.formClosed === true);
 
 /* ---- 手机端新建入口必须真的能用（列表重画后监听器还在） ---- */
 await ev(`(() => { const b = document.querySelector('.acct-add [data-action=new-account]'); b && b.click(); return true; })()`);

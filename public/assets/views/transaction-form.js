@@ -24,6 +24,7 @@ import {
   esc,
   h,
   icon,
+  isCompact,
   lucide,
   money,
   setLoading,
@@ -1704,8 +1705,9 @@ function mountCompose(
     paintAll();
     clearFieldError('categoryId');
     closePanels({ focus: true });
-    // 金额还没填时才抢焦点：用户已经填过就别把他从原来的输入框拽走
-    if (!state.amount) $('[name=amount]')?.focus();
+    // 金额还没填时才抢焦点：用户已经填过就别把他从原来的输入框拽走。
+    // 紧凑形态不抢 —— 那会立刻唤起模态金额键盘（理由见「初始化」处的同款判断）。
+    if (!state.amount && !isCompact()) $('[name=amount]')?.focus();
   }
 
   const paintTags = () => {
@@ -3029,21 +3031,31 @@ function mountCompose(
   paintAll();
   refreshMoney();
 
-  // 模板预填的收尾：说清失效引用 + 金额建议值聚焦全选（docs/05 §10.2 / §10.6）
+  /**
+   * 模板预填的收尾：说清失效引用 + 金额建议值聚焦全选（docs/05 §10.2 / §10.6）。
+   *
+   * ⚠️ 紧凑形态**不自动聚焦金额框**。桌面时这个自动聚焦是对的：光标落在金额上，
+   * 直接敲数字就能记。但手机端金额框挂着 App 内键盘（`lib/amount-pad.js`），
+   * 而它是**模态**的 —— 自动聚焦等于「一进页面就弹出半屏键盘 + 整页遮罩」，
+   * 用户还没决定记什么，先被一层灰底盖住（遮罩期间 `html.has-amount-pad`
+   * 还锁着背景滚动）。键盘该由「用户去点金额」这件事唤起，不该由页面加载唤起。
+   */
   const tplHint = state.templateHint;
   if (tplHint) {
     showTemplateNote(tplHint.name, tplHint.warnings);
     $('[data-role=tpl-note-x]').addEventListener('click', () => {
       $('[data-role=tpl-note]').dataset.visible = 'false';
     });
-    requestAnimationFrame(() => {
-      const amt = $('[name=amount]');
-      if (!amt) return;
-      amt.focus({ preventScroll: true });
-      // 全选：预置模板的建议金额多半要改，一打字就替换，不用先手动清空
-      if (state.amount) amt.select();
-    });
-  } else {
+    if (!isCompact()) {
+      requestAnimationFrame(() => {
+        const amt = $('[name=amount]');
+        if (!amt) return;
+        amt.focus({ preventScroll: true });
+        // 全选：预置模板的建议金额多半要改，一打字就替换，不用先手动清空
+        if (state.amount) amt.select();
+      });
+    }
+  } else if (!isCompact()) {
     // 首次进入不必请求校正（金额还没填）
     requestAnimationFrame(() => $('[name=amount]')?.focus({ preventScroll: true }));
   }

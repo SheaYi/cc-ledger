@@ -5,8 +5,12 @@
  * 余额口径见 docs/03 §2.1；余额不可直接编辑（docs/03 §2.3）。
  *
  * 账户分组的约束（镜像后端 service.ts）：
- *   · 分组下还有账户时不能删除 —— 账户必须归属于某个分组；
- *   · 账户已归档但需保留历史归属的分组，只能停用，可随时恢复。
+ *   · 删除分组**不带走账户** —— 组内账户统一移到「未分组」；
+ *   · 停用（而非删除）用于「名字还要留着、暂时不用」的场景，可随时恢复。
+ *
+ * 账户的两种「离开日常列表」方式：
+ *   · 归档 = 以后不怎么用，但历史还要查（可取消归档）；
+ *   · 删除 = 这条记录本身是错的（不可恢复），有账单引用时后端会拒绝。
  */
 import { Api } from '../api.js';
 import { appFrame, mountTabBar } from '../chrome.js';
@@ -18,6 +22,7 @@ import {
   applyFieldErrors,
   clearFieldErrors,
   accountIcon,
+  confirmDialog,
   entityIcon,
   esc,
   formatDate,
@@ -181,7 +186,8 @@ function groupForm({ group = null }) {
           <button class="btn btn--quiet btn--sm" type="button" data-role="cancel">取消</button>
           ${
             isEdit && !group.archivedAt
-              ? '<button class="btn btn--danger btn--sm" type="button" data-role="remove">删除分组</button>'
+              ? `<button class="btn btn--quiet btn--sm" type="button" data-role="archive">停用分组</button>
+                 <button class="btn btn--danger btn--sm" type="button" data-role="remove">删除分组</button>`
               : ''
           }
           ${
@@ -218,6 +224,9 @@ function groupForm({ group = null }) {
   form.querySelector('[data-role=remove]')?.addEventListener('click', () =>
     form.dispatchEvent(new CustomEvent('groupremove', { bubbles: true, detail: group })),
   );
+  form.querySelector('[data-role=archive]')?.addEventListener('click', () =>
+    form.dispatchEvent(new CustomEvent('grouparchive', { bubbles: true, detail: group })),
+  );
   form.querySelector('[data-role=restore]')?.addEventListener('click', () =>
     form.dispatchEvent(new CustomEvent('grouprestore', { bubbles: true, detail: group })),
   );
@@ -248,6 +257,11 @@ function accountForm({ groups, account = null }) {
   const form = h(`
     <div class="card">
       <form novalidate class="stack stack--md">
+        <div class="row row--between">
+          <p class="tt-body-strong">${isEdit ? `编辑账户「${esc(account.name)}」` : '新建账户'}</p>
+          ${account?.archivedAt ? '<span class="badge badge--dark">已归档</span>' : ''}
+        </div>
+
         <div class="field-row">
           <div class="field field--wide" data-field="name">
             <label class="field__label">账户名称</label>
@@ -335,10 +349,25 @@ function accountForm({ groups, account = null }) {
         <div class="row">
           <button class="btn btn--sm" type="submit">${isEdit ? '保存修改' : '创建账户'}</button>
           <button class="btn btn--quiet btn--sm" type="button" data-role="cancel">取消</button>
+          ${
+            /**
+             * 删除**只在编辑态出现**，且位置与分组表单的「删除分组」一致（末位、危险色）。
+             * 不放在列表行里：行上有「对账 / 编辑 / 归档」三个动作已经够挤，
+             * 而删除是「想清楚了才做」的动作 —— 它需要用户先打开这个账户、
+             * 看清它的名字与余额，再决定。误删的代价远大于多点一次的代价。
+             */
+            isEdit
+              ? '<button class="btn btn--danger btn--sm" type="button" data-role="remove">删除账户</button>'
+              : ''
+          }
         </div>
       </form>
     </div>
   `);
+
+  form.querySelector('[data-role=remove]')?.addEventListener('click', () =>
+    form.dispatchEvent(new CustomEvent('accountremove', { bubbles: true, detail: account })),
+  );
 
   const typeSelect = form.querySelector('select[name=type]');
   typeSelect?.addEventListener('change', () => {
@@ -752,9 +781,14 @@ export async function renderAccounts(container, { go }) {
                   <span class="acct-row__actions">
                     ${
                       isArch
-                        ? /* 已归档账户只展示，不再给「对账 / 编辑 / 归档」——
-                              它已经不在日常账里，给可点按钮是假动作。 */
-                          ''
+                        ? /* 已归档账户不给「对账 / 编辑 / 归档」—— 它已经不在日常账里，
+                              给可点按钮是假动作。唯一该有的是「取消归档」：
+                              归档不是删除，随时可以回来。
+                              （删除不在这里 —— 它收在编辑表单里，见 accountForm。） */
+                          `<button class="btn btn--secondary btn--sm" type="button"
+                            data-act="restore" data-id="${esc(a.id)}">取消归档</button>
+                    <button class="btn btn--quiet btn--sm" type="button"
+                            data-act="edit" data-id="${esc(a.id)}">编辑</button>`
                         : `<button class="btn btn--pearl btn--sm" type="button"
                             data-act="recon" data-id="${esc(a.id)}">对账</button>
                     <button class="btn btn--quiet btn--sm" type="button"
@@ -889,6 +923,8 @@ export async function renderAccounts(container, { go }) {
           } catch (err) {
             toast(err.message, 'error');
           }
+        } else if (btn.dataset.act === 'restore') {
+          unarchiveAccount(acc);
         } else if (btn.dataset.act === 'recon') {
           openReconcile(acc);
         }
@@ -903,6 +939,8 @@ export async function renderAccounts(container, { go }) {
     form.addEventListener('groupcancel', () => formSlot.replaceChildren());
 
     form.addEventListener('groupremove', () => removeGroup(group));
+
+    form.addEventListener('grouparchive', () => archiveGroupAction(group));
 
     form.addEventListener('grouprestore', () => restoreGroup(group));
 
@@ -937,26 +975,117 @@ export async function renderAccounts(container, { go }) {
     form.scrollIntoView({ block: 'nearest' });
   };
 
-  const removeGroup = (g) => {
+  /**
+   * 删除分组。
+   *
+   * 关键前置认知：**删分组不等于删账户**。分组只是归类维度，账户是账本实体，
+   * 所以后端会把组内账户统一移到「未分组」再删掉分组本身。
+   * 这件事必须在确认弹窗里先说清楚 —— 否则用户会以为「删分组 = 里面的账户一起没了」，
+   * 而这是他能在这页做出的最不可挽回的误判。
+   */
+  const removeGroup = async (g) => {
     if (!g) return;
-    if (g.accountCount > 0) {
-      toast(`「${g.name}」下还有 ${g.accountCount} 个账户，请先移出或归档后再删除`, 'error');
+
+    const moving = g.accountCount ?? 0;
+    const okToDelete = await confirmDialog({
+      title: '删除账户分组',
+      confirmText: '删除分组',
+      lines: [
+        { text: `即将删除分组「${g.name}」，删除后不可恢复。`, strong: true },
+        moving > 0
+          ? `组内的 ${moving} 个账户不会被删除，会统一移到「未分组」；账户余额与历史账单完全不受影响。`
+          : '该分组下没有账户，删除后不会带走任何数据。',
+        '分组只是归类方式，不是账户本身。',
+      ],
+    });
+    if (!okToDelete) return;
+
+    try {
+      const res = await Api.deleteAccountGroup(ledger.id, g.id);
+      const { movedAccounts = 0, fallbackGroup } = res.data ?? {};
+      toast(
+        movedAccounts > 0
+          ? `分组「${g.name}」已删除，${movedAccounts} 个账户已移至「${fallbackGroup?.name ?? '未分组'}」`
+          : `分组「${g.name}」已删除`,
+        'success',
+      );
+      formSlot.replaceChildren();
+      await renderList();
+    } catch (err) {
+      toast(err.message, 'error');
+    }
+  };
+
+  /**
+   * 停用分组（可恢复）。
+   *
+   * 与删除的分工：删除是「这个分类没了」，停用是「名字先留着、暂时不用」。
+   * 后端只允许停用**空**分组 —— 装着账户的分组要么删（账户搬到未分组）、
+   * 要么继续用，没有第三种状态。
+   */
+  const archiveGroupAction = async (g) => {
+    if (!g) return;
+    try {
+      await Api.archiveAccountGroup(ledger.id, g.id);
+      toast(`分组「${g.name}」已停用，可在「显示已停用」里恢复`, 'success');
+      formSlot.replaceChildren();
+      await renderList();
+    } catch (err) {
+      toast(err.message, 'error');
+    }
+  };
+
+  /**
+   * 删除账户（物理删除，不可恢复）。
+   *
+   * 后端会在「已被账单或其它记录引用」时拒绝并给出原因（那种情况该用归档），
+   * 这里不做前置探测 —— 让后端当唯一裁判，避免前端与后端的判定各写一份、
+   * 将来加一种引用就漏一处。拒绝的原因原样转成 toast 说给用户听。
+   */
+  const removeAccount = async (acc) => {
+    if (!acc) return;
+    if (acc.isSystem) {
+      toast('系统虚拟账户不可删除', 'error');
       return;
     }
-    if (!window.confirm(`确认删除分组「${g.name}」？\n\n该分组下没有账户，将直接删除。`)) return;
-    Api.deleteAccountGroup(ledger.id, g.id)
-      .then((res) => {
-        const { mode, accountCount } = res.data ?? {};
-        toast(
-          mode === 'archived'
-            ? `「${g.name}」已停用（保留 ${accountCount} 个历史账户的归属）`
-            : `分组「${g.name}」已删除`,
-          'success',
-        );
-        formSlot.replaceChildren();
-        renderList();
-      })
-      .catch((err) => toast(err.message, 'error'));
+
+    const okToDelete = await confirmDialog({
+      title: '删除账户',
+      confirmText: '删除账户',
+      lines: [
+        { text: `即将删除账户「${acc.name}」，删除后不可恢复。`, strong: true },
+        '如果只是以后不常用，用「归档」更合适：归档保留全部历史账单，且随时可以取消归档。',
+        '有账单记录的账户无法删除，系统会提示你改用归档。',
+      ],
+    });
+    if (!okToDelete) return;
+
+    try {
+      await Api.purgeAccount(ledger.id, acc.id);
+      toast(`账户「${acc.name}」已删除`, 'success');
+      /* 关掉编辑表单：被删的账户已经不存在，留着一张指向空的表单在页面上是脏数据 */
+      formSlot.replaceChildren();
+      await renderList();
+    } catch (err) {
+      toast(err.message, 'error');
+    }
+  };
+
+  /** 取消归档：归档不是删除，账户要能原样回来 */
+  const unarchiveAccount = async (acc) => {
+    if (!acc) return;
+    try {
+      await Api.restoreAccount(ledger.id, acc.id);
+      toast(`「${acc.name}」已取消归档`, 'success');
+      /**
+       * 取消归档后把开关留在「显示已停用」上会让人以为没生效
+       * （账户仍在列表里，只是混在归档项中间）。关掉开关回到日常视图。
+       */
+      showArchivedGroups = false;
+      await renderList();
+    } catch (err) {
+      toast(err.message, 'error');
+    }
   };
 
   const restoreGroup = (g) => {
@@ -973,8 +1102,20 @@ export async function renderAccounts(container, { go }) {
 
   /* ---------------- 表单 ---------------- */
   const openForm = (account = null) => {
-    const form = accountForm({ groups: activeGroups(), account });
+    /**
+     * 分组候选默认只给未停用的。但如果**正在编辑的这个账户本身就属于一个已停用分组**
+     * （归档账户常出现这种组合），那个分组必须出现在选项里 —— 否则保存时会把它
+     * 悄悄改挂到列表第一项上。带上它，但不给别的已停用分组开口子。
+     */
+    const actives = activeGroups();
+    const groups =
+      account?.groupId && !actives.some((g) => g.id === account.groupId)
+        ? allGroups.filter((g) => !g.archivedAt || g.id === account.groupId)
+        : actives;
+    const form = accountForm({ groups, account });
     form.querySelector('[data-role=cancel]').addEventListener('click', () => formSlot.replaceChildren());
+    /* 删除收在编辑表单里（与分组表单同构）：先看清这个账户，再谈删不删 */
+    form.addEventListener('accountremove', () => removeAccount(account));
     form.querySelector('form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const f = e.target;

@@ -65,8 +65,8 @@ function groupPayload(g: GroupRow, accountCount: number, totalBalance: number) {
  * 账户分组
  *
  * 分组是账本的「结构」，不是科目表：用户可自由增删改。约束只有两条：
- *   · 分组下还有账户时不能删除 —— 账户必须归属于某个分组（group_id NOT NULL）；
- *   · 账户已经归档、但历史账单仍引用它的分组，只能「停用」不能物理删除。
+ *   · 删除分组**不带走账户** —— 组内账户统一移到「未分组」（group_id NOT NULL）；
+ *   · 停用（而非删除）用于「名字还要留着、暂时不用」的场景。
  * 停用即释放名字（idx_ag_ledger_name 是部分唯一索引），可随时恢复。
  * ===================================================================== */
 
@@ -226,49 +226,77 @@ export function updateGroup(
 }
 
 /**
+ * 「未分组」——账户的兜底归属。
+ *
+ * accounts.group_id 是 NOT NULL：账户必须属于某个分组。于是「删除分组」
+ * 不能只删自己，必须先给组内账户找到新家，而这个新家就是「未分组」。
+ *
+ * 它**按需创建**而不是建账时预置：预置一个空的「未分组」会常驻在列表里占位置
+ * （首页按「有账户才渲染」的规则反而看不见它，两边不一致），
+ * 只有第一次真的需要转移账户时才出现。
+ */
+const UNGROUPED_NAME = '未分组';
+
+function ungroupedGroupId(ctx: AppCtx, actorId: string, ledgerId: string): string {
+  const existing = ctx.db
+    .select({ id: accountGroups.id })
+    .from(accountGroups)
+    .where(
+      and(
+        eq(accountGroups.ledgerId, ledgerId),
+        eq(accountGroups.name, UNGROUPED_NAME),
+        isNull(accountGroups.archivedAt),
+      ),
+    )
+    .get();
+  if (existing) return existing.id;
+
+  return createGroup(ctx, actorId, ledgerId, {
+    name: UNGROUPED_NAME,
+    kind: 'asset',
+    icon: 'inbox',
+  }).id;
+}
+
+/**
  * 删除分组。
- *   有活跃账户        → 400（账户必须归属分组，先移出或归档）
- *   仅有已归档账户    → 停用（历史账单的分组归属需要保留）
- *   完全没有账户      → 物理删除（不留幽灵行，名字即刻可用）
+ *
+ * 组内账户**一律保留**，统一移到「未分组」：分组只是归类维度（docs/04 §五），
+ * 删掉一个归类不该带走账户，也不该让账户无处可去（group_id NOT NULL）。
+ * 账户一个都没动，所以对账记录 / 分期 / 模板里指向账户的引用全部不受影响 ——
+ * 需要清理的引用只有 accounts.group_id 这一处。
+ *
+ * 唯一的例外是「未分组」自己：它是兜底分组，有账户时删掉会让账户无处可去。
  */
 export function deleteGroup(
   ctx: AppCtx,
   actorId: string,
   ledgerId: string,
   groupId: string,
-): { mode: 'removed' | 'archived'; accountCount: number } {
+): { mode: 'removed'; movedAccounts: number; fallbackGroup: { id: string; name: string } | null } {
   const g = requireGroup(ctx, ledgerId, groupId);
 
-  const active = ctx.db
-    .select({ c: sql<number>`count(*)` })
-    .from(accounts)
-    .where(and(eq(accounts.groupId, groupId), isNull(accounts.archivedAt)))
-    .get();
-  const total = ctx.db
-    .select({ c: sql<number>`count(*)` })
+  const inGroup = ctx.db
+    .select({ id: accounts.id })
     .from(accounts)
     .where(eq(accounts.groupId, groupId))
-    .get();
+    .all();
 
-  const activeCount = Number(active?.c ?? 0);
-  const totalCount = Number(total?.c ?? 0);
-
-  if (activeCount > 0) {
-    throw HttpError.business(
-      `该分组下还有 ${activeCount} 个账户，请先移出或归档账户再删除分组`,
-    );
-  }
-
-  const mode: 'removed' | 'archived' = totalCount === 0 ? 'removed' : 'archived';
-  if (mode === 'removed') {
-    ctx.db.delete(accountGroups).where(eq(accountGroups.id, groupId)).run();
-  } else {
+  let fallback: { id: string; name: string } | null = null;
+  if (inGroup.length > 0) {
+    if (g.name === UNGROUPED_NAME) {
+      throw HttpError.business('「未分组」是账户的兜底归属，请先把它下面的账户移走再删除');
+    }
+    const fallbackId = ungroupedGroupId(ctx, actorId, ledgerId);
     ctx.db
-      .update(accountGroups)
-      .set({ archivedAt: nowIso() })
-      .where(eq(accountGroups.id, groupId))
+      .update(accounts)
+      .set({ groupId: fallbackId, updatedAt: nowIso() })
+      .where(eq(accounts.groupId, groupId))
       .run();
+    fallback = { id: fallbackId, name: UNGROUPED_NAME };
   }
+
+  ctx.db.delete(accountGroups).where(eq(accountGroups.id, groupId)).run();
 
   writeAudit(ctx.db, {
     ledgerId,
@@ -277,12 +305,59 @@ export function deleteGroup(
     entityType: 'account_group',
     entityId: groupId,
     summary:
-      mode === 'removed'
-        ? `删除账户分组「${g.name}」`
-        : `停用账户分组「${g.name}」（保留 ${totalCount} 个已归档账户的归属）`,
+      inGroup.length > 0
+        ? `删除账户分组「${g.name}」，${inGroup.length} 个账户移至「${UNGROUPED_NAME}」`
+        : `删除账户分组「${g.name}」`,
     before: g,
   });
-  return { mode, accountCount: totalCount };
+  return { mode: 'removed', movedAccounts: inGroup.length, fallbackGroup: fallback };
+}
+
+/**
+ * 停用分组（可恢复）。
+ *
+ * 与删除的区别：删除是「这个分类没了」（组内账户移到「未分组」），
+ * 停用是「这个名字先留着，暂时不用」—— 分组行还在，只是退出默认列表。
+ * 有活跃账户时拒绝（docs/05 §1.5）：账户必须有个去处，停用一个还装着账户的
+ * 分组没有意义 —— 那种情况该用删除（账户会被搬走）。
+ */
+export function archiveGroup(ctx: AppCtx, actorId: string, ledgerId: string, groupId: string) {
+  const g = requireGroup(ctx, ledgerId, groupId);
+  if (g.archivedAt) {
+    const b = ctx.db
+      .select({ c: sql<number>`count(*)` })
+      .from(accounts)
+      .where(and(eq(accounts.groupId, groupId), isNull(accounts.archivedAt)))
+      .get();
+    return groupPayload(g, Number(b?.c ?? 0), 0);
+  }
+
+  const active = ctx.db
+    .select({ c: sql<number>`count(*)` })
+    .from(accounts)
+    .where(and(eq(accounts.groupId, groupId), isNull(accounts.archivedAt)))
+    .get();
+  const activeCount = Number(active?.c ?? 0);
+  if (activeCount > 0) {
+    throw HttpError.business(`该分组下还有 ${activeCount} 个账户，请先移出或归档账户再停用分组`);
+  }
+
+  ctx.db
+    .update(accountGroups)
+    .set({ archivedAt: nowIso() })
+    .where(eq(accountGroups.id, groupId))
+    .run();
+
+  writeAudit(ctx.db, {
+    ledgerId,
+    actorId,
+    action: 'update',
+    entityType: 'account_group',
+    entityId: groupId,
+    summary: `停用账户分组「${g.name}」`,
+    before: g,
+  });
+  return listGroups(ctx, ledgerId, { includeArchived: true }).find((x) => x.id === groupId)!;
 }
 
 /** 恢复停用分组。若同名活跃分组已存在则拒绝（避免歧义），提示先改名。 */
@@ -756,6 +831,21 @@ export function updateAccount(
   return accountPayload(fresh);
 }
 
+/** 引用该账户的账单数（作为主账户或对手账户都算）—— 决定它能不能被物理删除 */
+function countAccountTransactions(ctx: AppCtx, ledgerId: string, accountId: string): number {
+  const used = ctx.db
+    .select({ c: sql<number>`count(*)` })
+    .from(transactions)
+    .where(
+      and(
+        eq(transactions.ledgerId, ledgerId),
+        sql`(${transactions.accountId} = ${accountId} OR ${transactions.toAccountId} = ${accountId})`,
+      ),
+    )
+    .get();
+  return Number(used?.c ?? 0);
+}
+
 /** 软删除（归档）。有账单引用时禁止物理删除；系统虚拟账户受保护 */
 export function archiveAccount(
   ctx: AppCtx,
@@ -798,17 +888,7 @@ export function archiveAccount(
     );
   }
 
-  const used = ctx.db
-    .select({ c: sql<number>`count(*)` })
-    .from(transactions)
-    .where(
-      and(
-        eq(transactions.ledgerId, ledgerId),
-        sql`(${transactions.accountId} = ${accountId} OR ${transactions.toAccountId} = ${accountId})`,
-      ),
-    )
-    .get();
-  const txCount = Number(used?.c ?? 0);
+  const txCount = countAccountTransactions(ctx, ledgerId, accountId);
 
   ctx.db
     .update(accounts)
@@ -826,6 +906,115 @@ export function archiveAccount(
     before: acc,
   });
   return { archived: true, txCount };
+}
+
+/**
+ * 物理删除账户（不可恢复）。
+ *
+ * ## 它和归档（`archiveAccount`）的分工
+ *
+ * · 归档 = 「这个账户以后不怎么用了，但历史还要查」—— 保留行，退出日常列表，
+ *   余额照算（docs/03 §2.4），随时可以取消归档。
+ * · 删除 = 「这条记录本身是错的」—— 建重了、建错了类型，且**从未被任何记录引用**。
+ *
+ * 所以只要有一笔账单把它当主账户或对手账户，就拒绝删除：账单是账本的事实，
+ * 删掉账户等于让这些账单指向一个不存在的账户。除了 transactions，
+ * 对账记录 / 分期 / 周期模板 / 银行流水等也都引用账户 —— 逐一列举既冗长又会漏，
+ * 这里用「显式查账单数（给一句人话提示）+ 删除本身交给外键兜底」的组合：
+ * 外键一旦拦下就转成同一句提示，不会出现「点删除 → 500」。
+ */
+export function deleteAccount(
+  ctx: AppCtx,
+  actorId: string,
+  ledgerId: string,
+  accountId: string,
+): { deleted: true; txCount: number } {
+  const acc = findAccount(ctx, ledgerId, accountId);
+  if (isSystemAccount(acc)) throw HttpError.business('系统虚拟账户不可删除');
+
+  assertAccountNotInActivePlan(ctx, ledgerId, accountId);
+
+  const openRecv = openDebts(ctx, ledgerId, { status: 'open' }).items.filter(
+    (i) => i.recordType === 'receivable' && i.account?.id === accountId && Number(i.outstanding) > 0,
+  );
+  if (openRecv.length) {
+    throw HttpError.business(
+      `该账户有 ${openRecv.length} 笔未收回的应收款项，收回或核销后才能删除`,
+    );
+  }
+
+  const txCount = countAccountTransactions(ctx, ledgerId, accountId);
+  if (txCount > 0) {
+    throw HttpError.business(
+      `「${acc.name}」已有 ${txCount} 笔账单，不能删除 —— 历史账单必须留痕。如只是不再使用，请改用「归档」（可随时取消归档）。`,
+    );
+  }
+
+  try {
+    ctx.db.delete(accounts).where(eq(accounts.id, accountId)).run();
+  } catch (e) {
+    /**
+     * 外键兜底：还有对账记录 / 分期 / 模板 / 银行流水引用它。
+     * 这里不细分是哪一类 —— 对使用者来说结论只有一个：「这个账户删不掉，去归档」。
+     */
+    if (String((e as { code?: string })?.code ?? '').startsWith('SQLITE_CONSTRAINT')) {
+      throw HttpError.business(
+        `「${acc.name}」仍被对账记录 / 分期 / 模板等引用，不能删除。如只是不再使用，请改用「归档」。`,
+      );
+    }
+    throw e;
+  }
+
+  writeAudit(ctx.db, {
+    ledgerId,
+    actorId,
+    action: 'delete',
+    entityType: 'account',
+    entityId: accountId,
+    summary: `删除账户「${acc.name}」`,
+    before: { name: acc.name, type: acc.type, groupId: acc.groupId },
+  });
+  return { deleted: true, txCount: 0 };
+}
+
+/** 取消归档：账户重新回到日常列表。与分组恢复同一条规则 —— 同名活跃账户存在时拒绝。 */
+export function restoreAccount(ctx: AppCtx, actorId: string, ledgerId: string, accountId: string) {
+  const acc = findAccount(ctx, ledgerId, accountId);
+  if (!acc.archivedAt) return accountPayload(acc);
+
+  const dup = ctx.db
+    .select({ id: accounts.id })
+    .from(accounts)
+    .where(
+      and(
+        eq(accounts.ledgerId, ledgerId),
+        eq(accounts.name, acc.name),
+        isNull(accounts.archivedAt),
+        sql`${accounts.id} <> ${accountId}`,
+      ),
+    )
+    .get();
+  if (dup) {
+    throw HttpError.duplicate(
+      `已存在同名账户「${acc.name}」，无法取消归档；请先改名或归档同名账户`,
+    );
+  }
+
+  ctx.db
+    .update(accounts)
+    .set({ archivedAt: null, updatedAt: nowIso() })
+    .where(eq(accounts.id, accountId))
+    .run();
+
+  writeAudit(ctx.db, {
+    ledgerId,
+    actorId,
+    action: 'update',
+    entityType: 'account',
+    entityId: accountId,
+    summary: `取消归档账户「${acc.name}」`,
+  });
+  return accountPayload(findAccount(ctx, ledgerId, accountId));
 }
 
 export function reorderAccounts(ctx: AppCtx, ledgerId: string, ids: string[]): void {

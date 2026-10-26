@@ -193,6 +193,16 @@ function padSingleton() {
 
   function close({ commit = true } = {}) {
     if (commit) commitValue();
+    /**
+     * 只在「焦点此刻确实在键盘里」时才把它还给打开前的元素。
+     *
+     * 键盘是模态的，退出时必须交还焦点；但如果焦点**已经在别处**
+     * （典型：用户直接去点「备注」那个输入框，焦点已经落在备注上），
+     * 再抢回去会把用户刚点的那个输入框的焦点夺走 —— 表现是「点了一下没进去，
+     * 要点第二下」。键盘该做的只是让路，不该改用户刚表达完的意图。
+     */
+    const active = document.activeElement;
+    const focusWasInPad = Boolean(active && ui.root.contains(active));
     target?.classList.remove('is-editing');
     ui.root.classList.remove('is-open');
     document.documentElement.classList.remove('has-amount-pad');
@@ -202,9 +212,15 @@ function padSingleton() {
     }, 200);
     const back = target;
     target = null;
-    /* 不还焦点回 input：input 一旦 focus 会立刻重新打开键盘，形成「关不掉」的死循环。
-       键盘是**模态**的，退出时焦点回到它打开前的那个激活元素即可。 */
-    if (lastFocus && document.contains(lastFocus) && lastFocus !== back) lastFocus.focus?.();
+    /* 不还焦点回 input：input 一旦 focus 会立刻重新打开键盘，形成「关不掉」的死循环。 */
+    if (
+      focusWasInPad &&
+      lastFocus &&
+      document.contains(lastFocus) &&
+      lastFocus !== back
+    ) {
+      lastFocus.focus?.();
+    }
     lastFocus = null;
   }
 
@@ -220,6 +236,42 @@ function padSingleton() {
     document.documentElement.classList.add('has-amount-pad');
     paint();
   }
+
+  /**
+   * 焦点跑到别处就收起。
+   *
+   * 键盘是模态的，但**只在用户还在使用它的时候**才该模态。用户去点「备注」
+   * 那个普通输入框 = 「金额这块我弄完了」；此时键盘若还压着半屏、背后还盖着
+   * 一层遮罩，整页就是灰的，而且 `html.has-amount-pad` 锁着背景滚动 ——
+   * 这正是「点输入框 → 页面发灰变暗、布局被挤」的来源。
+   *
+   * 用 `focusin`（捕获阶段）而不是给每个输入框挂监听：记账页的字段是动态的
+   * （分期 / 周期补字段会插入新输入），列举不完。
+   */
+  document.addEventListener(
+    'focusin',
+    (e) => {
+      if (!ui.root.classList.contains('is-open')) return;
+      const el = /** @type {Node} */ (e.target);
+      if (el === target) return;
+      if (el && ui.root.contains(el)) return;
+      close();
+    },
+    true,
+  );
+
+  /**
+   * 兜底：目标输入框已经不在文档里（换页了），键盘却还开着。
+   * 捕获阶段处理，且不拦事件 —— 这次点击照常生效，只是顺手把残留的遮罩收掉。
+   */
+  document.addEventListener(
+    'click',
+    () => {
+      if (!ui.root.classList.contains('is-open')) return;
+      if (target && !target.isConnected) close({ commit: false });
+    },
+    true,
+  );
 
   ui.root.addEventListener('click', (e) => {
     const keyBtn = e.target.closest('[data-key]');

@@ -96,17 +96,33 @@ export async function renderOverview(container, { go }) {
     return shell;
   }
 
+  /**
+   * 账户要连**已归档**的一起取回来，但不是为了展示它们 ——
+   * 是为了区分两种「一个分组也渲染不出来」：
+   *   · 真的一个账户都没有      → 引导去建账户；
+   *   · 账户都在，只是全被归档了 → 引导去账户页取消归档。
+   * 只按「未归档」取数据的话，第二种会被误报成第一种，
+   * 用户明明有 8 个账户，首页却说「还没有账户」。
+   */
   const [summary, groups, accounts] = await Promise.all([
     Api.accountSummary(ledger.id).then((r) => r.data),
     Api.listAccountGroups(ledger.id).then((r) => r.data),
-    Api.listAccounts(ledger.id).then((r) => r.data),
+    Api.listAccounts(ledger.id, { includeArchived: true }).then((r) => r.data),
   ]);
 
-  const realAccounts = accounts.filter((a) => a.kind !== 'virtual');
+  const allReal = accounts.filter((a) => a.kind !== 'virtual');
+  const realAccounts = allReal.filter((a) => !a.archivedAt);
+  const archivedCount = allReal.length - realAccounts.length;
   const virtualAccounts = accounts.filter((a) => a.kind === 'virtual');
   const flow = summary.period;
-  const noAccounts = realAccounts.length === 0;
 
+  /**
+   * 空分组整体不渲染：连标题、卡片容器、合计金额一起不出。
+   *
+   * 「该分组下暂无账户」这种占位块在首页是纯噪音 —— 它占掉一屏里最贵的
+   * 位置，回答的却是一个用户没问的问题（他关心的是钱在哪儿，不是哪个分类空着）。
+   * 管理空分组要去账户页，那是管理视角的活儿，不该出现在首页。
+   */
   const groupBlocks = groups
     .map((g) => {
       const list = realAccounts.filter((a) => a.groupId === g.id);
@@ -122,6 +138,30 @@ export async function renderOverview(container, { go }) {
       `;
     })
     .join('');
+
+  /**
+   * 空状态按「为什么空」分两种措辞。
+   * 一个账户都没有和「账户都在，只是归档了」的下一步动作完全不同，
+   * 混成一句「还没有账户」会把人带向「再建一个」，而他要的是「找回原来那个」。
+   */
+  const accountsEmptyState = groupBlocks
+    ? ''
+    : archivedCount > 0
+      ? `<div class="card empty-state">
+           <span class="empty-state__icon">${'📦'}</span>
+           <p class="tt-body-strong">账户都已归档</p>
+           <p class="tt-caption text-muted">
+             ${archivedCount} 个账户当前处于归档状态，归档的账户不参与首页快览。
+             到账户页勾选「显示已停用」，可取消归档让它们回到日常列表。
+           </p>
+           <a class="btn btn--sm" href="/accounts" data-link>去账户页</a>
+         </div>`
+      : `<div class="card empty-state">
+           <span class="empty-state__icon">${'💰'}</span>
+           <p class="tt-body-strong">还没有账户</p>
+           <p class="tt-caption text-muted">先建一张银行卡或现金账户，才能开始记账</p>
+           <a class="btn btn--sm" href="/accounts" data-link>去添加账户</a>
+         </div>`;
 
   const ledgerSwitcher =
     me.ledgers.length > 1
@@ -181,16 +221,7 @@ export async function renderOverview(container, { go }) {
           <h2 class="tt-display-md">账户</h2>
           <a class="btn btn--pearl btn--sm" href="/accounts" data-link>管理账户</a>
         </div>
-        ${
-          noAccounts
-            ? `<div class="card empty-state">
-                 <span class="empty-state__icon">${'💰'}</span>
-                 <p class="tt-body-strong">还没有账户</p>
-                 <p class="tt-caption text-muted">先建一张银行卡或现金账户，才能开始记账</p>
-                 <a class="btn btn--sm" href="/accounts" data-link>去添加账户</a>
-               </div>`
-            : groupBlocks
-        }
+        ${groupBlocks || accountsEmptyState}
       </section>
 
       <section class="section">

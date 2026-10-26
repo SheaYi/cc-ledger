@@ -216,6 +216,32 @@ const href = await ev(`(document.querySelector('.acct-row--link')||{}).getAttrib
 check('账户行跳该账户的账单列表', String(href).startsWith('/transactions?accountId='), String(href));
 const hasGo = await ev(`!!document.querySelector('.acct-row--link .acct-row__go')`);
 check('账户行有去向指示（不是死链）', hasGo === true);
+
+/**
+ * 首页不渲染空分组：连标题、卡片容器、合计一起不出。
+ * 「该分组下暂无账户」这种占位块在首页是纯噪音 —— 它占掉一屏里最贵的位置，
+ * 回答的却是一个用户没问的问题。管理空分组是账户页（管理视角）的活儿。
+ */
+const ovGroups = JSON.parse(
+  await ev(`(() => {
+  const gs = [...document.querySelectorAll('.acct-group')].map((g) => ({
+    name: (g.querySelector('.acct-group__name')?.textContent ?? '').trim(),
+    rows: g.querySelectorAll('.acct-row').length,
+    hasHead: !!g.querySelector('.acct-group__head'),
+  }));
+  return JSON.stringify({ n: gs.length, gs });
+})()`),
+);
+check('首页渲染了分组（种子数据有账户）', ovGroups.n >= 1, `${ovGroups.n} 组`);
+check(
+  '首页不渲染空分组（每个分组块都至少有一个账户行）',
+  ovGroups.n >= 1 && ovGroups.gs.every((g) => g.rows >= 1),
+  ovGroups.gs.map((g) => `${g.name}:${g.rows}`).join(' / '),
+);
+check(
+  '首页没有「暂无账户」的占位卡片',
+  (await ev(`Array.from(document.querySelectorAll('.empty')).some((e) => /暂无账户/.test(e.textContent))`)) === false,
+);
 await ev(`document.querySelector('.acct-row--link').click()`);
 await new Promise((r) => setTimeout(r, 1300));
 const url2 = await ev(`location.pathname + location.search`);

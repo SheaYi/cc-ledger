@@ -548,18 +548,22 @@
     min-height: 44px;
   }
 
-  /* 提交条：贴底的「底部抽屉」—— 左右吃掉页面留白、上方两角收圆、下边不留缝。
-     内外边距都用 var(--page-gutter)：app.css 里写死的 -16px 与本文件的
-     12px 小屏留白一旦不等，这条就会横向溢出 4~8px（手机上表现为能左右轻微拖动）。 */
+  /* 提交条：**和它上面的卡片同宽、同圆角、同描边**。
+     之前它是「左右吃掉页面留白、只收上方两角」的贴底抽屉 —— 宽度比卡片宽 24px、
+     圆角也只有上面两个，在一列卡片末尾读起来像另一套构件（像浏览器底栏而不是表单的一部分）。
+     提交条是这张表单的最后一行，不是浮在页面外的工具条，所以宽度与圆角都回归卡片节奏。
+     只有 `bottom` 与安全区是贴底构件该有的：`--keyboard-height` 让它在输入法弹起时跟着上移。 */
   .action-bar {
     position: sticky;
     bottom: 0;
     z-index: 10;
-    margin: 0 calc(-1 * var(--page-gutter)) calc(-1 * var(--keyboard-height, 0px));
-    padding: 12px var(--page-gutter) calc(12px + env(safe-area-inset-bottom, 0px));
-    border-radius: var(--r-lg) var(--r-lg) 0 0;
-    border-bottom: 0;
-    border-top: 1px solid var(--c-hairline-soft);
+    margin: 0 0 calc(-1 * var(--keyboard-height, 0px));
+    padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+    /* 高度也回到卡片节奏：上下 12 + 44 的按钮 = 68，与同页其它按钮行同高；
+       不写死 height，由 44px 的触控底线撑出来，免得以后按钮变高被裁。 */
+    min-height: 68px;
+    border-radius: var(--r-lg);
+    border: 1px solid var(--c-hairline);
     background: var(--c-frost-bg-strong);
     -webkit-backdrop-filter: var(--frost-blur);
     backdrop-filter: var(--frost-blur);
@@ -569,6 +573,9 @@
   .action-bar__summary {
     flex: 1 1 auto;
     min-width: 0;
+    /* 与右侧两个 44px 按钮同一条中线：摘要是两行文字，不撑高时垂直居中 */
+    min-height: 44px;
+    justify-content: center;
   }
 
   .action-bar .btn[type='submit'] {
