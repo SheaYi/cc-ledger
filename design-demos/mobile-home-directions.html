@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>CC记账 · 手机首页三方向对照</title>
+<!--
+  Design decisions
+  ------------------------------------------------------------------
+  三个方向共用一套 lift 自项目的 token（见 tokens.css），只改信息架构与层级：
+    画布 #ffffff / 页底 #f5f5f7 / hairline #e0e0e0
+    ink #1d1d1f · muted #757575 · 强调 #0066cc
+    语义：支出 #d70015 / 收入 #1d7a3f（中国习惯：负红正绿）
+    圆角 card 12 / lg 18 / pill 9999；间距 4·8·12·16·20·24
+    字体 SF Pro Display + PingFang SC（不引外部 CDN，NAS 断网可用）
+  差异是**结构判断**，不是换配色：
+    A 钱包优先 —— 先给结论（净资产），再给流水
+    B 流水优先 —— 不预设结论，账单本身即首页（记账类按规范属高密度型）
+    C 即记即走 —— 首页即录入界面，看账是副作用
+-->
+<style>
+  :root{
+    --canvas:#ffffff; --parchment:#f5f5f7; --pearl:#fafafc; --hero:#272729;
+    --hairline:#e0e0e0; --divider:#f0f0f0;
+    --ink:#1d1d1f; --muted:#757575; --muted80:#333333;
+    --primary:#0066cc; --accent2:rgba(0,102,204,.05); --accent4:rgba(0,102,204,.1);
+    --danger:#d70015; --success:#1d7a3f;
+    --on-dark-1:rgba(255,255,255,.92); --on-dark-2:rgba(255,255,255,.62);
+    --on-dark-chip:rgba(255,255,255,.1);
+    --c1:#1d1d1f;--c2:#3f5d7d;--c3:#7a8b5c;--c4:#b07a5a;--c5:#5f8a8b;
+    --r-card:12px;--r-lg:18px;--r-pill:9999px;
+    --s-xs:8px;--s-sm:12px;--s-md:17px;--s-lg:24px;
+    --f:"SF Pro Display",system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:#e9e9ec;color:var(--ink);font-family:var(--f);
+       font-size:17px;line-height:1.47;-webkit-font-smoothing:antialiased}
+  .board{padding:32px 28px 48px;display:flex;gap:28px;align-items:flex-start;flex-wrap:wrap}
+  .col{width:390px;flex:none}
+  .col > .tag{font-size:12px;letter-spacing:-.12px;color:#5a5a5f;margin:0 0 6px 2px}
+  .col > .tag b{font-weight:600;color:var(--ink)}
+  .col > .note{font-size:12px;line-height:1.45;color:#6b6b70;margin:0 0 12px 2px;max-width:360px}
+  .tnum{font-variant-numeric:tabular-nums;font-feature-settings:"tnum"}
+  /* 手机画布（不画设备框：禁止手写的岛/状态栏由外部 shell 承担） */
+  .phone{background:var(--parchment);border-radius:var(--r-lg);overflow:hidden;
+         padding:12px 16px 24px;display:flex;flex-direction:column;gap:12px}
+  .ico{width:18px;height:18px;stroke-width:1.7;stroke:currentColor;fill:none;flex:none}
+  .ico-14{width:14px;height:14px}
+  .ico-22{width:22px;height:22px}
+
+  /* ================= A · 钱包优先 ================= */
+  .a-hero{background:var(--hero);border-radius:var(--r-lg);padding:20px;color:#fff}
+  .a-hero__lb{font-size:12px;letter-spacing:.06em;color:var(--on-dark-2);margin:0 0 6px}
+  .a-hero__v{font-size:34px;font-weight:300;letter-spacing:-.4px;line-height:1.1;color:var(--on-dark-1)}
+  .a-hero__sub{display:flex;gap:16px;margin-top:14px;font-size:12px;color:var(--on-dark-2)}
+  .a-hero__sub b{display:block;font-size:14px;font-weight:600;color:var(--on-dark-1);margin-top:2px}
+  .a-spark{margin-top:16px;height:28px}
+  .a-flow{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .a-flow > div{background:var(--canvas);border:1px solid var(--hairline);border-radius:var(--r-card);padding:12px 14px}
+  .a-flow dt{font-size:12px;color:var(--muted);margin:0 0 4px}
+  .a-flow dd{margin:0;font-size:20px;font-weight:600;letter-spacing:-.2px}
+  .a-sec{display:flex;justify-content:space-between;align-items:baseline;margin:8px 2px 0}
+  .a-sec h3{margin:0;font-size:15px;font-weight:600;letter-spacing:-.24px}
+  .a-sec span{font-size:12px;color:var(--primary)}
+  /* 三张在 390px 屏内必须完整可见（390 - 32 留白 = 358；3×114 + 2×8 = 358）。
+     横滑带在静态图里读起来就是「被截断」，所以这个宽度宁可算准也不要 scroll。 */
+  .a-accts{display:flex;gap:8px}
+  .a-acct{flex:0 0 114px;background:var(--canvas);border:1px solid var(--hairline);
+          border-radius:var(--r-card);padding:12px;min-width:0}
+  .a-acct__n{font-size:12px;color:var(--muted);margin:0 0 6px}
+  .a-acct__v{font-size:15px;font-weight:600;letter-spacing:-.2px}
+  .a-list{background:var(--canvas);border:1px solid var(--hairline);border-radius:var(--r-card)}
+  .a-row{display:flex;align-items:center;gap:12px;padding:12px 14px}
+  .a-row + .a-row{border-top:1px solid var(--divider)}
+  .a-row__d{width:34px;height:34px;border-radius:var(--r-pill);background:var(--parchment);
+            display:grid;place-items:center;color:var(--muted80);flex:none}
+  .a-row__t{flex:1 1 auto;min-width:0}
+  .a-row__t p{margin:0;font-size:15px;font-weight:400;letter-spacing:-.24px;
+               white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .a-row__t span{font-size:12px;color:var(--muted)}
+  .a-row__v{font-size:15px;font-weight:600;letter-spacing:-.2px;flex:none}
+  .neg{color:var(--danger)} .pos{color:var(--success)}
+
+  /* ================= B · 流水优先 ================= */
+  .b-head{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;background:var(--canvas);
+          border:1px solid var(--hairline);border-radius:var(--r-card);padding:12px}
+  .b-head > div{text-align:left}
+  .b-head dt{font-size:12px;color:var(--muted);margin:0 0 2px}
+  .b-head dd{margin:0;font-size:14px;font-weight:600}
+  .b-day{background:var(--canvas);border:1px solid var(--hairline);border-radius:var(--r-card);
+         overflow:hidden}
+  .b-day__h{display:flex;justify-content:space-between;align-items:center;
+            padding:8px 14px;background:var(--pearl);border-bottom:1px solid var(--hairline)}
+  .b-day__d{font-size:12px;font-weight:600;letter-spacing:-.12px}
+  .b-day__s{font-size:12px;color:var(--muted)}
+  .b-item{display:flex;align-items:center;gap:12px;padding:11px 14px}
+  .b-item + .b-item{border-top:1px solid var(--divider)}
+  .b-item__cat{width:30px;height:30px;border-radius:var(--r-pill);display:grid;place-items:center;flex:none;
+               background:var(--parchment);color:var(--muted80)}
+  .b-item__nm{flex:1 1 auto;min-width:0}
+  .b-item__nm p{margin:0;font-size:15px;letter-spacing:-.24px;
+                 white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .b-item__nm span{font-size:12px;color:var(--muted)}
+  .b-item__amt{width:96px;flex:none;text-align:right;font-size:15px;font-weight:600;letter-spacing:-.2px}
+  .b-more{text-align:center;padding:12px;font-size:14px;color:var(--primary)}
+
+  /* ================= C · 即记即走 ================= */
+  .c-greet{display:flex;justify-content:space-between;align-items:center;padding:4px 2px 0}
+  .c-greet h2{margin:0;font-size:22px;font-weight:600;letter-spacing:-.3px}
+  .c-greet span{font-size:12px;color:var(--muted)}
+  .c-today{background:var(--canvas);border:1px solid var(--hairline);border-radius:var(--r-lg);padding:18px}
+  .c-today__lb{font-size:12px;color:var(--muted);margin:0 0 6px}
+  .c-today__v{font-size:30px;font-weight:300;letter-spacing:-.4px;line-height:1.1}
+  .c-bar{margin-top:14px}
+  .c-bar__bg{height:6px;border-radius:var(--r-pill);background:var(--parchment);overflow:hidden}
+  .c-bar__fl{height:6px;border-radius:var(--r-pill);background:var(--c2);width:62%}
+  .c-bar__tx{margin:6px 0 0;font-size:12px;color:var(--muted)}
+  .c-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+  .c-cell{background:var(--canvas);border:1px solid var(--hairline);border-radius:var(--r-card);
+          padding:12px 4px;display:flex;flex-direction:column;align-items:center;gap:6px;min-height:72px}
+  .c-cell__i{width:34px;height:34px;border-radius:var(--r-pill);background:var(--accent2);
+             display:grid;place-items:center;color:var(--primary)}
+  .c-cell__n{font-size:12px;letter-spacing:-.12px;color:var(--ink)}
+  .c-mini{background:var(--canvas);border:1px solid var(--hairline);border-radius:var(--r-card);padding:12px 14px}
+  .c-mini__row{display:flex;justify-content:space-between;align-items:baseline;
+               font-size:14px;letter-spacing:-.22px}
+  .c-mini__row + .c-mini__row{margin-top:8px}
+  .c-mini__row span:last-child{font-weight:600}
+  .c-fab{display:flex;justify-content:center;padding-top:4px}
+  .c-fab button{border:0;border-radius:var(--r-pill);background:var(--primary);color:#fff;
+                padding:0 28px;height:52px;font-size:17px;font-weight:600;letter-spacing:-.4px;
+                display:inline-flex;align-items:center;gap:8px;font-family:inherit}
+</style>
+</head>
+<body>
+<div class="board">
+
+  <!-- ===================== A · 钱包优先 ===================== -->
+  <div class="col">
+    <p class="tag"><b>方向 A · 钱包优先</b> — 参照 Apple Wallet / 招行掌上生活</p>
+    <p class="note">先给结论再给证据：开屏一张深色净资产卡，下面是本月收支与账户。适合「我这个月到底剩多少」这个问题排在首位的用户。</p>
+    <div class="phone">
+      <section class="a-hero">
+        <p class="a-hero__lb">净资产</p>
+        <div class="a-hero__v tnum">¥ 182,406.55</div>
+        <div class="a-hero__sub">
+          <div>资产合计<b class="tnum">¥ 214,800.00</b></div>
+          <div>负债合计<b class="tnum">¥ 32,393.45</b></div>
+        </div>
+        <!-- 签名细节：30 天净资产走势，面积图用现有图表色 c2 -->
+        <svg class="a-spark" viewBox="0 0 340 28" preserveAspectRatio="none" aria-hidden="true">
+          <path d="M0,22 C40,20 70,24 100,17 C140,9 170,14 200,11 C240,7 275,12 340,5 L340,28 L0,28 Z" fill="var(--c2)" opacity=".38"/>
+          <path d="M0,22 C40,20 70,24 100,17 C140,9 170,14 200,11 C240,7 275,12 340,5" fill="none" stroke="var(--c2)" stroke-width="1.5"/>
+        </svg>
+      </section>
+
+      <dl class="a-flow">
+        <div><dt>本月支出</dt><dd class="tnum neg">¥ 6,842.30</dd></div>
+        <div><dt>本月收入</dt><dd class="tnum pos">¥ 12,000.00</dd></div>
+      </dl>
+
+      <div class="a-sec"><h3>账户</h3><span>全部 4 个 ›</span></div>
+      <div class="a-accts">
+        <div class="a-acct"><p class="a-acct__n">招商银行</p><div class="a-acct__v tnum">¥ 96,120.40</div></div>
+        <div class="a-acct"><p class="a-acct__n">现金</p><div class="a-acct__v tnum">¥ 1,240.00</div></div>
+        <div class="a-acct"><p class="a-acct__n">信用卡</p><div class="a-acct__v tnum neg">-¥ 3,882.15</div></div>
+      </div>
+
+      <div class="a-sec"><h3>最近记账</h3><span>全部 ›</span></div>
+      <div class="a-list">
+        <div class="a-row">
+          <span class="a-row__d"><svg class="ico" viewBox="0 0 24 24"><path d="M4 7h16v10H4z" opacity=".55"/><circle cx="12" cy="12" r="2.4"/></svg></span>
+          <div class="a-row__t"><p>午餐 · 美团</p><span>今天 12:34 · 招商银行</span></div>
+          <div class="a-row__v neg tnum">-¥ 38.00</div>
+        </div>
+        <div class="a-row">
+          <span class="a-row__d"><svg class="ico" viewBox="0 0 24 24"><rect x="4" y="9" width="16" height="6" rx="1.5" opacity=".55"/></svg></span>
+          <div class="a-row__t"><p>工资 10 月</p><span>昨天 09:00 · 招商银行</span></div>
+          <div class="a-row__v pos tnum">+¥ 12,000.00</div>
+        </div>
+        <div class="a-row">
+          <span class="a-row__d"><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7" opacity=".55"/><path d="M12 8v8"/></svg></span>
+          <div class="a-row__t"><p>房租</p><span>10/24 · 招商银行</span></div>
+          <div class="a-row__v neg tnum">-¥ 3,500.00</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== B · 流水优先 ===================== -->
+  <div class="col">
+    <p class="tag"><b>方向 B · 流水优先</b> — 参照 YNAB / MoneyWiz</p>
+    <p class="note">首页就是账单本身：不设大 hero，顶部一行三项统计，下面按日分组的流水直接铺开。金额列定宽右对齐，一眼能竖着对账。</p>
+    <div class="phone">
+      <dl class="b-head">
+        <div><dt>支出</dt><dd class="tnum neg">¥ 6,842.30</dd></div>
+        <div><dt>收入</dt><dd class="tnum pos">¥ 12,000.00</dd></div>
+        <div><dt>结余</dt><dd class="tnum">¥ 5,157.70</dd></div>
+      </dl>
+
+      <section class="b-day">
+        <header class="b-day__h">
+          <span class="b-day__d">今天 · 10 月 26 日 周一</span>
+          <span class="b-day__s tnum">3 笔 · 支出 ¥ 128.00</span>
+        </header>
+        <div class="b-item">
+          <span class="b-item__cat"><svg class="ico ico-14" viewBox="0 0 24 24"><path d="M4 7h16v10H4z" opacity=".55"/><circle cx="12" cy="12" r="2.4"/></svg></span>
+          <div class="b-item__nm"><p>午餐 · 美团</p><span>餐饮 · 招商银行</span></div>
+          <div class="b-item__amt neg tnum">-38.00</div>
+        </div>
+        <div class="b-item">
+          <span class="b-item__cat"><svg class="ico ico-14" viewBox="0 0 24 24"><path d="M5 12h14M5 8h14M5 16h9" opacity=".55"/></svg></span>
+          <div class="b-item__nm"><p>地铁通勤</p><span>交通 · 现金</span></div>
+          <div class="b-item__amt neg tnum">-6.00</div>
+        </div>
+        <div class="b-item">
+          <span class="b-item__cat"><svg class="ico ico-14" viewBox="0 0 24 24"><rect x="4" y="9" width="16" height="6" rx="1.5" opacity=".55"/></svg></span>
+          <div class="b-item__nm"><p>话费充值</p><span>通信 · 招商银行</span></div>
+          <div class="b-item__amt neg tnum">-84.00</div>
+        </div>
+      </section>
+
+      <section class="b-day">
+        <header class="b-day__h">
+          <span class="b-day__d">昨天 · 10 月 25 日 周日</span>
+          <span class="b-day__s tnum">2 笔 · 收入 ¥ 12,000.00</span>
+        </header>
+        <div class="b-item">
+          <span class="b-item__cat"><svg class="ico ico-14" viewBox="0 0 24 24"><rect x="4" y="9" width="16" height="6" rx="1.5" opacity=".55"/></svg></span>
+          <div class="b-item__nm"><p>工资 10 月</p><span>收入 · 招商银行</span></div>
+          <div class="b-item__amt pos tnum">+12,000.00</div>
+        </div>
+        <div class="b-item">
+          <span class="b-item__cat"><svg class="ico ico-14" viewBox="0 0 24 24"><path d="M7 17L17 7M17 7h-6M17 7v6" opacity=".55"/></svg></span>
+          <div class="b-item__nm"><p>超市采购</p><span>日用 · 信用卡</span></div>
+          <div class="b-item__amt neg tnum">-236.80</div>
+        </div>
+      </section>
+
+      <section class="b-day">
+        <header class="b-day__h">
+          <span class="b-day__d">10 月 24 日 周六</span>
+          <span class="b-day__s tnum">1 笔 · 支出 ¥ 3,500.00</span>
+        </header>
+        <div class="b-item">
+          <span class="b-item__cat"><svg class="ico ico-14" viewBox="0 0 24 24"><path d="M4 11l8-6 8 6v8H4z" opacity=".55"/></svg></span>
+          <div class="b-item__nm"><p>房租</p><span>居住 · 招商银行</span></div>
+          <div class="b-item__amt neg tnum">-3,500.00</div>
+        </div>
+      </section>
+
+      <div class="b-more">查看近 30 天全部 ›</div>
+    </div>
+  </div>
+
+  <!-- ===================== C · 即记即走 ===================== -->
+  <div class="col">
+    <p class="tag"><b>方向 C · 即记即走</b> — 参照 随手记 / 鲨鱼记账</p>
+    <p class="note">首页的作用是把账记下来：今天花了多少在最上面，分类图标直接铺在下面当入口，点开的那一刻就已经选好了分类。</p>
+    <div class="phone">
+      <div class="c-greet">
+        <h2>今天</h2>
+        <span>10 月 26 日 周一</span>
+      </div>
+
+      <section class="c-today">
+        <p class="c-today__lb">今日支出</p>
+        <div class="c-today__v tnum">¥ 128.00</div>
+        <div class="c-bar">
+          <div class="c-bar__bg"><div class="c-bar__fl"></div></div>
+          <p class="c-bar__tx">预算 ¥ 12,000 · 已用 62%</p>
+        </div>
+      </section>
+
+      <div class="c-sec" style="display:flex;justify-content:space-between;align-items:baseline;margin:8px 2px 0">
+        <h3 style="margin:0;font-size:15px;font-weight:600;letter-spacing:-.24px">记一笔常用</h3>
+        <span style="font-size:12px;color:var(--primary)">全部分类 ›</span>
+      </div>
+      <div class="c-grid">
+        <button class="c-cell" type="button"><span class="c-cell__i"><svg class="ico" viewBox="0 0 24 24"><path d="M4 7h16v10H4z" opacity=".55"/><circle cx="12" cy="12" r="2.4"/></svg></span><span class="c-cell__n">餐饮</span></button>
+        <button class="c-cell" type="button"><span class="c-cell__i"><svg class="ico" viewBox="0 0 24 24"><path d="M5 12h14M5 8h14M5 16h9" opacity=".55"/></svg></span><span class="c-cell__n">交通</span></button>
+        <button class="c-cell" type="button"><span class="c-cell__i"><svg class="ico" viewBox="0 0 24 24"><rect x="4" y="9" width="16" height="6" rx="1.5" opacity=".55"/></svg></span><span class="c-cell__n">购物</span></button>
+        <button class="c-cell" type="button"><span class="c-cell__i"><svg class="ico" viewBox="0 0 24 24"><path d="M4 11l8-6 8 6v8H4z" opacity=".55"/></svg></span><span class="c-cell__n">居住</span></button>
+        <button class="c-cell" type="button"><span class="c-cell__i"><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7" opacity=".55"/><path d="M12 8v8"/></svg></span><span class="c-cell__n">娱乐</span></button>
+        <button class="c-cell" type="button"><span class="c-cell__i"><svg class="ico" viewBox="0 0 24 24"><path d="M7 17L17 7M17 7h-6M17 7v6" opacity=".55"/></svg></span><span class="c-cell__n">日用</span></button>
+        <button class="c-cell" type="button"><span class="c-cell__i"><svg class="ico" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" opacity=".55"/></svg></span><span class="c-cell__n">医疗</span></button>
+        <button class="c-cell" type="button"><span class="c-cell__i"><svg class="ico" viewBox="0 0 24 24"><path d="M6 18V10M12 18V6M18 18v-5" opacity=".55"/></svg></span><span class="c-cell__n">更多</span></button>
+      </div>
+
+      <div class="c-mini">
+        <div class="c-mini__row"><span>本月支出</span><span class="tnum">¥ 6,842.30</span></div>
+        <div class="c-mini__row"><span>本月收入</span><span class="tnum">¥ 12,000.00</span></div>
+        <div class="c-mini__row"><span>净资产</span><span class="tnum">¥ 182,406.55</span></div>
+      </div>
+
+      <div class="a-sec"><h3>最近记账</h3><span>全部 ›</span></div>
+      <div class="a-list">
+        <div class="a-row">
+          <span class="a-row__d"><svg class="ico" viewBox="0 0 24 24"><path d="M4 7h16v10H4z" opacity=".55"/><circle cx="12" cy="12" r="2.4"/></svg></span>
+          <div class="a-row__t"><p>午餐 · 美团</p><span>今天 12:34</span></div>
+          <div class="a-row__v neg tnum">-¥ 38.00</div>
+        </div>
+        <div class="a-row">
+          <span class="a-row__d"><svg class="ico" viewBox="0 0 24 24"><path d="M5 12h14M5 8h14M5 16h9" opacity=".55"/></svg></span>
+          <div class="a-row__t"><p>地铁通勤</p><span>今天 08:12</span></div>
+          <div class="a-row__v neg tnum">-¥ 6.00</div>
+        </div>
+      </div>
+
+      <div class="c-fab"><button type="button"><svg class="ico" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>记一笔</button></div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

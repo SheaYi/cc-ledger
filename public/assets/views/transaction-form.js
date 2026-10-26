@@ -50,6 +50,7 @@ import { TYPE_ICON, dayLabel } from '../lib/tx-format.js';
 /** 本地草稿：填一半离开后回访能接着填（docs/13 §10.1） */
 import { clearDraft, describeDraft, draftHasContent, readDraft, writeDraft } from '../lib/tx-draft.js';
 import { writeTemplateSeed } from '../lib/template-panel.js';
+import { attachAmountPad } from '../lib/amount-pad.js';
 
 /** 「再记一笔」传递保留字段的一次性种子（不污染 URL，docs/13 §7.2 的同类做法） */
 const SEED_KEY = 'cc-ledger.compose-seed.v1';
@@ -2577,6 +2578,22 @@ function mountCompose(
       $('[name=amount]').blur();
     }
   });
+
+  /**
+   * 金额类输入挂上 App 内计算器键盘（**仅紧凑形态**）。
+   *
+   * 为什么要它：系统数字键盘一次只能录入一个最终数值，而记账的高频动作是
+   * 「38+6+12」这种连加；每次都先心算或切去计算器再切回来，是这个场景最大的摩擦。
+   * 桌面端不挂 —— 实体键盘比任何自绘键盘都快，替换是倒退。
+   *
+   * 只给**三个**金额框挂，不给「本次冲抵」：后者有自己的一套联动
+   * （主金额变小时它要跟着收敛、=0 时要撤掉关联），
+   * 多一个浮层只会让结清这块更难推理，而它一次填一个数的频率本来就低。
+   * 不需要拆监听器：记账页离开时整棵表单 DOM 被替换，监听器随元素回收。
+   */
+  for (const name of ['amount', 'fee', 'discount']) {
+    attachAmountPad(form.querySelector(`[name=${name}]`));
+  }
 
   // ---- 账户 ----
   $('[name=accountId]').addEventListener('change', (e) => {

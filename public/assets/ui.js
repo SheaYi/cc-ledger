@@ -20,6 +20,15 @@ export function h(html) {
   return tpl.content.firstElementChild;
 }
 
+/**
+ * 紧凑形态（手机 / 平板竖屏）判据。
+ *
+ * ⚠️ 断点写在 JS 而不是 mobile.css：它是**路由与布局**判据（首页该渲染哪一版、
+ * 记账键盘该不该出现在页面里），不是样式判据 —— 两侧各写一份必然漂移。
+ * 数值与 mobile.css 的主断点一致（1023px）。
+ */
+export const isCompact = () => window.matchMedia('(max-width: 1023px)').matches;
+
 /* ---------------- 图标（统一 1.6 描边、currentColor，替代 SF Symbols） ---------------- */
 const PATHS = {
   plus: '<path d="M12 5v14M5 12h14"/>',

@@ -1,6 +1,13 @@
 /**
  * 概览 —— 打开账本先看到「钱」：净资产、本月收支、账户快览、对账状态。
  * 这一页不含任何账号/设置类内容（那些在「我的」）。
+ *
+ * ## 两版 DOM，按形态分派，不是一版自适应
+ *
+ * 桌面走本页面（多栏、信息平铺）；紧凑形态（≤1023px）走 `mobile-home.js`
+ * （方向 A · 钱包优先）。判据是信息优先级不同：手机上「我这个月还剩多少」
+ * 必须排在第一屏，而桌面有横向空间把五类信息平铺成同级。
+ * 强行共用一套 DOM，必然变成「桌面版塌成一列」，两头都让步。
  */
 import { Api } from '../api.js';
 import { appFrame, mountTabBar } from '../chrome.js';
@@ -15,6 +22,7 @@ import {
   formatDate,
   h,
   icon,
+  isCompact,
   money,
   monthLabel,
   toast,
@@ -66,6 +74,12 @@ function accountLine(a) {
 }
 
 export async function renderOverview(container, { go }) {
+  /* 手机/平板钱包版首页（方向 A · 钱包优先）。见本文件顶部的分派说明。 */
+  if (isCompact()) {
+    const { renderMobileHome } = await import('./mobile-home.js');
+    return renderMobileHome(container, { go });
+  }
+
   const shell = appFrame({
     active: 'overview',
     inner: `

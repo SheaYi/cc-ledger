@@ -65,18 +65,12 @@ function currentPath() {
 }
 
 /**
- * 紧凑形态（≤1023px）—— 与 TabBar 的显示断点**同一个数**。
+ * 记账页（新建 / 编辑）：全屏页，不挂底部 dock
  *
- * 手机端首页落点是「账户」而不是「概览」：底部 5 槽是 账户/账单/记一笔/统计/设置，
- * 概览不在栏里，若 `/` 仍渲染概览，首屏会出现「底栏没有任何一项亮着」的悬空态。
- * 桌面不变（概览仍是 `/`）。
- *
- * ⚠️ 断点写在这里而不是 mobile.css：它是**路由**判据，不是样式判据，
- *    两侧各写一份必然漂移。
+ * ⚠️ 紧凑形态判据 `isCompact` 已从本文件移到 `ui.js`（带那里的说明）。
+ *    它是「首页渲染哪一版 / 金额键盘要不要出现」的判据，移动端 HOME_DEF 也要用，
+ *    留在路由文件里会让视图层反向依赖 app.js（循环依赖）。
  */
-const isCompact = () => window.matchMedia('(max-width: 1023px)').matches;
-
-/** 记账页（新建 / 编辑）：全屏页，不挂底部 dock */
 const isComposePath = (path) => /^\/transactions\/new$/.test(path) || /^\/transactions\/[^/]+\/edit$/.test(path);
 
 function go(path, { replace = false } = {}) {
@@ -110,13 +104,6 @@ async function render() {
   // 一律用规范路径，别名只为兜住已经发出去的链接（docs/13 §3.4 解决 D4）。
   if (path === '/tx/new') {
     go(`/transactions/new${window.location.search}`, { replace: true });
-    return;
-  }
-
-  // 手机/平板：`/` 落到「账户」（底部导航第一槽），避免首屏无选中态。
-  // replace 而非 push：用户按返回键不该在「/ ↔ /accounts」之间来回弹。
-  if (path === '/' && isCompact()) {
-    go('/accounts', { replace: true });
     return;
   }
 

@@ -451,13 +451,17 @@ function syncDockActive(dock, active) {
 /**
  * 移动端底部导航（≤1023px 显示）—— 5 槽，正中央是**动作位**不是导航位。
  *
- *       账户   账单   ╭──╮  统计   设置
+ *       首页   账单   ╭──╮  统计   设置
  *                      │记 │  ← pill 形态、抬升、不参与选中态
  *                      ╰──╯
  *
- * 槽位为什么是这五个（2026-10-22 重排，取代旧的「概览/账单/记/分类/我的」）：
- *   · **账户** 是打开就想知道的「我现在有多少钱、钱在哪」—— 记账 App 的首屏，
- *     手机端 `/` 也直接落到它（见 app.js 的移动端首页重定向）。
+ * 槽位为什么是这五个（2026-10-26 重排，取代 2026-10-22 的「账户/账单/记/统计/设置」）：
+ *   · **首页** 是「钱包优先」的钱包界面 —— 净资产 hero + 30 天走势 + 本月收支 +
+ *     账户余额 + 快速记账。原来第一槽是「账户」，但手机上用户的第一问是
+ *     「我这个月还剩多少」，不是「我的账户列表长什么样」——前者要给的是**结论**，
+ *     后者是**清单**，结论该排第一（设计方向 A · 钱包优先，见 design-demos/direction-approved.md）。
+ *     ⚠️ 账户**没有被移除**：完整列表从首页的「查看全部」进 `/accounts`，
+ *     且 `/accounts` 仍归槽到「首页」（同一语义族：钱在哪）。
  *   · **账单** 是流水主界面（`docs/09 §2.2` 定的核心 Tab），记账 App 的第二个屏。
  *   · **记一笔** 是动作不是目的地：占中心、抬升、不参与选中态（docs/13 §3.2）。
  *   · **统计** 是「回头看」—— 收支趋势、分类占比、排行，手机上单独成屏才看得了图。
@@ -474,7 +478,7 @@ function syncDockActive(dock, active) {
 /* dock 的 5 个槽。提到模块级：`syncDockActive` 要在不重建 DOM 的前提下
    单独算选中态，不能每次都从 `tabBar` 里拿。 */
 const DOCK_TABS = [
-  { key: 'accounts', label: '账户', href: '/accounts', icon: 'wallet' },
+  { key: 'overview', label: '首页', href: '/', icon: 'home' },
   { key: 'transactions', label: '账单', href: '/transactions', icon: 'book' },
   { key: 'compose', label: '记一笔', href: COMPOSE_HREF, icon: 'plus', action: true },
   { key: 'stats', label: '统计', href: '/stats', icon: 'chart' },
@@ -486,15 +490,16 @@ const DOCK_TABS = [
 // 归槽判据是「**用户是从哪个页面的哪个按钮进来的**」，而不是 URL 前缀 ——
 // 前者回答「我刚才在哪」，后者只是字符串匹配。
 //
-//   · 概览 / 往来 / 对账历史 → 账户（都是「看余额与状态」，账户是它们的落点）
+//   · 账户 / 往来 / 对账历史 → 首页（都是「钱在哪、多少钱」，首页是它们的落点）
+//     注：账户原本是第二槽，2026-10-26 让位给首页，但仍然可达（首页「查看全部」）
 //   · 分类 / 标签 / 模板 / 周期 / 分期 → 账单（都是录入效率件，入口在记账表单与账单页）
 //   · 预算 → 统计（是约束与对比，不是流水）
 //   · 导入 → 账单（导入的是账单）
 //   · 成员 / 邀请 → 设置
 const DOCK_FALLBACK = {
-  overview: 'accounts',
-  debts: 'accounts',
-  reconciliations: 'accounts',
+  accounts: 'overview',
+  debts: 'overview',
+  reconciliations: 'overview',
   categories: 'transactions',
   tags: 'transactions',
   templates: 'transactions',
@@ -510,7 +515,7 @@ function resolveTabKey(active) {
   return DOCK_TABS.some((t) => t.key === active) ? active : (DOCK_FALLBACK[active] ?? active);
 }
 
-export function tabBar({ active = 'accounts', go, ledger = null } = {}) {
+export function tabBar({ active = 'overview', go, ledger = null } = {}) {
   const TABS = DOCK_TABS;
   const activeKey = resolveTabKey(active);
 

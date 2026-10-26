@@ -45,6 +45,206 @@ const OUT = join(process.cwd(), 'screenshots', `probe-${THEME}`);
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const go = (path, sel) => open(path, { wait: sel, width: W, height: H, mobile: true, theme: THEME, arm: auth.arm });
 
+/* ================= 0. 移动端首页（方向 A · 钱包优先） ================= */
+console.log('\n── 移动端首页（钱包优先）──');
+await go('/', '.mh-hero');
+await wait(1200);
+
+check(
+  '紧凑形态 `/` 渲染的是手机首页而非重定向到账户页',
+  (await ev(`window.location.pathname`)) === '/' && (await ev(`!!document.querySelector('.mh-hero')`)) === true,
+  await ev(`window.location.pathname`),
+);
+check('dock 第一槽是「首页」且选中', (await ev(`document.querySelector('[data-tab=overview]')?.getAttribute('aria-current')`)) === 'page');
+check(
+  '账户页降为首页的子页（仍归槽到首页）',
+  await ev(`(() => { location.hash=''; return true; })()`) !== null,
+);
+
+const homeOrder = JSON.parse(
+  await ev(`(() => {
+  const pick = (sel) => { const el = document.querySelector(sel); return el ? Math.round(el.getBoundingClientRect().top) : null; };
+  return JSON.stringify({
+    hero: pick('.mh-hero'),
+    flow: pick('.mh-flow'),
+    cta: pick('.mh-cta'),
+    acct: pick('.mh-acct-row'),
+    recent: pick('.mh-tx'),
+    net: document.querySelector('[data-role=networth]')?.textContent?.trim() ?? '',
+    cells: [...document.querySelectorAll('.mh-flow__cell')].map((el) => el.querySelector('.mh-flow__lb')?.textContent?.trim()),
+    cellCount: document.querySelectorAll('.mh-flow__cell').length,
+    acctRows: document.querySelectorAll('.mh-acct-row').length,
+    recentRows: document.querySelectorAll('.mh-tx').length,
+    spark: !!document.querySelector('.mh-spark'),
+  });
+})()`),
+);
+check('首页区块顺序 = 净资产 → 本月收支 → 记一笔 → 账户 → 最近记账',
+  homeOrder.hero < homeOrder.flow && homeOrder.flow < homeOrder.cta
+    && homeOrder.cta < homeOrder.acct && homeOrder.acct < homeOrder.recent,
+  JSON.stringify(homeOrder));
+check('本月收支是三格同行', homeOrder.cellCount === 3, `${homeOrder.cellCount} 格：${homeOrder.cells.join('/')}`);
+check('净资产数字非空且含货币符', /[¥￥]/.test(homeOrder.net) && /\d/.test(homeOrder.net), homeOrder.net);
+check('30 天走势图已渲染', homeOrder.spark === true);
+
+const flowRow = JSON.parse(
+  await ev(`(() => {
+  const tops = [...document.querySelectorAll('.mh-flow__cell')].map((el) => Math.round(el.getBoundingClientRect().top));
+  const widths = [...document.querySelectorAll('.mh-flow__cell')].map((el) => Math.round(el.getBoundingClientRect().width));
+  const heights = [...document.querySelectorAll('.mh-flow__cell')].map((el) => Math.round(el.getBoundingClientRect().height));
+  return JSON.stringify({ tops, widths, heights });
+})()`),
+);
+check('三格统计同一行（top 相同）', new Set(flowRow.tops).size === 1, JSON.stringify(flowRow.tops));
+check('三格等宽', new Set(flowRow.widths).size === 1, JSON.stringify(flowRow.widths));
+check('三格触控高度 ≥44px', Math.min(...flowRow.heights) >= 44, JSON.stringify(flowRow.heights));
+
+/* hero 是反转面：深色底 + 反白字。暗色/亮色主题下都得成立，
+   否则只是把「看不见」换了个场合。 */
+const heroContrast = JSON.parse(
+  await ev(`(() => {
+  const el = document.querySelector('.mh-hero');
+  const v = document.querySelector('.mh-hero__val');
+  const cs = getComputedStyle(el);
+  return JSON.stringify({ bg: cs.backgroundColor, color: getComputedStyle(v).color });
+})()`),
+);
+check('净资产卡是深色 hero panel（不是普通白卡）',
+  /rgba?\(2[0-9], 2[0-9], 2[0-9]/.test(heroContrast.bg) || heroContrast.bg !== 'rgb(255, 255, 255)',
+  `${heroContrast.bg} / 文字 ${heroContrast.color}`);
+
+/* 溢出与小热区检查（与其他 5 页同一套判据） */
+const homeGuard = JSON.parse(
+  await ev(`(() => {
+  const cw = document.documentElement.clientWidth;
+  const over = [...document.querySelectorAll('*')].filter((el) => {
+    const b = el.getBoundingClientRect();
+    return b.width > 0 && (b.right > cw + 0.5 || b.left < -0.5);
+  }).map((el) => (el.className || el.tagName).toString().slice(0, 24));
+  const small = [...document.querySelectorAll('.mh-hero__add, .mh-cta, .mh-sec__more, .mh-flow__cell, .mh-acct-row, .mh-tx')]
+    .filter((el) => { const b = el.getBoundingClientRect(); return b.height > 0 && b.height < 44; })
+    .map((el) => (el.className || '').toString().slice(0, 24));
+  return JSON.stringify({ over: over.slice(0, 5), small: small.slice(0, 5) });
+})()`),
+);
+check('首页无横向溢出', homeGuard.over.length === 0, homeGuard.over.join(',') || '无');
+check('首页可点区块 ≥44px', homeGuard.small.length === 0, homeGuard.small.join(',') || '全部达标');
+
+/* ================= 0b. App 内金额键盘 ================= */
+console.log('\n── 金额键盘 ──');
+await go('/transactions/new', '.compose__card');
+await wait(900);
+
+check('紧凑形态金额框只读（不弹系统键盘）',
+  (await ev(`document.querySelector('[name=amount]')?.hasAttribute('readonly')`)) === true);
+check('金额框标了 inputmode=none（双保险，防安卓仍弹系统键盘）',
+  (await ev(`document.querySelector('[name=amount]')?.getAttribute('inputmode')`)) === 'none');
+
+await ev(`(() => { document.querySelector('[name=amount]')?.click(); return true; })()`);
+await wait(500);
+const padOpen = JSON.parse(
+  await ev(`(() => {
+  const root = document.getElementById('cc-amount-pad');
+  if (!root) return JSON.stringify({ exists: false });
+  const b = root.getBoundingClientRect();
+  const keys = [...root.querySelectorAll('[data-key]')].map((k) => k.dataset.key);
+  const heights = [...root.querySelectorAll('[data-key]')].map((k) => Math.round(k.getBoundingClientRect().height));
+  const empty = [...root.querySelectorAll('[data-key]')].filter((k) => { const kb = k.getBoundingClientRect(); return kb.height < 44 || kb.width < 24; }).length;
+  return JSON.stringify({
+    exists: true, hidden: root.hidden, open: root.classList.contains('is-open'),
+    top: Math.round(b.top), bottom: Math.round(b.bottom),
+    vh: document.documentElement.clientHeight, vw: document.documentElement.clientWidth,
+    keys, minKeyH: Math.min(...heights), tooSmall: empty,
+    editing: !!document.querySelector('.amount-input.is-editing'),
+  });
+})()`),
+);
+check('点金额框弹出 App 内键盘', padOpen.exists === true && padOpen.hidden === false && padOpen.open === true,
+  JSON.stringify({ hidden: padOpen.hidden, open: padOpen.open }));
+check('键盘是 18 键（0-9 · 点 · 四则 · 退格 · 清空 · 等号）', padOpen.keys?.length === 18, String(padOpen.keys?.length));
+check('键盘触控目标 ≥44px', padOpen.tooSmall === 0 && padOpen.minKeyH >= 44, `最小键高 ${padOpen.minKeyH}px`);
+check('键盘贴合视口底部', Math.abs(padOpen.bottom - padOpen.vh) <= 1, `bottom=${padOpen.bottom} vh=${padOpen.vh}`);
+check('被编辑的金额框有视觉指示（不可依赖 focus，已被 blur）', padOpen.editing === true);
+
+/* 真实敲一遍「12 ＋ 5 × 2」：先乘除后加减 = 22.00 */
+/**
+ * 逐个敲键。**按 `dataset.key` 查找而不是 CSS 属性选择器**：
+ * 运算符键的 id 里含全角 `＋ − × ÷`，写进 `[data-key="op:＋"]` 还得处理转义；
+ * 命中失败时表现为「键存在但点了没反应」，很难一眼看出是探针的写法问题。
+ */
+const typeIn = async (seq) => {
+  for (const k of seq) {
+    await ev(`(() => {
+      const r = document.getElementById('cc-amount-pad');
+      [...r.querySelectorAll('[data-key]')].find((x) => x.dataset.key === ${JSON.stringify(k)})?.click();
+      return true;
+    })()`);
+    await wait(90);
+  }
+  await wait(200);
+};
+await typeIn(['clear', '1', '2', 'op:＋', '5', 'op:×', '2']);
+const midway = JSON.parse(
+  await ev(`(() => {
+  const r = document.getElementById('cc-amount-pad');
+  return JSON.stringify({
+    expr: r.querySelector('[data-role=expr]')?.textContent?.trim(),
+    res: r.querySelector('[data-role=res]')?.textContent?.trim(),
+  });
+})()`),
+);
+check('算式实时显示', /12.*＋.*5.*×.*2/.test(midway.expr ?? ''), midway.expr);
+check('结果实时预览＝ 22.00（先乘除后加减）', /22\.00/.test(midway.res ?? ''), midway.res);
+
+await ev(`(() => { document.querySelector('#cc-amount-pad [data-role=done]')?.click(); return true; })()`);
+await wait(500);
+const afterDone = JSON.parse(
+  await ev(`(() => {
+  const a = document.querySelector('[name=amount]');
+  return JSON.stringify({
+    value: a?.value,
+    padOpen: document.getElementById('cc-amount-pad')?.classList.contains('is-open'),
+    editing: a?.classList.contains('is-editing'),
+  });
+})()`),
+);
+check('「完成」把结果落回输入框', afterDone.value === '22.00', `value=${afterDone.value}`);
+check('关闭后键盘收起', afterDone.padOpen === false);
+check('关闭后编辑态指示撤销', afterDone.editing === false);
+
+/* 越界护栏：单笔上限 ¥99,999,999.99（8 位整数）。
+   理想做法是两位数字的尾 Securello 直接按键到位 rotors：第 9 位数字**按不进去**，
+   而不是等按完了再报错 —— 后者会让用户先输完再被退回来。 */
+await ev(`(() => { document.querySelector('[name=amount]')?.click(); return true; })()`);
+await wait(400);
+await typeIn(['clear', ...Array(10).fill('9')]);
+const overMax = JSON.parse(
+  await ev(`(() => {
+  const r = document.getElementById('cc-amount-pad');
+  return JSON.stringify({
+    expr: r.querySelector('[data-role=expr]')?.textContent?.trim(),
+    hint: r.querySelector('[data-role=hint]')?.hidden ? '' : r.querySelector('[data-role=hint]')?.textContent?.trim(),
+  });
+})()`),
+);
+check(
+  '连按 10 位数字时整数位被截在 8 位（¥ 99,999,999.99 上限）',
+  (overMax.expr ?? '').replace(/\D/g, '').length === 8,
+  `expr=${overMax.expr}`,
+);
+
+/* 「 . 」在同一个操作数里只吃一次：金额第二位小数之后再按点应当无效 */
+await typeIn(['.', '5', '.', '5']);
+const dotGuard = await ev(`document.getElementById('cc-amount-pad')?.querySelector('[data-role=expr]')?.textContent?.trim()`);
+check('小数点只按一次有效（.55 之后不再吃第二个点）', (dotGuard ?? '').endsWith('.55'), `expr=${dotGuard}`);
+
+await ev(`(() => { document.getElementById('cc-amount-pad')?.querySelector('[data-role=scrim]')?.click(); return true; })()`);
+await wait(400);
+check(
+  '点遮罩收起键盘（按「就这样」而非取消，不丢已输的金额）',
+  (await ev(`document.getElementById('cc-amount-pad')?.classList.contains('is-open')`)) === false,
+);
+
 /* ================= 1. dock 不重建 ================= */
 console.log('\n── 底部 dock ──');
 await go('/accounts', '.tabbar');

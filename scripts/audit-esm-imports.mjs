@@ -133,6 +133,18 @@ function analyze(path) {
     imports.push({ spec: s[1], names: [], kind: 'side-effect' });
   }
 
+  /**
+   * 动态导入 `await import('./x.js')`。
+   *
+   * 不识别它的后果是**误报孤儿**：只在紧凑形态才加载的 `views/mobile-home.js`
+   * 会被算成「没有任何入口引用」，而它其实被 `views/overview.js` 按需 import。
+   * 名字照常核对（动态 import 也支持 `{ named }` 解构），因为这是对另一种用法
+   * 的同一个不变式：「导入的名字必须真的存在」。
+   */
+  for (const s of code.matchAll(/\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g)) {
+    imports.push({ spec: s[1], names: [], kind: 'dynamic' });
+  }
+
   // export { a, b as c } [from '...']
   const exportRe = /\bexport\s*\{([\s\S]*?)\}\s*(?:from\s*['"]([^'"]+)['"])?/g;
   while ((m = exportRe.exec(code))) {
