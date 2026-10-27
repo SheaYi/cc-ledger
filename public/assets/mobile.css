@@ -53,22 +53,22 @@
    ========================================================================== */
 @media (max-width: 1023px) {
   :root {
-    --page-gutter: 16px; /* 手机上 20px 太宽：内容被推窄，行更易折 */
-    --card-gap: 12px;
-    --tabbar-h: 58px; /* 5 槽 + 抬升动作位，比桌面 56 再高 2px 给标签呼吸 */
-    --appbar-h: 52px;
+    --page-gutter: 12px; /* 紧凑化：20/16 太宽，账单行更易折行 */
+    --card-gap: 8px; /* 紧凑化：卡片间留白收到 8（spacing.sm 下限） */
+    --tabbar-h: 54px; /* 紧凑化：5 槽 + 抬升动作位，仍 ≥44 标签底线 */
+    --appbar-h: 48px; /* 紧凑化：顶栏更薄 */
   }
 
   /* ---------- 页面容器 ---------- */
   .page {
-    padding: 12px var(--page-gutter)
-      calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px) + 40px);
-    gap: 16px;
+    padding: 8px var(--page-gutter)
+      calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px) + 36px);
+    gap: 12px;
   }
 
   /* 记账页不挂 TabBar（docs/13 §4.1 全屏页），底部只留操作条与安全区 */
   .page--compose {
-    padding: 12px var(--page-gutter) calc(24px + env(safe-area-inset-bottom, 0px));
+    padding: 8px var(--page-gutter) calc(20px + env(safe-area-inset-bottom, 0px));
   }
 
   .footer-min {
@@ -149,23 +149,23 @@
   /* ---------- 标题层：hero 降级（00-DESIGN：640px → 34px，419px → 28px） ---------- */
   .page__hero h1,
   .tt-display-md {
-    font-size: 26px;
-    line-height: 1.19;
-    letter-spacing: -0.374px;
+    font-size: 24px;
+    line-height: 1.18;
+    letter-spacing: -0.36px;
   }
 
   .page__hero {
     gap: 4px;
   }
 
-  /* ---------- 卡片与区块：单列、16px 内边距、12px 呼吸 ---------- */
+  /* ---------- 卡片与区块：单列、12px 内边距、8px 呼吸（紧凑化） ---------- */
   .card {
-    padding: 16px;
+    padding: 12px;
   }
 
   .stack,
   .section {
-    gap: 12px;
+    gap: 8px;
   }
 
   .grid-cards,
@@ -376,6 +376,51 @@
     color: var(--c-primary);
   }
 
+  /* ---------- 账单列表：单列两行卡片，进一步收紧行高与组距（紧凑化） ----------
+     桌面那套 `.tx-row` 在 ≤833 已是两行卡片（app.css），这里只收内边距与组距，
+     不改动列布局与语义色（红绿）。日期头 margin-bottom 收到 4（spacing.xs 下限），
+     组间距 24 → 16，行内边距 12 → 8 —— 整屏能多露出约 1.5 行。 */
+  .tx-day + .tx-day {
+    margin-top: 16px;
+  }
+
+  /* 日期头吸顶：专业记账 App（随手记 / YNAB）的标配 —— 长列表滚动时
+     当前看的是哪一天始终钉在顶栏正下方，当日收支小计不丢。
+     背景用页面底色（--c-canvas），行在下方滑过时干净遮住；顶栏 sticky 在
+     top:0、本头 sticky 在 appbar-h + 安全区，两者不重叠。纯 CSS、未动结构。 */
+  .tx-day__head {
+    position: sticky;
+    top: calc(var(--appbar-h) + env(safe-area-inset-top, 0px));
+    z-index: 5;
+    margin-bottom: 4px;
+    padding: 4px 4px 2px;
+    background: var(--c-canvas);
+  }
+
+  .tx-row {
+    padding: 8px 16px;
+    gap: 8px 12px;
+  }
+
+  /* 日期头与当日小计在同一条基线上，紧凑但层次清楚 */
+  .tx-day__date {
+    font-size: 12px;
+  }
+
+  .tx-day__sum {
+    font-size: 12px;
+  }
+
+  /* 可点行的按压反馈：手机上「按下去有反应」比桌面更需要。
+     复用既有 hover 的轻微底色（--c-soft-fill），只切到按下态，
+     不引入新色、不改布局，纯触感打磨。 */
+  .tx-row:active,
+  .acct-row:active,
+  .ledger-card:active,
+  .tag-card:active {
+    background: var(--c-soft-fill);
+  }
+
   /* ======================================================================
      统计页：页头动作整行移除，筛选与搜索收进折叠区
      ======================================================================
@@ -455,7 +500,7 @@
 
   /* ---------- 记账页 ---------- */
   .compose__card {
-    padding: 16px;
+    padding: 12px;
   }
 
   /* 块内字段间距 12 → 8（00-DESIGN spacing.xs）：桌面上一条卡片里
@@ -476,8 +521,8 @@
   }
 
   .amount-input {
-    height: 60px;
-    font-size: 28px;
+    height: 54px;
+    font-size: 26px;
   }
 
   /* ---------- 日期 / 时间框：不许顶出卡片 ----------
@@ -583,13 +628,13 @@
     min-width: 96px;
   }
 
-  /* ---------- 列表行：手机上手指要能整行点 ---------- */
+  /* ---------- 列表行：手机上手指要能整行点（紧凑化） ---------- */
   .acct-row,
   .ledger-card,
   .tag-card {
-    min-height: 56px;
-    padding-top: 12px;
-    padding-bottom: 12px;
+    min-height: 52px;
+    padding-top: 8px;
+    padding-bottom: 8px;
   }
 
   /* 详情页 / 报表里的横向滚动区：贴边滚动，别留内边距把首列切掉 */
@@ -1081,7 +1126,7 @@
   }
 
   .card {
-    padding: 14px;
+    padding: 12px;
   }
 
   /* 「支出 / 收入 / 结余」必须同一行 —— 这三项是拿来横向比的，
@@ -1116,7 +1161,7 @@
   }
 
   .amount-input {
-    height: 56px;
-    font-size: 26px;
+    height: 52px;
+    font-size: 24px;
   }
 }
