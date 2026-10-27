@@ -329,7 +329,7 @@ doc: [
         values: null,
         required: false,
         consume: 'merchantColumn',
-        hint: '可选。按列原样写入；同时参与去重键（日期+金额+商家）比对',
+        hint: '可选。按列原样写入；**不参与**自动分类规则匹配（仍参与去重键比对）',
         defaultValue: '空（账单无商家）',
       },
       {
@@ -399,7 +399,7 @@ doc: [
         values: null,
         required: false,
         consume: 'noteColumn',
-        hint: '可选。账单备注，最多 2000 字，按列原样写入',
+        hint: '可选。账单备注，最多 2000 字，按列原样写入；**不参与**自动分类规则匹配',
         defaultValue: '空',
       },
       {
@@ -747,7 +747,25 @@ export function parseRows(
   //    `string[] | undefined`。用 `?? []` 而不是 `!` —— 后者把「行不存在」
   //    伪装成「空行」，而空行在这里是**合法输入**（CSV 里空行很常见）。
   const header = (rows[0] ?? []).map((c) => c.trim());
-  const idx = (name?: string | null) => (name ? header.indexOf(name) : -1);
+  /**
+   * 列名 → 列下标：**先精确、再归一化**（去掉所有空白 —— 含全角空格 —— 并转小写）。
+   *
+   * ⚠️ 只做 `indexOf` 是不够的：文件里的列名常带尾随空格 / 全角空格 / 大小写差异，
+   *    单级匹配会让这类列「映射了却读不到」—— 必填列直接抛「日期列不在表头里」
+   *    炸掉整次导入，可选列（商家 / 备注）则静默变成空值。
+   *
+   * 两级都匹配不到才返回 -1，语义是**这一列在文件里不存在**：
+   *   可选列 → 留空（不报错、不填充、不推断）；必填列 → 由调用方显式报错。
+   */
+  const normHeader = (s: string) => s.replace(/\s|　/g, '').toLowerCase();
+  const idx = (name?: string | null) => {
+    if (!name) return -1;
+    const exact = header.indexOf(name);
+    if (exact >= 0) return exact;
+    const n = normHeader(name);
+    if (!n) return -1;
+    return header.findIndex((h) => normHeader(h) === n);
+  };
 
   const iDate = idx(mapping.dateColumn);
   const iAmount = idx(mapping.amountColumn);
@@ -1266,15 +1284,24 @@ export function commit(
    * 三五种商家，统一分类等于把 90% 的行归错，比不导入还糟。
    * 为什么规则优先于默认分类：用户设默认分类是「兜底」，设规则是「明确知道」，
    * 明确知道的应当压过兜底。
+   *
+   * ⚠️ **「商家」与「备注」不参与规则匹配**（2026-10-27 定案）：
+   *   这两列是**普通映射列** —— 只能被取值、原样写进账单，不作为分类判断依据。
+   *   所以这里**不把它们喂给 `classifyRows`**：规则引擎读不到 `merchant` / `note`
+   *   字段（`hit()` 拿到 undefined 即判不命中），
+   *   `match_field='merchant' | 'note'` 的规则在导入时自然不会命中。
+   *   分类只由**其余指定字段**决定 —— 本行「名称」列（规则 `match_field='name'`）、
+   *   「主类别 / 子类别」列写明的分类名，最后才是兜底分类。
+   *
+   * （此前这里把 `merchant` 同时塞进了 `name` 槽：`name: p.merchant` ——
+   *   于是「按名称匹配」的规则实际上在匹配商家，与它自己的字段名不符。）
    */
   const ruleHits = classifyRows(
     ctx,
     ledgerId,
     parsed.map((p) => ({
       recordType: p.recordType,
-      merchant: p.merchant,
-      name: p.merchant,
-      note: p.note,
+      name: p.name,
     })),
   );
   const perRule = new Map<string, number>();
@@ -1368,8 +1395,12 @@ export function commit(
       report.failed += 1;
       report.errors.push({
         row: p.row,
-        column: mapping.merchantColumn ?? mapping.noteColumn ?? mapping.amountColumn,
-        value: p.merchant ?? '',
+        /**
+         * 分类判据已经不含商家 / 备注，报错指向的列名也要跟着改 ——
+         * 否则用户会拿着「商家」列去排查一个与商家无关的分类问题。
+         */
+        column: mapping.nameColumn ?? mapping.mainCategoryColumn ?? mapping.amountColumn,
+        value: p.name ?? '',
         message: '未匹配到自动分类规则，也未指定默认分类',
       });
       continue;

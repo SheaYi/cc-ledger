@@ -38,12 +38,12 @@ const MAPPING_FIELDS = [
   { key: 'nameColumn', label: '名称列', hint: '按这一列原样写入账单名称；留空则名称为空（不再取商家兜底）' },
   { key: 'mainCategoryColumn', label: '主类别列', hint: '留空则走自动分类规则，再退回兜底分类' },
   { key: 'subCategoryColumn', label: '子类别列', hint: '留空则沿「主类别」的兜底链路' },
-  { key: 'merchantColumn', label: '商家列', hint: '留空则账单无商家' },
+  { key: 'merchantColumn', label: '商家列', hint: '按这一列原样写入；只取值，不参与自动分类规则匹配；留空则账单无商家' },
   { key: 'counterpartyColumn', label: '对象列', hint: '留空则账单无往来对象' },
   { key: 'feeColumn', label: '手续费列', hint: '留空则按 0 处理' },
   { key: 'discountColumn', label: '折扣列', hint: '留空则按 0 处理' },
   { key: 'tagsColumn', label: '标签列', hint: '留空则无标签；按这一列原样写入，账本里没有的同名标签会自动新建' },
-  { key: 'noteColumn', label: '备注列', hint: '留空则账单无备注' },
+  { key: 'noteColumn', label: '备注列', hint: '按这一列原样写入；只取值，不参与自动分类规则匹配；留空则账单无备注' },
 ];
 
 /** 列字段键清单：从渲染清单派生，不另写一份（避免两处漂移） */
