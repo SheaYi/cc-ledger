@@ -6,8 +6,7 @@
  *
  *   1. 底部 dock 切换页面时**不重建** —— 重建会重播 `tabbar-in` 入场动画，
  *      表现为切页时底栏「被推出去又滑回来」闪一下。
- *   2. 顶栏头像在圆形底内**精确居中**（中心偏差 ≤ 0.5px）。桌面那颗
- *      「头像+昵称」胶囊在手机上会被昵称挤偏。
+ *   2. 顶栏**不再有头像卡片**（按设计移除「头像那一行」；品牌字标与记一笔入口保留）。
  *   3. 记账页类型 / 分类横滑带里的 pill **互不重叠**。
  *   4. 账单页「支出 / 收入 / 结余」**同一行**（三列等分）。
  *
@@ -130,93 +129,98 @@ const homeGuard = JSON.parse(
 check('首页无横向溢出', homeGuard.over.length === 0, homeGuard.over.join(',') || '无');
 check('首页可点区块 ≥44px', homeGuard.small.length === 0, homeGuard.small.join(',') || '全部达标');
 
-/* ================= 0b. App 内金额键盘 ================= */
-console.log('\n── 金额键盘 ──');
+/* ================= 0b. 原生金额键盘（系统自带） ================= */
+console.log('\n── 金额键盘（原生） ──');
 await go('/transactions/new', '.compose__card');
 await wait(900);
 
 /**
- * 进页面**不许**自动弹键盘。
- *
- * 桌面时代「自动聚焦金额框」是对的，但手机端金额框挂着模态键盘，
- * 自动聚焦 = 一进页面就弹出半屏键盘 + 整页遮罩，看着就是「页面整体发灰变暗」，
- * 而且 `html.has-amount-pad` 会锁住背景滚动。键盘只能由用户去点金额唤起。
+ * 进页面**不许**自动弹键盘：金额框是原生 input，自动聚焦会立刻唤起系统数字键盘，
+ * 用户还没决定记什么就先被弹起的键盘盖住半屏。键盘只能由用户去点金额唤起。
  */
 const onLoad = JSON.parse(
   await ev(`(() => {
-  const root = document.getElementById('cc-amount-pad');
+  const pad = document.getElementById('cc-amount-pad');
+  const a = document.querySelector('[name=amount]');
   return JSON.stringify({
-    exists: !!root,
-    open: !!root && root.classList.contains('is-open'),
-    hidden: root ? root.hidden : null,
+    padExists: !!pad,
+    readonly: a ? a.hasAttribute('readonly') : null,
+    inputmode: a ? a.getAttribute('inputmode') : null,
     dimmed: document.documentElement.classList.contains('has-amount-pad'),
     locked: getComputedStyle(document.documentElement).overflow,
   });
 })()`),
 );
-check('进记账页不自动弹出金额键盘', onLoad.open === false, JSON.stringify(onLoad));
+check('进记账页不存在 App 内金额键盘（已改原生输入）', onLoad.padExists === false);
+check('进记账页金额框不是只读（可用系统键盘输入）', onLoad.readonly === false, `readonly=${onLoad.readonly}`);
+check('金额框 inputmode=decimal（唤起系统数字键盘）', onLoad.inputmode === 'decimal', `inputmode=${onLoad.inputmode}`);
 check('进记账页没有全屏遮罩（html 无 has-amount-pad）', onLoad.dimmed === false);
 check('进记账页背景滚动没被锁死', onLoad.locked !== 'hidden', `html overflow=${onLoad.locked}`);
 
-check('紧凑形态金额框只读（不弹系统键盘）',
-  (await ev(`document.querySelector('[name=amount]')?.hasAttribute('readonly')`)) === true);
-check('金额框标了 inputmode=none（双保险，防安卓仍弹系统键盘）',
-  (await ev(`document.querySelector('[name=amount]')?.getAttribute('inputmode')`)) === 'none');
-
-await ev(`(() => { document.querySelector('[name=amount]')?.click(); return true; })()`);
-await wait(500);
-const padOpen = JSON.parse(
-  await ev(`(() => {
-  const root = document.getElementById('cc-amount-pad');
-  if (!root) return JSON.stringify({ exists: false });
-  const b = root.getBoundingClientRect();
-  const keys = [...root.querySelectorAll('[data-key]')].map((k) => k.dataset.key);
-  const heights = [...root.querySelectorAll('[data-key]')].map((k) => Math.round(k.getBoundingClientRect().height));
-  const empty = [...root.querySelectorAll('[data-key]')].filter((k) => { const kb = k.getBoundingClientRect(); return kb.height < 44 || kb.width < 24; }).length;
-  return JSON.stringify({
-    exists: true, hidden: root.hidden, open: root.classList.contains('is-open'),
-    top: Math.round(b.top), bottom: Math.round(b.bottom),
-    vh: document.documentElement.clientHeight, vw: document.documentElement.clientWidth,
-    keys, minKeyH: Math.min(...heights), tooSmall: empty,
-    editing: !!document.querySelector('.amount-input.is-editing'),
-  });
-})()`),
-);
-check('点金额框弹出 App 内键盘', padOpen.exists === true && padOpen.hidden === false && padOpen.open === true,
-  JSON.stringify({ hidden: padOpen.hidden, open: padOpen.open }));
-check('键盘是 18 键（0-9 · 点 · 四则 · 退格 · 清空 · 等号）', padOpen.keys?.length === 18, String(padOpen.keys?.length));
-check('键盘触控目标 ≥44px', padOpen.tooSmall === 0 && padOpen.minKeyH >= 44, `最小键高 ${padOpen.minKeyH}px`);
-check('键盘贴合视口底部', Math.abs(padOpen.bottom - padOpen.vh) <= 1, `bottom=${padOpen.bottom} vh=${padOpen.vh}`);
-check('被编辑的金额框有视觉指示（不可依赖 focus，已被 blur）', padOpen.editing === true);
-
 /**
- * 焦点移到别的输入框 → 键盘必须让路。
- *
- * 这是「点输入框 → 整页发灰」的正解：键盘只在用户还在用它时才该模态。
- * 用户去点「备注」= 金额这块弄完了；此时若还压着半屏 + 盖着遮罩，
- * 页面就是灰的，而且焦点还会被抢回键盘打开前的元素（表现为要点第二下）。
+ * 聚焦金额框：原生 input 应当获得焦点、可编辑，且**不会**弹出任何 App 内键盘
+ * （没有 cc-amount-pad、没有 is-open、页面不发灰、滚动不被锁）。
  */
-await ev(`(() => { document.querySelector('[name=note]')?.focus(); return true; })()`);
+await ev(`(() => { document.querySelector('[name=amount]')?.focus(); return true; })()`);
 await wait(500);
-const afterFocus = JSON.parse(
+const afterFocusAmount = JSON.parse(
   await ev(`(() => {
-  const root = document.getElementById('cc-amount-pad');
+  const pad = document.getElementById('cc-amount-pad');
+  const a = document.querySelector('[name=amount]');
   return JSON.stringify({
-    open: !!root && root.classList.contains('is-open'),
+    padOpen: !!pad && pad.classList.contains('is-open'),
     dimmed: document.documentElement.classList.contains('has-amount-pad'),
     activeName: document.activeElement?.getAttribute?.('name') ?? document.activeElement?.tagName,
     locked: getComputedStyle(document.documentElement).overflow,
   });
 })()`),
 );
-check('聚焦普通输入框时金额键盘自动收起', afterFocus.open === false, JSON.stringify(afterFocus));
-check('收起后遮罩一并消失（页面不再发灰）', afterFocus.dimmed === false);
-check('收起后焦点留在用户刚点的输入框上（不被抢回）', afterFocus.activeName === 'note', String(afterFocus.activeName));
-check('收起后背景滚动恢复', afterFocus.locked !== 'hidden', `html overflow=${afterFocus.locked}`);
+check('聚焦金额框不弹出 App 内键盘', afterFocusAmount.padOpen === false, JSON.stringify(afterFocusAmount));
+check('聚焦金额框页面不发灰（无 has-amount-pad）', afterFocusAmount.dimmed === false);
+check('聚焦金额框背景滚动不被锁', afterFocusAmount.locked !== 'hidden', `html overflow=${afterFocusAmount.locked}`);
+check('聚焦金额框后焦点确实落在金额框上', afterFocusAmount.activeName === 'amount', String(afterFocusAmount.activeName));
 
-/* 重新打开键盘，供后面的按键断言使用 */
-await ev(`(() => { document.querySelector('[name=amount]')?.click(); return true; })()`);
-await wait(500);
+/**
+ * 原生输入：直接在金额框里写入并派发 input 事件，验证 data-money 管道能接住
+ * （清洗 + 落值）。原生键盘语义：用户敲出来的就是最终数值（无连加算式）。
+ */
+await ev(`(() => {
+  const a = document.querySelector('[name=amount]');
+  a.value = '12.5';
+  a.dispatchEvent(new Event('input', { bubbles: true }));
+  return true;
+})()`);
+await wait(300);
+const afterType = JSON.parse(
+  await ev(`(() => {
+  const a = document.querySelector('[name=amount]');
+  return JSON.stringify({ value: a?.value });
+})()`),
+);
+check('原生输入金额被 data-money 管道接住（value=12.5）', afterType.value === '12.5', `value=${afterType.value}`);
+
+/**
+ * 焦点移到别的输入框：原生 input 场景下页面永远不该发灰/锁滚动
+ * （之前 App 内键盘的痛点）。这里确认「去点备注」不会触发任何遮罩。
+ */
+await ev(`(() => { document.querySelector('[name=note]')?.focus(); return true; })()`);
+await wait(400);
+const afterNote = JSON.parse(
+  await ev(`(() => {
+  return JSON.stringify({
+    dimmed: document.documentElement.classList.contains('has-amount-pad'),
+    activeName: document.activeElement?.getAttribute?.('name') ?? document.activeElement?.tagName,
+    locked: getComputedStyle(document.documentElement).overflow,
+  });
+})()`),
+);
+check('聚焦普通输入框时页面不发灰', afterNote.dimmed === false);
+check('焦点留在用户刚点的输入框上', afterNote.activeName === 'note', String(afterNote.activeName));
+check('焦点切换后背景滚动不被锁', afterNote.locked !== 'hidden', `html overflow=${afterNote.locked}`);
+
+/* 让金额框失焦、页面恢复稳定，供后面的「提交条」断言使用 */
+await ev(`(() => { const a = document.querySelector('[name=amount]'); a?.blur(); return true; })()`);
+await wait(300);
 
 /* =============== 3a-2. 提交条：与卡片同宽同高 =============== */
 const bar = JSON.parse(
@@ -260,85 +264,6 @@ else {
   );
 }
 
-/* 真实敲一遍「12 ＋ 5 × 2」：先乘除后加减 = 22.00 */
-/**
- * 逐个敲键。**按 `dataset.key` 查找而不是 CSS 属性选择器**：
- * 运算符键的 id 里含全角 `＋ − × ÷`，写进 `[data-key="op:＋"]` 还得处理转义；
- * 命中失败时表现为「键存在但点了没反应」，很难一眼看出是探针的写法问题。
- */
-const typeIn = async (seq) => {
-  for (const k of seq) {
-    await ev(`(() => {
-      const r = document.getElementById('cc-amount-pad');
-      [...r.querySelectorAll('[data-key]')].find((x) => x.dataset.key === ${JSON.stringify(k)})?.click();
-      return true;
-    })()`);
-    await wait(90);
-  }
-  await wait(200);
-};
-await typeIn(['clear', '1', '2', 'op:＋', '5', 'op:×', '2']);
-const midway = JSON.parse(
-  await ev(`(() => {
-  const r = document.getElementById('cc-amount-pad');
-  return JSON.stringify({
-    expr: r.querySelector('[data-role=expr]')?.textContent?.trim(),
-    res: r.querySelector('[data-role=res]')?.textContent?.trim(),
-  });
-})()`),
-);
-check('算式实时显示', /12.*＋.*5.*×.*2/.test(midway.expr ?? ''), midway.expr);
-check('结果实时预览＝ 22.00（先乘除后加减）', /22\.00/.test(midway.res ?? ''), midway.res);
-
-await ev(`(() => { document.querySelector('#cc-amount-pad [data-role=done]')?.click(); return true; })()`);
-await wait(500);
-const afterDone = JSON.parse(
-  await ev(`(() => {
-  const a = document.querySelector('[name=amount]');
-  return JSON.stringify({
-    value: a?.value,
-    padOpen: document.getElementById('cc-amount-pad')?.classList.contains('is-open'),
-    editing: a?.classList.contains('is-editing'),
-  });
-})()`),
-);
-check('「完成」把结果落回输入框', afterDone.value === '22.00', `value=${afterDone.value}`);
-check('关闭后键盘收起', afterDone.padOpen === false);
-check('关闭后编辑态指示撤销', afterDone.editing === false);
-
-/* 越界护栏：单笔上限 ¥99,999,999.99（8 位整数）。
-   理想做法是两位数字的尾 Securello 直接按键到位 rotors：第 9 位数字**按不进去**，
-   而不是等按完了再报错 —— 后者会让用户先输完再被退回来。 */
-await ev(`(() => { document.querySelector('[name=amount]')?.click(); return true; })()`);
-await wait(400);
-await typeIn(['clear', ...Array(10).fill('9')]);
-const overMax = JSON.parse(
-  await ev(`(() => {
-  const r = document.getElementById('cc-amount-pad');
-  return JSON.stringify({
-    expr: r.querySelector('[data-role=expr]')?.textContent?.trim(),
-    hint: r.querySelector('[data-role=hint]')?.hidden ? '' : r.querySelector('[data-role=hint]')?.textContent?.trim(),
-  });
-})()`),
-);
-check(
-  '连按 10 位数字时整数位被截在 8 位（¥ 99,999,999.99 上限）',
-  (overMax.expr ?? '').replace(/\D/g, '').length === 8,
-  `expr=${overMax.expr}`,
-);
-
-/* 「 . 」在同一个操作数里只吃一次：金额第二位小数之后再按点应当无效 */
-await typeIn(['.', '5', '.', '5']);
-const dotGuard = await ev(`document.getElementById('cc-amount-pad')?.querySelector('[data-role=expr]')?.textContent?.trim()`);
-check('小数点只按一次有效（.55 之后不再吃第二个点）', (dotGuard ?? '').endsWith('.55'), `expr=${dotGuard}`);
-
-await ev(`(() => { document.getElementById('cc-amount-pad')?.querySelector('[data-role=scrim]')?.click(); return true; })()`);
-await wait(400);
-check(
-  '点遮罩收起键盘（按「就这样」而非取消，不丢已输的金额）',
-  (await ev(`document.getElementById('cc-amount-pad')?.classList.contains('is-open')`)) === false,
-);
-
 /* ================= 1. dock 不重建 ================= */
 console.log('\n── 底部 dock ──');
 await go('/accounts', '.tabbar');
@@ -369,37 +294,26 @@ await go('/transactions/new', '.compose__card');
 await wait(700);
 check('记账页不显示 dock（全屏页）', (await ev(`(() => { const d = document.getElementById('cc-dock'); return !d || d.hidden; })()`)) === true);
 
-/* ================= 2. 顶栏头像居中 ================= */
-console.log('\n── 顶栏头像 ──');
+/* ================= 2. 顶栏头像已移除 ================= */
+console.log('\n── 顶栏头像（已移除） ──');
 await go('/accounts', '.app-bar');
 await wait(700);
-const chip = JSON.parse(
+const appBar = JSON.parse(
   await ev(`(() => {
-  const c = document.querySelector('.app-bar .user-chip');
-  if (!c) return 'null';
-  const b = c.getBoundingClientRect();
-  const a = c.querySelector('.avatar');
-  if (!a) return 'null';
-  const ab = a.getBoundingClientRect();
-  const cs = getComputedStyle(c);
+  const bar = document.querySelector('.app-bar');
+  const chip = bar?.querySelector('.user-chip');
+  const brand = bar?.querySelector('.brand');
+  const compose = bar?.querySelector('[data-compose]');
   return JSON.stringify({
-    dx: +(ab.left + ab.width / 2 - (b.left + b.width / 2)).toFixed(2),
-    dy: +(ab.top + ab.height / 2 - (b.top + b.height / 2)).toFixed(2),
-    box: [Math.round(b.width), Math.round(b.height)],
-    radius: cs.borderRadius,
-    nameVisible: !!c.querySelector('.user-chip__name')?.offsetParent,
+    hasChip: !!chip,
+    hasBrand: !!brand,
+    hasCompose: !!compose,
   });
 })()`),
 );
-if (chip === 'null') {
-  check('顶栏头像存在', false, '未找到 .app-bar .user-chip 或 .avatar');
-} else {
-  check('头像在圆内水平居中（|dx| ≤ 0.5px）', Math.abs(chip.dx) <= 0.5, `dx=${chip.dx}`);
-  check('头像在圆内垂直居中（|dy| ≤ 0.5px）', Math.abs(chip.dy) <= 0.5, `dy=${chip.dy}`);
-  check('顶栏头像是正圆容器（44×44）', chip.box[0] === 44 && chip.box[1] === 44, `${chip.box.join('×')}`);
-  check('顶栏不重复显示昵称（昵称在设置页）', chip.nameVisible === false);
-  check('圆形容器的圆角是 pill/full', /9999|50%/.test(chip.radius), chip.radius);
-}
+check('顶栏不再渲染头像卡片（user-chip 已移除）', appBar.hasChip === false);
+check('顶栏品牌字标仍在', appBar.hasBrand === true);
+check('顶栏记一笔入口仍在', appBar.hasCompose === true);
 
 /* ================= 3. 记账页：类型/分类不重叠 + 间距 ================= */
 console.log('\n── 记账页 ──');

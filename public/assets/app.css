@@ -190,7 +190,6 @@ select {
 
 /* 大面：面色变化承担按压反馈（00-DESIGN：强调先换面、再加装饰） */
 .sidebar__ledger:active,
-.user-chip:active,
 .sidenav__item:active {
   background: var(--c-divider-soft);
 }
@@ -752,74 +751,6 @@ a.acct-row:active {
   font-size: 15px;
   font-weight: 600;
   letter-spacing: -0.005em;
-  white-space: nowrap;
-}
-
-/* --------- 3.6 用户胶囊 --------- */
-.user-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 12px 4px 4px;
-  border-radius: var(--r-pill);
-  background: var(--c-soft-fill);
-  border: 1px solid transparent;
-  transition: background var(--d-state) var(--e-standard), border-color var(--d-state) var(--e-standard);
-}
-
-.user-chip:hover {
-  background: var(--c-canvas);
-  border-color: var(--c-hairline);
-}
-
-.user-chip__name {
-  font-size: 13px;
-  font-weight: 400;
-  max-width: 120px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* 侧栏底部的整行用户卡 */
-.user-chip--full {
-  display: flex;
-  width: 100%;
-  padding: 6px 12px 6px 6px;
-  border-radius: var(--r-sm);
-  background: transparent;
-  text-align: left;
-}
-
-.user-chip--full:hover {
-  background: var(--c-parchment);
-  border-color: transparent;
-}
-
-.user-chip--full > svg:last-child {
-  margin-left: auto;
-  color: var(--c-ink-muted-48);
-}
-
-.user-chip__main {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  min-width: 0;
-}
-
-.user-chip__main .user-chip__name {
-  font-weight: 600;
-  max-width: none;
-  font-size: 13px;
-  letter-spacing: -0.004em;
-}
-
-.user-chip__sub {
-  font-size: 11px;
-  color: var(--c-ink-muted-48);
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -6198,10 +6129,6 @@ a.acct-row:hover {
   .auth-card__form {
     padding: 32px 24px 32px;
     gap: 20px;
-  }
-
-  .user-chip__name {
-    display: none;
   }
 
   .networth {

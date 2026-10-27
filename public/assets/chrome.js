@@ -17,7 +17,7 @@
  * 因此两端都不占导航位、也不参与选中态 —— 桌面走侧栏 pill CTA（rounded.pill = 一切动作），
  * 移动走 TabBar 正中央的抬升动作位（docs/13 §3.2）。
  */
-import { avatarHtml, esc, h, icon, LEDGER_TYPE_LABEL, toast } from './ui.js';
+import { esc, h, icon, LEDGER_TYPE_LABEL, toast } from './ui.js';
 import { currentLedger, rememberComposeSource } from './session.js';
 import { openTemplatePanel } from './lib/template-panel.js';
 
@@ -255,16 +255,10 @@ export function sidebar({ active = '', user, ledger = null, hideCompose = false 
       </a>`
     : '';
 
+  // 头像卡片已按设计移除：侧栏底部不再有头像行。
+  // 未登录（user === null）时保留「登录」入口；会话未就绪（undefined）先留空。
   const foot = user
-    ? `
-      <a class="user-chip user-chip--full" href="/settings" data-link title="账号与设置">
-        ${avatarHtml(user, 'avatar--sm')}
-        <span class="user-chip__main">
-          <span class="user-chip__name">${esc(user.nickname || user.username)}</span>
-          <span class="user-chip__sub">@${esc(user.username)}</span>
-        </span>
-        ${icon('chevron', 16)}
-      </a>`
+    ? ''
     : user === null
       ? `<a class="btn btn--secondary btn--sm btn--block" href="/login" data-link>登录</a>`
       : ''; // user === undefined：会话还没回来，先留空
@@ -302,12 +296,14 @@ export function sidebar({ active = '', user, ledger = null, hideCompose = false 
  * 右上角的 44×44 圆形图标按钮是移动端的第二个记账入口（docs/13 §3.3）。
  */
 export function topBar({ user = null, hideCompose = false } = {}) {
-  const chip = user
-    ? `<a class="user-chip" href="/settings" data-link title="账号与设置">
-         ${avatarHtml(user, 'avatar--sm')}
-         <span class="user-chip__name">${esc(user.nickname || user.username)}</span>
-       </a>`
-    : `<a class="btn btn--quiet btn--sm" href="/login" data-link>登录</a>`;
+  // 头像已按设计移除：顶部不再有「头像那一行卡片」。
+  // 未登录（user === null）时保留「登录」入口；会话未就绪（undefined）先留空。
+  const chip =
+    user
+      ? ''
+      : user === null
+        ? `<a class="btn btn--quiet btn--sm" href="/login" data-link>登录</a>`
+        : '';
 
   const compose = hideCompose
     ? ''

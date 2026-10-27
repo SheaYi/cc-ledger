@@ -51,7 +51,6 @@ import { TYPE_ICON, dayLabel } from '../lib/tx-format.js';
 /** 本地草稿：填一半离开后回访能接着填（docs/13 §10.1） */
 import { clearDraft, describeDraft, draftHasContent, readDraft, writeDraft } from '../lib/tx-draft.js';
 import { writeTemplateSeed } from '../lib/template-panel.js';
-import { attachAmountPad } from '../lib/amount-pad.js';
 
 /** 「再记一笔」传递保留字段的一次性种子（不污染 URL，docs/13 §7.2 的同类做法） */
 const SEED_KEY = 'cc-ledger.compose-seed.v1';
@@ -2582,20 +2581,16 @@ function mountCompose(
   });
 
   /**
-   * 金额类输入挂上 App 内计算器键盘（**仅紧凑形态**）。
+   * 金额类输入使用**系统原生键盘**（`<input inputmode="decimal">` 唤起系统数字键盘）。
    *
-   * 为什么要它：系统数字键盘一次只能录入一个最终数值，而记账的高频动作是
-   * 「38+6+12」这种连加；每次都先心算或切去计算器再切回来，是这个场景最大的摩擦。
-   * 桌面端不挂 —— 实体键盘比任何自绘键盘都快，替换是倒退。
-   *
-   * 只给**三个**金额框挂，不给「本次冲抵」：后者有自己的一套联动
-   * （主金额变小时它要跟着收敛、=0 时要撤掉关联），
-   * 多一个浮层只会让结清这块更难推理，而它一次填一个数的频率本来就低。
+   * 产品决策（2026-10-27）：不再自绘 App 内计算器键盘。理由：
+   *   · 用户要求「所有键盘采用系统自带键盘输入」—— 自绘键盘与系统输入法割裂，
+   *     且模态遮罩会导致「点输入框整页发灰、锁滚动」的体验问题。
+   *   · 金额 / 手续费 / 折扣三个金额框与「本次冲抵」统一走原生 `input`，
+   *     由 `[data-money]` 管道与 `sanitizeAmountInput` 做清洗与预览，逻辑一致。
+   * 桌面端本就不挂自绘键盘，这里只是把移动端也切回原生输入。
    * 不需要拆监听器：记账页离开时整棵表单 DOM 被替换，监听器随元素回收。
    */
-  for (const name of ['amount', 'fee', 'discount']) {
-    attachAmountPad(form.querySelector(`[name=${name}]`));
-  }
 
   // ---- 账户 ----
   $('[name=accountId]').addEventListener('change', (e) => {
@@ -3035,10 +3030,9 @@ function mountCompose(
    * 模板预填的收尾：说清失效引用 + 金额建议值聚焦全选（docs/05 §10.2 / §10.6）。
    *
    * ⚠️ 紧凑形态**不自动聚焦金额框**。桌面时这个自动聚焦是对的：光标落在金额上，
-   * 直接敲数字就能记。但手机端金额框挂着 App 内键盘（`lib/amount-pad.js`），
-   * 而它是**模态**的 —— 自动聚焦等于「一进页面就弹出半屏键盘 + 整页遮罩」，
-   * 用户还没决定记什么，先被一层灰底盖住（遮罩期间 `html.has-amount-pad`
-   * 还锁着背景滚动）。键盘该由「用户去点金额」这件事唤起，不该由页面加载唤起。
+   * 直接敲数字就能记。但手机端金额框是原生 input —— 自动聚焦会立刻唤起系统数字键盘，
+   * 用户还没决定记什么，先被弹起的键盘盖住半屏。键盘该由「用户去点金额」唤起，
+   * 不该由页面加载唤起。
    */
   const tplHint = state.templateHint;
   if (tplHint) {
