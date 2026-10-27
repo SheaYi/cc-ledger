@@ -504,6 +504,34 @@
     min-width: 0;
   }
 
+  /* ---------- 成组字段：手机上仍并排，不跟着上面的规则整行堆叠 ----------
+     两组成对字段（手续费 / 折扣、日期 / 时间）拆成上下两行会丢掉「它们是一对」
+     这件事：手续费与折扣会被读成两个互不相干的金额，日期与时间则变成长长一列。
+     并排是成熟记账 App 的通用习惯（金额的两个修正项占一行、发生时刻占一行），
+     同时省下约一行的高度给上面的金额与账户。
+     `flex: 1 1 0`（不是 auto）：auto 的基准是 max-content，窄屏上会顶破行宽。 */
+  .field-row--fee,
+  .field-row--when {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 8px 12px;
+  }
+
+  .field-row--fee > .field,
+  .field-row--when > .field {
+    flex: 1 1 0;
+    width: auto;
+    min-width: 0;
+  }
+
+  /* 半行宽的输入框塞不下 20px 的左右内距（00-DESIGN search-input 的原值），
+     收到 spacing.sm = 12px 才不会把「2026-10-27」挤出可视区。 */
+  .field-row--fee .input,
+  .field-row--when .input {
+    padding: 0 12px;
+  }
+
   .amount-input {
     height: 54px;
     font-size: 26px;

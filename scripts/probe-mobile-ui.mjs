@@ -9,8 +9,10 @@
  *   2. 顶部固定条 app-bar **已整体移除**（导航与「记一笔」改由底部 dock 动作位承担）。
  *   3. 记账页类型 / 分类横滑带里的 pill **互不重叠**。
  *   4. 账单页「支出 / 收入 / 结余」**同一行**（三列等分）。
+ *   5. 记账页账单卡片：无顶部操作区、手续费/折扣同行、日期/时间同行、
+ *      账期在末块单独一行、名称在商家之前且相邻。
  *
- * 外加通用护栏：横向不溢出、触控目标 ≥44px、名称→日期间距不过宽。
+ * 外加通用护栏：横向不溢出、触控目标 ≥44px。
  *
  * 用法：node scripts/probe-mobile-ui.mjs [light|dark]
  */
@@ -363,21 +365,86 @@ await shot('compose-panel', { dir: OUT });
 // 关面板，量名称 → 日期间距
 await ev(`(() => { document.querySelector('[data-role=pick-trigger]')?.click(); return true; })()`);
 await wait(500);
-const gap = JSON.parse(
+/**
+ * 记账页卡片布局（账单卡片的信息密度与层级）：
+ *   ① 顶部「记一笔 / 返回」操作区已移除
+ *   ② 手续费与折扣同一行
+ *   ③ 日期与时间同一行，账期下移到底部单独一行
+ *   ④ 名称在商家之前、两者同一卡片且相邻
+ */
+const layout = JSON.parse(
   await ev(`(() => {
-  const n = document.querySelector('[data-field=name]');
-  const d = document.querySelector('[data-field=txDate]');
-  if (!n || !d) return 'null';
-  return JSON.stringify({ gap: Math.round(d.getBoundingClientRect().top - n.getBoundingClientRect().bottom) });
+  const card = document.querySelector('.compose__card');
+  const q = (s) => card?.querySelector(s) ?? null;
+  const top = (el) => (el ? Math.round(el.getBoundingClientRect().top) : null);
+  const vis = (el) => !!el && el.offsetParent !== null;
+  const fee = q('[data-field=fee]');
+  const discount = q('[data-field=discount]');
+  const date = q('[data-field=txDate]');
+  const time = q('[data-field=txTime]');
+  const name = q('[data-field=name]');
+  const merchant = q('[data-field=merchant]');
+  const mode = q('[data-role=entry-mode-block]');
+  const blocks = [...(card?.querySelectorAll(':scope > .compose__block') ?? [])];
+  const lastBlock = blocks[blocks.length - 1];
+  return JSON.stringify({
+    hasHead: !!document.querySelector('.compose__head'),
+    hasBack: !!document.querySelector('[data-role=back]'),
+    feeVisible: vis(fee),
+    discountVisible: vis(discount),
+    feeTop: top(fee),
+    discountTop: top(discount),
+    dateTop: top(date),
+    timeTop: top(time),
+    nameTop: top(name),
+    merchantTop: top(merchant),
+    nameMerchantGap:
+      name && merchant
+        ? Math.round(merchant.getBoundingClientRect().top - name.getBoundingClientRect().bottom)
+        : null,
+    nameFirst:
+      name && merchant
+        ? (name.compareDocumentPosition(merchant) & Node.DOCUMENT_POSITION_FOLLOWING) > 0
+        : null,
+    sameCard:
+      !!name && !!merchant && name.closest('.compose__card') === merchant.closest('.compose__card'),
+    modeInLastBlock: !!mode && !!lastBlock && lastBlock.contains(mode),
+    lastBlockFields: lastBlock
+      ? [...lastBlock.querySelectorAll(':scope > .field')].filter((el) => el.offsetParent !== null)
+          .length
+      : null,
+  });
 })()`),
 );
-if (gap === 'null') check('名称 / 日期字段存在', false);
-else
-  check(
-    '名称 → 日期间距 ≤ 32px（spacing.xl 上限；夹着一条 hairline 分隔）',
-    gap.gap <= 32 && gap.gap >= 4,
-    `${gap.gap}px`,
-  );
+check(
+  '记账页顶部操作区已移除（无 .compose__head / 返回按钮）',
+  layout.hasHead === false && layout.hasBack === false,
+  `head=${layout.hasHead} back=${layout.hasBack}`,
+);
+check(
+  '手续费与折扣同一行',
+  layout.feeVisible && layout.discountVisible && layout.feeTop === layout.discountTop,
+  `手续费 top=${layout.feeTop} 折扣 top=${layout.discountTop}`,
+);
+check(
+  '日期与时间同一行',
+  layout.dateTop === layout.timeTop && layout.dateTop !== null,
+  `日期 top=${layout.dateTop} 时间 top=${layout.timeTop}`,
+);
+check(
+  '账期在卡片最底部单独一行',
+  layout.modeInLastBlock === true && layout.lastBlockFields === 1,
+  `末块可见字段数=${layout.lastBlockFields}`,
+);
+check(
+  '名称在商家之前、同一卡片且相邻（间距 ≤ 32px）',
+  layout.nameFirst === true &&
+    layout.sameCard === true &&
+    layout.nameMerchantGap !== null &&
+    layout.nameMerchantGap >= 4 &&
+    layout.nameMerchantGap <= 32,
+  `名称 top=${layout.nameTop} 商家 top=${layout.merchantTop} 间距=${layout.nameMerchantGap}px`,
+);
 
 /* =============== 3b. 记账页：日期框不许顶出字段 =============== */
 const dt = JSON.parse(

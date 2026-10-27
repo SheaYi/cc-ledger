@@ -291,11 +291,13 @@ export async function renderTransactionForm(container, { go, query, editId = nul
     ledger,
     hideCompose: true,
     inner: `
+      <!--
+        顶部「记一笔 / 返回」那一栏操作区已按设计移除：卡片里只留账单信息本身，
+        不再用一整行去放「这是哪个页面 + 怎么回去」。
+        退出走底部常驻操作栏的「取消 / 放弃修改」—— 落点与原来的「返回」完全一致
+        （编辑态回 /transactions，建账态回来源页），功能没有变少，只是不再占顶部一行。
+      -->
       <div class="compose">
-        <div class="compose__head">
-          <h1>${mode === 'edit' ? '编辑账单' : '记一笔'}</h1>
-          <button class="btn btn--quiet btn--sm" type="button" data-role="back">返回</button>
-        </div>
         <div data-role="body"></div>
       </div>
     `,
@@ -334,9 +336,7 @@ export async function renderTransactionForm(container, { go, query, editId = nul
     );
   }
 
-  frame
-    .querySelector('[data-role=back]')
-    ?.addEventListener('click', () => (mode === 'edit' ? go('/transactions') : go(sourcePage())));
+  // 顶部「返回」随操作区一并移除；退出由底部操作栏的「取消 / 放弃修改」承担（落点相同）
   return frame;
 }
 
@@ -771,23 +771,26 @@ function mountCompose(
             </div>
           </div>
 
-          <!-- 记账形态（单次 / 周期 / 分期）：建账时才显示，下移到「手续费 / 折扣」下方，与「名称」同一行 -->
-          <div class="field-row">
-            <div class="field" data-field="entryMode" data-role="entry-mode-block"${
-              mode === 'create' ? '' : ' hidden'
-            }>
-              <label class="field__label" for="tx-entry-mode">账期</label>
-              <select class="input select" id="tx-entry-mode" data-role="entry-mode">
-                <option value="single">单次（记一笔）</option>
-                <option value="recurring">周期（每月自动记）</option>
-                <option value="installment">分期（一次消费分 N 期还）</option>
-              </select>
-            </div>
+          <!--
+            名称 + 商家：同一件事的两个说法（买了什么 / 在哪家买的），
+            必须相邻才有对照关系 —— 分开两张卡片时用户要在两屏之间对答案。
+            名称在前（主），商家紧随（次）：有名称时它是这一笔的标题，
+            没有名称时商家才是唯一线索，所以主次不能反过来。
+            原「账期」占位让给商家，账期本身下移到本卡片最底部（见下方末块）。
+          -->
+          <div class="field-row field-row--named">
             <div class="field field--wide" data-field="name">
               <label class="field__label" for="tx-name">名称</label>
               <input class="input" id="tx-name" name="name" list="tx-suggest-name"
                      placeholder="例如：公司楼下快餐" maxlength="${LIMITS.NAME_MAX_LEN}" autocomplete="off" />
               <span class="char-count" data-count-for="name"></span>
+              <span class="field__error"></span>
+            </div>
+            <div class="field" data-field="merchant">
+              <label class="field__label" for="tx-merchant">商家</label>
+              <input class="input" id="tx-merchant" name="merchant" list="tx-suggest-merchant"
+                     placeholder="真功夫" maxlength="${LIMITS.MERCHANT_MAX_LEN}" autocomplete="off" />
+              <span class="char-count" data-count-for="merchant"></span>
               <span class="field__error"></span>
             </div>
           </div>
@@ -799,9 +802,6 @@ function mountCompose(
             <div class="field" data-field="txDate">
               <label class="field__label" for="tx-date">日期</label>
               <input class="input" id="tx-date" name="txDate" type="date" />
-              <!-- 快捷 chips 放在输入框**下面**而不是上面：两个格子的「标签+输入框」
-                   必须等高，否则「日期」和「时间」的标签会一高一低（实测踩过） -->
-              <div class="date-quick" data-role="date-quick"></div>
               <span class="field__error"></span>
             </div>
             <div class="field" data-field="txTime">
@@ -815,6 +815,31 @@ function mountCompose(
               </div>
               <span class="field__error"></span>
             </div>
+            <!--
+              快捷 chips 从日期格里搬出来，独占整行宽度。
+              原来它挂在日期输入框下面，是为了让两格「标签+输入框」等高；
+              日期与时间并排后日期格只剩半行宽，chips 在里面会折成两行，
+              把两格的底部基线重新拉不齐 —— 放到行尾整行铺开，两组要求同时满足。
+            -->
+            <div class="date-quick date-quick--row" data-role="date-quick"></div>
+          </div>
+        </div>
+
+        <!--
+          记账形态（单次 / 周期 / 分期）：建账时才显示，下移到本卡片最底部单独一行。
+          它问的是「这一笔要不要重复发生」，是**填完之后**才该回答的问题，
+          放在名称行里会抢在金额与日期之前打断录入。
+        -->
+        <div class="compose__block">
+          <div class="field" data-field="entryMode" data-role="entry-mode-block"${
+            mode === 'create' ? '' : ' hidden'
+          }>
+            <label class="field__label" for="tx-entry-mode">账期</label>
+            <select class="input select" id="tx-entry-mode" data-role="entry-mode">
+              <option value="single">单次（记一笔）</option>
+              <option value="recurring">周期（每月自动记）</option>
+              <option value="installment">分期（一次消费分 N 期还）</option>
+            </select>
           </div>
         </div>
       </section>
@@ -822,22 +847,13 @@ function mountCompose(
 
       <section class="card compose__card">
         <div class="compose__block">
-          <div class="field-row">
-            <div class="field" data-field="merchant">
-              <label class="field__label" for="tx-merchant">商家</label>
-              <input class="input" id="tx-merchant" name="merchant" list="tx-suggest-merchant"
-                     placeholder="真功夫" maxlength="${LIMITS.MERCHANT_MAX_LEN}" autocomplete="off" />
-              <span class="char-count" data-count-for="merchant"></span>
-              <span class="field__error"></span>
-            </div>
-            <div class="field" data-field="counterparty">
-              <label class="field__label" for="tx-counterparty">对象</label>
-              <input class="input" id="tx-counterparty" name="counterparty" list="tx-suggest-counterparty"
-                     placeholder="这笔钱和谁有关（借给谁 / 向谁买的）"
-                     maxlength="${LIMITS.COUNTERPARTY_MAX_LEN}" autocomplete="off" />
-              <span class="char-count" data-count-for="counterparty"></span>
-              <span class="field__error"></span>
-            </div>
+          <div class="field" data-field="counterparty">
+            <label class="field__label" for="tx-counterparty">对象</label>
+            <input class="input" id="tx-counterparty" name="counterparty" list="tx-suggest-counterparty"
+                   placeholder="这笔钱和谁有关（借给谁 / 向谁买的）"
+                   maxlength="${LIMITS.COUNTERPARTY_MAX_LEN}" autocomplete="off" />
+            <span class="char-count" data-count-for="counterparty"></span>
+            <span class="field__error"></span>
           </div>
         </div>
 

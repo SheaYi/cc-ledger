@@ -3504,19 +3504,7 @@ a.acct-row:hover {
   margin: 0 auto;
 }
 
-.compose__head {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.compose__head h1 {
-  margin-right: auto;
-  font-size: 24px;
-  line-height: 1.2;
-  font-weight: 600;
-  letter-spacing: -0.011em;
-}
+/* 顶部「记一笔 / 返回」操作区已移除：整页只装账单本身（退出走底部操作栏）。 */
 
 .compose__form {
   display: flex;
@@ -3740,6 +3728,13 @@ a.acct-row:hover {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+/* 「今天 / 昨天 / 前天」是日期格的附属，不是独立字段：
+   在 `.field-row` 里整行铺开（换行到第二行），不去占日期格那半行的宽度 ——
+   日期与时间并排后，日期格只有约 170px，chips 塞在里面必然折行。 */
+.date-quick--row {
+  flex: 1 1 100%;
 }
 
 /* --------- 计数与提示 --------- */
@@ -6012,10 +6007,6 @@ a.acct-row:hover {
      用 sticky 而非 fixed —— iOS Safari 的 fixed 在键盘弹出时会错位。 */
   .compose {
     gap: 16px;
-  }
-
-  .compose__head h1 {
-    font-size: 21px;
   }
 
   .compose__card {
