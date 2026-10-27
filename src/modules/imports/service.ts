@@ -20,10 +20,13 @@
  *
  * ## 去重键（`docs/05 §14.4`）
  *
- * `(ledger_id, tx_date, amount, merchant, |account_delta|)`。
+ * `(tx_date, tx_time, amount)` —— **日期 / 时间 / 金额一样即为重复**。
  * ⚠️ 早先把 `ledger_id` 写进了哈希值 —— 但去重是**在账本内**比较，
  * 哈希里带 ledger 只是冗余，且会让「同一笔在两个账本」的判断逻辑变得绕。
  * 这里按文档原意：账本隔离由 WHERE 保证，哈希只管账本内。
+ *
+ * 商家曾经也在键里，现已移出：商家是**按列直写**的自由文本（写法不统一），
+ * 拿它当判据只会让真重复漏网；时间则补进来，同一天的两笔等额消费不该互相吃掉。
  *
  * ## 整批一个事务（`docs/05 §14.5`）
  *
@@ -884,18 +887,37 @@ export function parseRows(
   return { parsed, errors, total: rows.length - 1 };
 }
 
-/** 去重键（`docs/05 §14.4`） */
-function dupKey(txDate: string, amountCents: number, merchant: string | null): string {
-  return [txDate, String(Math.abs(amountCents)), (merchant ?? '').trim().toLowerCase()].join('|');
+/**
+ * 未来日期的账单会被钳到今天再入库（`docs/05`：不允许记未来账）。
+ *
+ * ⚠️ 去重键必须用**钳制后**的日期：键用原值、落库用钳制值，
+ *    两把钥匙对不上 → 同一份未来日期的文件导两次会双双入库，去重静默失效。
+ */
+function clampFutureDate(d: string): string {
+  return d > todayStr() ? todayStr() : d;
+}
+
+/**
+ * 去重键：**日期 + 时间 + 金额**（`docs/05 §14.4` 已按此改口径）。
+ *
+ * ⚠️ 商家 / 名称 / 备注等文本列**不参与**去重：它们是按列直写的自由文本
+ *    （同名商家有「星巴克」「星巴克（国贸店）」等多种写法），拿它们当判据
+ *    会让真正的重复漏网。判据只留用户能一眼对齐的三项：日期、时间、金额。
+ *
+ * 时间用 `normalizeTime` 归一后再拼：同一时刻的 `9:05` 与 `09:05:00` 必须算同一个键。
+ * 没映射时间列（或该行没值）时时间槽为空串 —— 此时退化为「同日同额即重复」。
+ */
+function dupKey(txDate: string, txTime: string | null | undefined, amountCents: number): string {
+  return [txDate, normalizeTime(txTime ?? null) ?? '', String(Math.abs(amountCents))].join('|');
 }
 
 function existingKeys(ctx: AppCtx, ledgerId: string): Set<string> {
   const rows = ctx.db
-    .select({ d: transactions.txDate, a: transactions.actualAmount, m: transactions.merchant })
+    .select({ d: transactions.txDate, a: transactions.actualAmount, t: transactions.txTime })
     .from(transactions)
     .where(and(eq(transactions.ledgerId, ledgerId), isNull(transactions.deletedAt)))
     .all();
-  return new Set(rows.map((r) => dupKey(r.d, r.a, r.m)));
+  return new Set(rows.map((r) => dupKey(r.d, r.t, r.a)));
 }
 
 /* ------------------------------------------------------------------ *
@@ -977,7 +999,7 @@ export function preview(
   const parsedKeys = new Set<string>();
   let duplicates = 0;
   for (const p of parsed) {
-    const k = dupKey(p.txDate, Math.round(Number(p.amount) * 100), p.merchant);
+    const k = dupKey(clampFutureDate(p.txDate), p.txTime, Math.round(Number(p.amount) * 100));
     if (keys.has(k) || parsedKeys.has(k)) duplicates += 1;
     parsedKeys.add(k);
   }
@@ -1406,7 +1428,7 @@ export function commit(
       continue;
     }
 
-    const k = dupKey(p.txDate, Math.round(Number(p.amount) * 100), p.merchant);
+    const k = dupKey(clampFutureDate(p.txDate), p.txTime, Math.round(Number(p.amount) * 100));
     if (known.has(k) || batch.has(k)) {
       report.skipped += 1;
       report.errors.push({
@@ -1454,7 +1476,7 @@ export function commit(
         amount: p.amount,
         fee,
         discount,
-        txDate: p.txDate > todayStr() ? todayStr() : p.txDate,
+        txDate: clampFutureDate(p.txDate),
         txTime: p.txTime,
         counterparty: p.counterparty,
         /** 标签同样按列直写：名字原样落库，账本里没有的同名标签自动新建，不会因此失败 */

@@ -192,6 +192,28 @@ const lunchCount = handle.db
   .all();
 check('已有同名标签被复用（没有建出第二个「午餐」）', lunchCount.length === 1, `count=${lunchCount.length}`);
 
+/* ---- 去重口径：日期 + 时间 + 金额（商家不参与） ---- */
+const dedupCsv = [
+  ['日期', '时间', '商家', '金额'].join(','),
+  ['2026-09-01', '10:00', '星巴克', '30.00'].join(','),
+  ['2026-09-01', '10:00', '星巴克（国贸店）', '30.00'].join(','), // 商家不同 → 仍判重复
+  ['2026-09-01', '19:00', '星巴克', '30.00'].join(','), // 时间不同 → 不重复
+  ['2026-09-02', '10:00', '星巴克', '30.00'].join(','), // 日期不同 → 不重复
+].join('\r\n');
+const dedupMapping = { ...mapping, recordTypeColumn: undefined, defaultAccountId: acc.id };
+const dedupRep = commit(ctx, UID, ledger.id, Buffer.from(dedupCsv), dedupMapping, false);
+check(
+  '商家不同但同日同时同额 → 判为重复（商家不参与去重键）',
+  dedupRep.succeeded === 3 && dedupRep.skipped === 1,
+  JSON.stringify({ s: dedupRep.succeeded, k: dedupRep.skipped }),
+);
+check(
+  '时间不同 / 日期不同 → 都不是重复',
+  dedupRep.errors.some((e) => /重复/.test(e.message)) &&
+    dedupRep.errors.filter((e) => /重复/.test(e.message)).length === 1,
+  JSON.stringify(dedupRep.errors.map((e) => e.message)),
+);
+
 handle.close();
 try { unlinkSync(TMP_DB); } catch {}
 console.log(failed === 0 ? '\nALL PASS' : `\n${failed} FAILED`);
