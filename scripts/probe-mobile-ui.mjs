@@ -11,6 +11,8 @@
  *   4. 账单页「支出 / 收入 / 结余」**同一行**（三列等分）。
  *   5. 记账页账单卡片：无顶部操作区、手续费/折扣同行、日期/时间同行、
  *      账期在末块单独一行、名称在商家之前且相邻。
+ *   6. 账单页每条记录都有分类图标（最左、与首页「最近记账」同一套视觉），
+ *      且首页最近记账点进去是**这一笔的详情页** `/transactions/:id`。
  *
  * 外加通用护栏：横向不溢出、触控目标 ≥44px。
  *
@@ -87,6 +89,57 @@ check('首页区块顺序 = 净资产 → 本月收支 → 记一笔 → 账户 
 check('本月收支是三格同行', homeOrder.cellCount === 3, `${homeOrder.cellCount} 格：${homeOrder.cells.join('/')}`);
 check('净资产数字非空且含货币符', /[¥￥]/.test(homeOrder.net) && /\d/.test(homeOrder.net), homeOrder.net);
 check('30 天走势图已渲染', homeOrder.spark === true);
+
+/**
+ * 最近记账：点某一笔要进**这一笔的详情页** `/transactions/:id`，
+ * 不再跳「那一天的账单列表」。顺带量一下图标格尺寸，给后面「两页图标一致」做基准。
+ */
+const recent = JSON.parse(
+  await ev(`(() => {
+  const rows = [...document.querySelectorAll('.mh-tx')];
+  const icon = rows[0]?.querySelector('.mh-tx__icon');
+  const b = icon?.getBoundingClientRect();
+  return JSON.stringify({
+    n: rows.length,
+    hrefs: rows.map((r) => r.getAttribute('href') ?? ''),
+    iconW: b ? Math.round(b.width) : 0,
+    iconH: b ? Math.round(b.height) : 0,
+    iconRadius: icon ? getComputedStyle(icon).borderRadius : '',
+    iconBg: icon ? getComputedStyle(icon).backgroundColor : '',
+  });
+})()`),
+);
+check(
+  '最近记账每行都跳账单详情 `/transactions/:id`',
+  recent.n > 0 && recent.hrefs.every((h) => /^\/transactions\/[^/?]+$/.test(h)),
+  recent.hrefs.slice(0, 2).join(' , ') || '无行',
+);
+check(
+  '最近记账图标格 32×32（账单页比对的基准）',
+  recent.iconW === 32 && recent.iconH === 32,
+  `${recent.iconW}×${recent.iconH} · radius=${recent.iconRadius} · bg=${recent.iconBg}`,
+);
+
+/**
+ * 真点一次：href 写对不等于路由接得住，两件事分开验。
+ * 落点必须是**详情页**（`.txd`），不是账单列表。
+ */
+await ev(`(() => { document.querySelector('.mh-tx')?.click(); return true; })()`);
+await wait(1400);
+const landed = JSON.parse(
+  await ev(`(() => JSON.stringify({
+  path: location.pathname,
+  detail: !!document.querySelector('.txd'),
+  amount: document.querySelector('.txd__amount')?.textContent?.trim() ?? '',
+}))()`),
+);
+check(
+  '点最近记账的一笔 → 落到该笔详情页（不是账单列表）',
+  /^\/transactions\/[^/]+$/.test(landed.path) && landed.detail === true,
+  `${landed.path} · 金额 ${landed.amount}`,
+);
+await go('/', '.mh-hero');
+await wait(1000);
 
 const flowRow = JSON.parse(
   await ev(`(() => {
@@ -491,6 +544,102 @@ else {
   check('三列等宽（差值 ≤ 1px）', Math.max(...sum.ws) - Math.min(...sum.ws) <= 1, sum.ws.join('/'));
 }
 console.log('  →', await shot('transactions', { dir: OUT }));
+
+/* ============ 4b. 账单页：每条记录都有分类图标（与首页同一套） ============ */
+const rowIcons = JSON.parse(
+  await ev(`(() => {
+  const rows = [...document.querySelectorAll('.tx-row')];
+  const vis = (el) => !!el && el.offsetParent !== null;
+  const info = rows.map((row) => {
+    const icon = row.querySelector('.tx-row__icon');
+    const main = [...row.querySelectorAll('.tx-row__name, .tx-row__cat')].find(vis);
+    const amt = row.querySelector('.tx-row__amt');
+    const rb = row.getBoundingClientRect();
+    const ib = icon?.getBoundingClientRect();
+    const mb = main?.getBoundingClientRect();
+    const ab = amt?.getBoundingClientRect();
+    return {
+      shown: vis(icon),
+      glyph: icon ? icon.childElementCount : 0,
+      w: ib ? Math.round(ib.width) : 0,
+      h: ib ? Math.round(ib.height) : 0,
+      bg: icon ? getComputedStyle(icon).backgroundColor : '',
+      radius: icon ? getComputedStyle(icon).borderRadius : '',
+      inset: ib ? Math.round(ib.left - rb.left) : null,
+      beforeText: ib && mb ? ib.right <= mb.left : null,
+      beforeAmt: ib && ab ? ib.right <= ab.left : null,
+      centerOff: ib ? Math.round((ib.top + ib.bottom) / 2 - (rb.top + rb.bottom) / 2) : null,
+    };
+  });
+  return JSON.stringify({
+    rows: rows.length,
+    shown: info.filter((x) => x.shown).length,
+    empty: info.filter((x) => x.shown && x.glyph === 0).length,
+    sizes: [...new Set(info.map((x) => x.w + 'x' + x.h))],
+    bgs: [...new Set(info.map((x) => x.bg))],
+    radii: [...new Set(info.map((x) => x.radius))],
+    maxInset: Math.max(...info.map((x) => x.inset ?? 999)),
+    allBeforeText: info.every((x) => x.beforeText === true),
+    allBeforeAmt: info.every((x) => x.beforeAmt === true),
+    maxCenterOff: Math.max(...info.map((x) => Math.abs(x.centerOff ?? 999))),
+  });
+})()`),
+);
+check('账单页每条记录都渲染了分类图标', rowIcons.rows > 0 && rowIcons.shown === rowIcons.rows,
+  `${rowIcons.shown}/${rowIcons.rows} 行有图标`);
+check('图标格没有空方块（都有图形内容）', rowIcons.empty === 0, `空 ${rowIcons.empty} 个`);
+check(
+  '图标在最左侧（与行左缘距离 ≤ 16px）',
+  rowIcons.maxInset <= 16,
+  `最大内缩 ${rowIcons.maxInset}px`,
+);
+check('图标排在说明文字与金额之前', rowIcons.allBeforeText && rowIcons.allBeforeAmt);
+check('图标在行内垂直居中（中心偏移 ≤ 2px）', rowIcons.maxCenterOff <= 2, `${rowIcons.maxCenterOff}px`);
+check(
+  '图标与首页「最近记账」同一套视觉（尺寸 / 底色 / 圆角一致）',
+  rowIcons.sizes.length === 1 &&
+    rowIcons.sizes[0] === `${recent.iconW}x${recent.iconH}` &&
+    rowIcons.bgs.length === 1 &&
+    rowIcons.radii.length === 1 &&
+    rowIcons.radii[0] === recent.iconRadius,
+  `${rowIcons.sizes.join('/')} · bg=${rowIcons.bgs.join('/')} · radius=${rowIcons.radii.join('/')}`,
+);
+
+/**
+ * 多选态：模板要补一列选择框（平时这一列不该存在 —— 它即使是 0 宽也会吃掉一个列间距）。
+ * 补列后图标必须仍在文字左边、行不横向溢出。
+ */
+const selMode = JSON.parse(
+  await ev(`(() => {
+  const list = document.querySelector('.tx-list');
+  const row = list?.querySelector('.tx-row');
+  if (!list || !row) return 'null';
+  list.classList.add('is-selecting');
+  const pick = row.querySelector('.tx-row__pick');
+  const icon = row.querySelector('.tx-row__icon');
+  const main = [...row.querySelectorAll('.tx-row__name, .tx-row__cat')].find((el) => el.offsetParent);
+  const r = {
+    pickShown: !!pick && pick.offsetParent !== null,
+    pickBeforeIcon: pick && icon
+      ? pick.getBoundingClientRect().right <= icon.getBoundingClientRect().left + 1
+      : null,
+    iconBeforeText: icon && main
+      ? icon.getBoundingClientRect().right <= main.getBoundingClientRect().left + 1
+      : null,
+    overflow: Math.round(row.scrollWidth - row.clientWidth),
+  };
+  list.classList.remove('is-selecting');
+  return JSON.stringify(r);
+})()`),
+);
+if (selMode === 'null') check('账单页多选态可取到行', false);
+else {
+  check('多选态：选择框出现', selMode.pickShown === true);
+  check('多选态：选择框在图标之前、图标仍在文字之前',
+    selMode.pickBeforeIcon === true && selMode.iconBeforeText === true,
+    `pick→icon=${selMode.pickBeforeIcon} icon→text=${selMode.iconBeforeText}`);
+  check('多选态：行不横向溢出', selMode.overflow <= 0, `溢出 ${selMode.overflow}px`);
+}
 
 /* ================= 5. 账户页：只留账户组 + 列表 ================= */
 console.log('\n── 账户页精简 ──');

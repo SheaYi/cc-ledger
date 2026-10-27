@@ -877,8 +877,12 @@
     border-top: 0;
   }
 
+  /* 行首图标：**首页 / 账单页共用这一条规则**，两页的圆形底不会长成两个样子。
+     （账单行的 `.tx-row__icon` 桌面是 26px，手机上抬到与首页一致的 32px ——
+      手机上它是行的第一个视觉落点，26px 在 56px 的行高里显得缩。） */
   .mh-acct-row__icon,
-  .mh-tx__icon {
+  .mh-tx__icon,
+  .tx-row__icon {
     display: inline-flex;
     align-items: center;
     justify-content: center;

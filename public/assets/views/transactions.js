@@ -276,7 +276,12 @@ export async function renderTransactions(container, { go, query }) {
         </div>
       </div>
 
-      <div data-role="list"></div>
+      <!--
+        tx-list 这个类不能省：CSS 里三条多选态规则（含「选择框只在多选时出现」）
+        都挂在 .tx-list.is-selecting 上。它是在某次改成 data-role 插槽时被漏掉的，
+        结果手机上进了多选态也**看不到复选框** —— 一个静默的死规则。
+      -->
+      <div class="tx-list" data-role="list"></div>
       <div data-role="foot"></div>
     `,
   });
@@ -1037,7 +1042,12 @@ export async function renderTransactions(container, { go, query }) {
         <span class="tx-row__time tnum">${esc(tx.txTime ? String(tx.txTime).slice(0, 5) : '—')}</span>
 
         <span class="tx-row__subject">
-          <span class="tx-row__icon">${entityIcon(subjectIcon(tx), 16)}</span>
+          <!--
+            分类图标：与首页「最近记账」**同一套**取法（subjectIcon → entityIcon），
+            兜底也同是 list 图标 —— 图标名不在图标集里时 entityIcon 会返回空串，
+            不兜底就是一个空方块（看着像没渲染完，且格位塌陷会让相邻行错开）。
+          -->
+          <span class="tx-row__icon">${entityIcon(subjectIcon(tx), 16) || icon('list', 16)}</span>
           <span class="tx-row__cat">${esc(subjectText(tx))}</span>
           ${
             dots.shown.length

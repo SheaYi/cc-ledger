@@ -169,9 +169,10 @@ function sparkline(rows, netWorth, days) {
 /**
  * 最近记账里的一行：图标 · 名称 · 时间+账户 · 金额。
  *
- * 点这一行跳到**它所在那一天的账单**（`dateFrom=dateTo=txDate`），而不是一个并不存在的
- * 「详情页」：账单列表本来就支持日期区间筛选，这样做不用加任何后端参数，
- * 且用户看到的是「这一天前前后后记了什么」——比单独一条的详情页更有用。
+ * 点这一行进**这笔账单的详情页** `/transactions/:id`（路由表 `docs/13 §3.4`）。
+ * 早先跳的是「它所在那一天的账单列表」（`dateFrom=dateTo=txDate`）—— 那个决定是
+ * 在详情页还不存在时做的；现在详情页有了，「点某一笔就该到某一笔」才是直觉得：
+ * 用户点的是**这一行**，不是「这一天」。想看一整天的流水，账单页本来就能按日期筛。
  */
 function recentRow(tx) {
   const delta = Number(tx.signedAmount ?? tx.accountDelta ?? 0);
@@ -181,8 +182,9 @@ function recentRow(tx) {
       : tx.txDate.slice(5).replace('-', '/')
     : '';
   const sub = [when, tx.account?.name].filter(Boolean).join(' · ');
-  const href = tx.txDate
-    ? `/transactions?dateFrom=${encodeURIComponent(tx.txDate)}&dateTo=${encodeURIComponent(tx.txDate)}`
+  // 有 id 就进这一笔的详情页；id 缺失（理论上不会）才退到账单列表，不留死链
+  const href = tx.id
+    ? `/transactions/${encodeURIComponent(tx.id)}`
     : '/transactions';
 
   return `

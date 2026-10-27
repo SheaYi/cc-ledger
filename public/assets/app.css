@@ -6246,14 +6246,26 @@ a.acct-row:hover {
      `display: contents`，让它们的子元素各自占格位 —— 不为手机写第二套模板
      （两套模板必然会在改字段时漏改一边）。 */
   .tx-row {
+    /* 首列是分类图标 —— 图标在文字之前、最左侧。
+       选择框**不占常驻列**：模板里留一列即使它是 0 宽，也照样吃掉一个 8px 的列间距，
+       每一行左边凭空多出 8px（实测图标被推到离行左缘 20px，首页是 16px）。
+       所以默认模板没有 pick 列，进入多选态才由下面那条规则补上。 */
     grid-template-columns: auto minmax(0, 1fr) auto auto auto 44px;
     grid-template-areas:
-      'pick main main   main   amt  more'
-      'pick merch tags badges acct more';
+      'icon main  main   main   amt  more'
+      'icon merch tags badges acct more';
     align-items: center;
     column-gap: 8px;
     row-gap: 2px;
     padding: 8px 12px;
+  }
+
+  /* 多选态：补一列选择框（`.tx-row__pick` 此时才 display:flex） */
+  .tx-list.is-selecting .tx-row {
+    grid-template-columns: auto auto minmax(0, 1fr) auto auto auto 44px;
+    grid-template-areas:
+      'pick icon main  main   main   amt  more'
+      'pick icon merch tags badges acct more';
   }
 
   .tx-row__subject,
@@ -6325,11 +6337,19 @@ a.acct-row:hover {
     line-height: 1.3;
   }
 
-  /* 分类图标与时间让位给「名称 + 金额」这条主线：手机上它们只是重复信息，
-     且会挤掉名称的可显示宽度。 */
-  .tx-row__icon,
+  /* 时间让位给「名称 + 金额」这条主线：手机上它是重复信息，且会挤掉名称的可显示宽度。
+     分类图标反过来**要显示** —— 它是「这一笔是什么」的第一眼信号，
+     与首页「最近记账」同一个视觉语法（尺寸 / 底色 / 圆角见 mobile.css 的共用规则）。 */
   .tx-row__time {
     display: none;
+  }
+
+  /* 图标占最左一格、跨两行垂直居中（等价于首页行的 `align-items: center`）。
+     `margin-right: 4px` 是补差：行内 column-gap 是 8px，加它才等于首页的 12px。 */
+  .tx-row__icon {
+    grid-area: icon;
+    align-self: center;
+    margin-right: 4px;
   }
 
   .tx-row__menu {
