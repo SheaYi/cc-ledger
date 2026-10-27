@@ -341,37 +341,58 @@
 
   /* ---------- 账单列表：单列两行卡片，进一步收紧行高与组距（紧凑化） ----------
      桌面那套 `.tx-row` 在 ≤833 已是两行卡片（app.css），这里只收内边距与组距，
-     不改动列布局与语义色（红绿）。日期头 margin-bottom 收到 4（spacing.xs 下限），
-     组间距 24 → 16，行内边距 12 → 8 —— 整屏能多露出约 1.5 行。 */
+     不改动列布局与语义色（红绿）。组间距 24 → 12，行内边距 12 → 8 —— 整屏能多露出约 1.5 行。 */
   .tx-day + .tx-day {
-    margin-top: 16px;
+    margin-top: 12px;
   }
 
-  /* 日期头吸顶：专业记账 App（随手记 / YNAB）的标配 —— 长列表滚动时
-     当前看的是哪一天始终钉在顶部，当日收支小计不丢。
-     背景用页面底色（--c-canvas），行在下方滑过时干净遮住；顶部已无顶栏，
-     本头 sticky 在安全区之下（刘海机型不钻到状态栏底下）。纯 CSS、未动结构。 */
+  /* 日期头 = 通栏长条：与下方条目卡片拼成一张完整的分组卡。
+     层级靠**面色切换**承担（00-DESIGN：the color change itself is the divider）：
+     长条取页面底色 --c-parchment，条目卡取 --c-canvas —— 一灰一白，
+     接缝处不再叠描边；长条只有上/左/右三面的 hairline，作为分组卡的帽。
+     不再靠留白分层 —— 留白在手机上只会把列表拉长。
+     同时保持吸顶：长列表滚动时当前看的是哪一天始终钉在顶部，当日小计不丢；
+     顶部已无顶栏，本头 sticky 在安全区之下（刘海机型不钻到状态栏底下）。 */
   .tx-day__head {
     position: sticky;
     top: env(safe-area-inset-top, 0px);
     z-index: 5;
-    margin-bottom: 4px;
-    padding: 4px 4px 2px;
-    background: var(--c-canvas);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 0;
+    padding: 8px 12px;
+    background: var(--c-parchment);
+    border: 1px solid var(--c-hairline);
+    border-bottom: 0;
+    border-radius: var(--r-lg) var(--r-lg) 0 0;
+  }
+
+  /* 条目卡片接在长条下方：去掉上圆角与上边，接缝由长条的底边承担 */
+  .tx-day__body {
+    border-radius: 0 0 var(--r-lg) var(--r-lg);
+    border-top: 0;
   }
 
   .tx-row {
-    padding: 8px 16px;
-    gap: 8px 12px;
+    padding: 8px 12px;
   }
 
-  /* 日期头与当日小计在同一条基线上，紧凑但层次清楚 */
+  /* 日期头与当日小计在同一条基线上，紧凑但层次清楚：
+     日期 caption-strong（14 / 600），星期与小计 fine-print（12px）。
+     ⚠️ 长条底色是 --c-parchment：12px 的次级字必须用 ink-muted-80，
+     ink-muted-48 在羊皮纸底只有 4.23:1（白底是 4.60:1），会掉到 AA 线下。 */
   .tx-day__date {
-    font-size: 12px;
+    font-size: 14px;
+    color: var(--c-ink);
   }
 
-  .tx-day__sum {
+  .tx-day__wd,
+  .tx-day__sum,
+  .tx-day__count {
     font-size: 12px;
+    color: var(--c-ink-muted-80);
   }
 
   /* 可点行的按压反馈：手机上「按下去有反应」比桌面更需要。

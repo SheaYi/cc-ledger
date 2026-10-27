@@ -209,17 +209,11 @@ export async function renderTransactions(container, { go, query }) {
     ledger,
     inner: `
       <div class="page__hero">
-        <div class="row row--between row--wrap row--md">
-          <div class="stack stack--sm">
-            <h1>账单</h1>
-            <p class="tt-caption text-muted" data-role="hero-sub">
-              ${esc(ledger.name)} · 正在读取…
-            </p>
-          </div>
-          <div class="row row--md">
-            <a class="btn btn--sm" href="/transactions/new" data-link">${icon('plus', 16)}记一笔</a>
-            <button class="btn btn--quiet btn--sm" type="button" data-role="export">${icon('download', 16)}导出</button>
-          </div>
+        <div class="stack stack--sm">
+          <h1>账单</h1>
+          <p class="tt-caption text-muted" data-role="hero-sub">
+            ${esc(ledger.name)} · 正在读取…
+          </p>
         </div>
       </div>
 

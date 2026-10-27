@@ -6248,15 +6248,26 @@ a.acct-row:hover {
     height: 20px;
   }
 
-  /* 两行卡片式：分类 + 金额 在上，名称·账户·商家 在下 */
+  /* --------- 两行卡片式（手机）---------
+     第 1 行：账单名称（无名称时回退「二级支出类型」）+ 金额（右对齐、加大加粗）
+     第 2 行：商家 · 标签（左） ｜ 支付账户（右，落在金额正下方）
+     一套 DOM 服务三档断点：这里把 `.tx-row__subject` / `.tx-row__meta` 拆成
+     `display: contents`，让它们的子元素各自占格位 —— 不为手机写第二套模板
+     （两套模板必然会在改字段时漏改一边）。 */
   .tx-row {
-    grid-template-columns: auto minmax(0, 1fr) auto 44px;
+    grid-template-columns: auto minmax(0, 1fr) auto auto auto 44px;
     grid-template-areas:
-      'pick subject amt more'
-      'pick meta    meta meta';
-    align-items: start;
-    gap: 8px 12px;
-    padding: 12px 16px;
+      'pick main main   main   amt  more'
+      'pick merch tags badges acct more';
+    align-items: center;
+    column-gap: 8px;
+    row-gap: 2px;
+    padding: 8px 12px;
+  }
+
+  .tx-row__subject,
+  .tx-row__meta {
+    display: contents;
   }
 
   .tx-row__pick {
@@ -6270,39 +6281,68 @@ a.acct-row:hover {
     display: flex;
   }
 
-  .tx-row__subject {
-    grid-area: subject;
+  /* 名称优先：有名称就不再重复显示分类 —— 是回退关系，不是并列两列 */
+  .tx-row:has(.tx-row__name:not(:empty)) .tx-row__cat {
+    display: none;
+  }
+
+  .tx-row__name,
+  .tx-row__cat {
+    grid-area: main;
+    min-width: 0;
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.35;
+    color: var(--c-ink);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .tx-row__amt {
     grid-area: amt;
+    justify-self: end;
+    font-size: 17px;
+    font-weight: 600;
+    line-height: 1.3;
   }
 
   .tx-row__more {
     grid-area: more;
   }
 
-  .tx-row__meta {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 4px 8px;
-    grid-area: meta;
-    min-width: 0;
-  }
-
-  /* 两行式把「商家/对象」重新放出来（第二行有三个位置，比桌面/平板宽裕） */
+  /* 第二行：商家（可截断）→ 标签 → 徽标；账户贴右，落在金额正下方 */
   .tx-row__extra {
-    display: inline;
+    display: block;
+    grid-area: merch;
+    font-size: 12px;
+    line-height: 1.3;
   }
 
-  .tx-row__name,
+  .tx-row__tags {
+    grid-area: tags;
+  }
+
+  .tx-row__badges {
+    grid-area: badges;
+  }
+
   .tx-row__acct {
-    max-width: 100%;
+    grid-area: acct;
+    justify-self: end;
+    font-size: 12px;
+    line-height: 1.3;
+  }
+
+  /* 分类图标与时间让位给「名称 + 金额」这条主线：手机上它们只是重复信息，
+     且会挤掉名称的可显示宽度。 */
+  .tx-row__icon,
+  .tx-row__time {
+    display: none;
   }
 
   .tx-row__menu {
-    right: 16px;
+    right: 12px;
   }
 
   .tx-sum__value {
