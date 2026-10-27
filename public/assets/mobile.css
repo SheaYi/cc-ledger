@@ -56,12 +56,13 @@
     --page-gutter: 12px; /* 紧凑化：20/16 太宽，账单行更易折行 */
     --card-gap: 8px; /* 紧凑化：卡片间留白收到 8（spacing.sm 下限） */
     --tabbar-h: 54px; /* 紧凑化：5 槽 + 抬升动作位，仍 ≥44 标签底线 */
-    --appbar-h: 48px; /* 紧凑化：顶栏更薄 */
   }
 
-  /* ---------- 页面容器 ---------- */
+  /* ---------- 页面容器 ----------
+     顶栏（.app-bar）已移除：顶部安全区改由 .page 自己的 padding-top 承担，
+     否则刘海机型的内容会顶到状态栏底下。 */
   .page {
-    padding: 8px var(--page-gutter)
+    padding: calc(8px + env(safe-area-inset-top, 0px)) var(--page-gutter)
       calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px) + 36px);
     gap: 12px;
   }
@@ -75,26 +76,8 @@
     padding-bottom: calc(20px + var(--tabbar-h));
   }
 
-  /* ---------- 顶栏：磨砂 + 安全区 ----------
-     00-DESIGN 的 floating sticky bar 语法：backdrop-blur + hairline，
-     不给投影（投影只给脱离页面流的浮层）。 */
-  .app-bar {
-    z-index: 25;
-    padding-top: env(safe-area-inset-top, 0px);
-  }
-
-  .app-bar__inner {
-    height: var(--appbar-h);
-    padding: 0 var(--page-gutter);
-  }
-
-  .brand__name {
-    font-size: 15px;
-  }
-
-  .app-bar__right .btn {
-    min-height: 44px;
-  }
+  /* 顶栏（.app-bar）已按设计移除：移动端顶部不再有固定的品牌条，
+     品牌与「记一笔」分别由侧栏（桌面）与底部 TabBar 动作位承担。 */
 
   /* 头像字符（无图时取昵称首字）在圆内居中：grid 居中只管盒子，
      字符本身还会被字体行高带偏，显式压掉行高才真正居中。 */
@@ -365,12 +348,12 @@
   }
 
   /* 日期头吸顶：专业记账 App（随手记 / YNAB）的标配 —— 长列表滚动时
-     当前看的是哪一天始终钉在顶栏正下方，当日收支小计不丢。
-     背景用页面底色（--c-canvas），行在下方滑过时干净遮住；顶栏 sticky 在
-     top:0、本头 sticky 在 appbar-h + 安全区，两者不重叠。纯 CSS、未动结构。 */
+     当前看的是哪一天始终钉在顶部，当日收支小计不丢。
+     背景用页面底色（--c-canvas），行在下方滑过时干净遮住；顶部已无顶栏，
+     本头 sticky 在安全区之下（刘海机型不钻到状态栏底下）。纯 CSS、未动结构。 */
   .tx-day__head {
     position: sticky;
-    top: calc(var(--appbar-h) + env(safe-area-inset-top, 0px));
+    top: env(safe-area-inset-top, 0px);
     z-index: 5;
     margin-bottom: 4px;
     padding: 4px 4px 2px;

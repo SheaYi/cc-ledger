@@ -4,7 +4,7 @@
  */
 import { Api, ApiError } from '../api.js';
 import { auth } from '../store.js';
-import { siteFooter, topBar } from '../chrome.js';
+import { siteFooter } from '../chrome.js';
 import { avatarHtml, esc, formatDateTime, h, LEDGER_TYPE_LABEL, ROLE_LABEL, setLoading, toast } from '../ui.js';
 
 const INVALID_REASON = {
@@ -16,15 +16,12 @@ const INVALID_REASON = {
 function shell(cardInner) {
   const view = h(`
     <div>
-      <div data-role="nav-slot"></div>
       <main class="invite-main">
         <div class="invite-card">${cardInner}</div>
       </main>
       <div data-role="footer-slot"></div>
     </div>
   `);
-  // 未登录时 topBar 自动渲染「登录」按钮；已登录时渲染用户胶囊（可进「我的」）
-  view.querySelector('[data-role=nav-slot]').replaceWith(topBar({ user: auth.me }));
   view.querySelector('[data-role=footer-slot]').replaceWith(siteFooter());
   return view;
 }

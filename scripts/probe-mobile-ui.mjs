@@ -6,7 +6,7 @@
  *
  *   1. 底部 dock 切换页面时**不重建** —— 重建会重播 `tabbar-in` 入场动画，
  *      表现为切页时底栏「被推出去又滑回来」闪一下。
- *   2. 顶栏**不再有头像卡片**（按设计移除「头像那一行」；品牌字标与记一笔入口保留）。
+ *   2. 顶部固定条 app-bar **已整体移除**（导航与「记一笔」改由底部 dock 动作位承担）。
  *   3. 记账页类型 / 分类横滑带里的 pill **互不重叠**。
  *   4. 账单页「支出 / 收入 / 结余」**同一行**（三列等分）。
  *
@@ -294,26 +294,31 @@ await go('/transactions/new', '.compose__card');
 await wait(700);
 check('记账页不显示 dock（全屏页）', (await ev(`(() => { const d = document.getElementById('cc-dock'); return !d || d.hidden; })()`)) === true);
 
-/* ================= 2. 顶栏头像已移除 ================= */
-console.log('\n── 顶栏头像（已移除） ──');
-await go('/accounts', '.app-bar');
+/* ================= 2. 顶部固定条（app-bar）已整体移除 ================= */
+console.log('\n── 顶部固定条（已整体移除） ──');
+await go('/accounts', '.page__hero');
 await wait(700);
 const appBar = JSON.parse(
   await ev(`(() => {
-  const bar = document.querySelector('.app-bar');
-  const chip = bar?.querySelector('.user-chip');
-  const brand = bar?.querySelector('.brand');
-  const compose = bar?.querySelector('[data-compose]');
+  const dock = document.getElementById('cc-dock');
   return JSON.stringify({
-    hasChip: !!chip,
-    hasBrand: !!brand,
-    hasCompose: !!compose,
+    hasBar: !!document.querySelector('.app-bar'),
+    hasChip: !!document.querySelector('.user-chip'),
+    hasDock: !!dock,
+    dockCompose: !!dock?.querySelector('[data-compose]'),
+    /* 顶栏整条移除后，内容不该再被它顶下去：页面顶边应贴着视口（只剩安全区） */
+    pageTop: (() => {
+      const p = document.querySelector('.page');
+      return p ? Math.round(p.getBoundingClientRect().top) : -1;
+    })(),
   });
 })()`),
 );
-check('顶栏不再渲染头像卡片（user-chip 已移除）', appBar.hasChip === false);
-check('顶栏品牌字标仍在', appBar.hasBrand === true);
-check('顶栏记一笔入口仍在', appBar.hasCompose === true);
+check('顶部固定条 app-bar 已整体移除', appBar.hasBar === false);
+check('页面不再渲染头像卡片（user-chip）', appBar.hasChip === false);
+check('底部 dock 仍在（导航不丢）', appBar.hasDock === true);
+check('记一笔入口仍在（dock 动作位）', appBar.dockCompose === true);
+check('内容不再被顶栏顶下去（页面顶边 ≤ 20px）', appBar.pageTop >= 0 && appBar.pageTop <= 20);
 
 /* ================= 3. 记账页：类型/分类不重叠 + 间距 ================= */
 console.log('\n── 记账页 ──');

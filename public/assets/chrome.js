@@ -290,42 +290,6 @@ export function sidebar({ active = '', user, ledger = null, hideCompose = false 
   return shell;
 }
 
-/**
- * 顶部细条（仅移动端显示）。
- * 桌面端品牌 / 导航 / 用户都在左侧栏里，这条不出现。
- * 右上角的 44×44 圆形图标按钮是移动端的第二个记账入口（docs/13 §3.3）。
- */
-export function topBar({ user = null, hideCompose = false } = {}) {
-  // 头像已按设计移除：顶部不再有「头像那一行卡片」。
-  // 未登录（user === null）时保留「登录」入口；会话未就绪（undefined）先留空。
-  const chip =
-    user
-      ? ''
-      : user === null
-        ? `<a class="btn btn--quiet btn--sm" href="/login" data-link>登录</a>`
-        : '';
-
-  const compose = hideCompose
-    ? ''
-    : `<button class="btn btn--icon btn--pearl" type="button" data-compose
-          title="记一笔（长按选模板）" aria-label="记一笔">${icon('plus', 20)}</button>`;
-
-  return h(`
-    <header class="app-bar">
-      <div class="app-bar__inner">
-        <a class="brand" href="/" data-link>
-          <span class="brand__tile">CC</span>
-          <span class="brand__name">CC记账</span>
-        </a>
-        <div class="app-bar__right">
-          ${compose}
-          ${chip}
-        </div>
-      </div>
-    </header>
-  `);
-}
-
 /** 一行版权页脚 */
 export function siteFooter() {
   return h(`
@@ -336,7 +300,7 @@ export function siteFooter() {
 }
 
 /**
- * 页面外框：左侧导航 + （移动端）顶栏 + 内容 + 页脚 + （移动端）底部导航。
+ * 页面外框：左侧导航 + 内容 + 页脚 + （移动端）底部导航。
  * 各记账页只需提供 inner HTML，避免每页重复拼骨架。
  * @param {{active?:string, user?:object|null, ledger?:object|null, inner?:string, hideCompose?:boolean}} cfg
  */
@@ -359,7 +323,6 @@ export function appFrame({ active = '', user, ledger = null, inner = '', hideCom
     <div class="shell">
       <div data-role="sidebar-slot"></div>
       <div class="shell__main">
-        <div data-role="nav-slot"></div>
         <main class="page">${inner}</main>
         <div data-role="footer-slot"></div>
       </div>
@@ -369,10 +332,9 @@ export function appFrame({ active = '', user, ledger = null, inner = '', hideCom
   root
     .querySelector('[data-role=sidebar-slot]')
     .replaceWith(sidebar({ active, user, ledger, hideCompose }));
-  root.querySelector('[data-role=nav-slot]').replaceWith(topBar({ user, hideCompose }));
   root.querySelector('[data-role=footer-slot]').replaceWith(siteFooter());
   /**
-   * 桌面两处「记一笔」（侧栏 CTA、移动端顶栏图标）都接上**同一个**手势处理器：
+   * 「记一笔」入口（侧栏 CTA、移动端 TabBar 动作位）都接上**同一个**手势处理器：
    * 短按跳空表单、长按出模板面板。`data-compose` 是唯一的识别标记 ——
    * 移动端 TabBar 的动作位也是它（那边自己包了一层 `.mega-host` 做定位上下文）。
    */

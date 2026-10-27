@@ -695,34 +695,6 @@ a.acct-row:active {
   color: currentColor;
 }
 
-/* --------- 3.4 顶部细条（仅移动端；桌面由侧栏承担品牌与用户） --------- */
-.app-bar {
-  position: sticky;
-  top: 0;
-  z-index: 20;
-  background: var(--c-frost-bg);
-  -webkit-backdrop-filter: var(--frost-blur);
-  backdrop-filter: var(--frost-blur);
-  border-bottom: 1px solid var(--c-hairline-soft);
-}
-
-.app-bar__inner {
-  max-width: var(--w-content);
-  margin: 0 auto;
-  padding: 0 var(--gutter);
-  height: var(--nav-h);
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.app-bar__right {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
 /* --------- 3.5 品牌 --------- */
 .brand {
   display: inline-flex;
@@ -1671,11 +1643,12 @@ a.acct-row:active {
    十·补充、邀请落地页（整页一张居中卡片）
    ========================================================================== */
 .invite-main {
-  min-height: calc(100dvh - var(--nav-h) - 64px);
+  /* 顶栏已移除：不再扣掉 --nav-h，否则底部空出一条；顶部补安全区 */
+  min-height: calc(100dvh - 64px);
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 40px var(--gutter);
+  padding: calc(40px + env(safe-area-inset-top, 0px)) var(--gutter) 40px;
   background: var(--c-parchment);
 }
 
@@ -5955,14 +5928,7 @@ a.acct-row:hover {
    十四、响应式
    ========================================================================== */
 
-/* --------- 桌面（≥1024px）：左侧导航栏承担品牌 / 导航 / 用户 --------- */
-@media (min-width: 1024px) {
-  .shell .app-bar {
-    display: none;
-  }
-}
-
-/* --------- 平板与手机（≤1023px）：收起侧栏，改顶栏 + 底部 TabBar --------- */
+/* --------- 平板与手机（≤1023px）：收起侧栏，底部 TabBar --------- */
 @media (max-width: 1023px) {
   .shell {
     grid-template-columns: minmax(0, 1fr);
@@ -6242,9 +6208,10 @@ a.acct-row:hover {
 }
 
 @media (max-width: 1023px) {
-  /* 顶栏在移动端是 sticky 的（z-index 20），工具栏必须让开它的高度 */
+  /* 顶栏（.app-bar）已移除：工具栏直接吸在顶部，不再让出 --nav-h
+     （否则上方会空出一条、行从缝里穿过去）；刘海机型只需让开安全区。 */
   .tx-toolbar {
-    top: var(--nav-h);
+    top: env(safe-area-inset-top, 0px);
   }
 
   /* 批量选择条要让开底部 TabBar，否则按钮被压住点不到 */
