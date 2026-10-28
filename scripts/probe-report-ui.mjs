@@ -93,19 +93,23 @@ await new Promise((r) => setTimeout(r, 1800));
  */
 const fb = JSON.parse(
   await ev(`JSON.stringify((() => {
+    const card = document.querySelector('.st-filter__card');
     const bar = document.querySelector('.st-filter__bar');
-    if (!bar) return null;
+    if (!card || !bar) return null;
+    const kw = document.querySelector('#st-f-kw');
+    // 三个下拉 + 搜索框已移到工具条下方的常驻筛选面板（与 .st-filter__bar 同级），
+    // 故从 .st-filter__card 范围内查找；工具条高度断言仍针对 .st-filter__bar。
     return {
-      hasSource: !!bar.querySelector('#st-f-source'),
-      hasType: !!bar.querySelector('#st-f-type'),
-      hasCat: !!bar.querySelector('#st-f-cat'),
-      hasKw: !!bar.querySelector('#st-f-kw'),
+      hasSource: !!card.querySelector('#st-f-source'),
+      hasType: !!card.querySelector('#st-f-type'),
+      hasCat: !!card.querySelector('#st-f-cat'),
+      hasKw: !!kw,
       labelCount: bar.querySelectorAll('.field__label').length,
-      catGroups: bar.querySelectorAll('#st-f-cat optgroup').length,
-      sourceHint: ((bar.querySelector('#st-f-source option') || {}).textContent || '').trim(),
-      catHint: ((bar.querySelector('#st-f-cat option') || {}).textContent || '').trim(),
+      catGroups: card.querySelectorAll('#st-f-cat optgroup').length,
+      sourceHint: ((card.querySelector('#st-f-source option') || {}).textContent || '').trim(),
+      catHint: ((card.querySelector('#st-f-cat option') || {}).textContent || '').trim(),
       height: Math.round(bar.getBoundingClientRect().height),
-      kwRadius: getComputedStyle(bar.querySelector('#st-f-kw') || bar).borderTopLeftRadius,
+      kwRadius: kw ? getComputedStyle(kw).borderTopLeftRadius : 0,
       actsRight: Math.round(bar.querySelector('.st-filter__acts').getBoundingClientRect().right),
       barRight: Math.round(bar.getBoundingClientRect().right),
     };

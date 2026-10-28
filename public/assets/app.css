@@ -7878,6 +7878,34 @@ a.acct-row:hover {
   outline-offset: 1px;
 }
 
+/* --------- 筛选面板（来源 / 类型 / 分类 / 搜索）---------
+ * 桌面端作为工具条下方的常驻面板：独立于工具条一行，所有筛选项始终完整展示。
+ * 圆角 / 内边距 / 面色走 00-DESIGN 令牌，与 .card 同一套语言。 */
+.st-filter__zone {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-sm) var(--s-xs);
+  margin-top: var(--s-sm);
+  padding: var(--s-sm) var(--s-md);
+  background: var(--c-parchment);
+  border: 1px solid var(--c-hairline);
+  border-radius: var(--r-md);
+}
+
+/* --------- 个人账本「本期录入汇总」四指标卡（替代成员饼图）---------
+ * 2 × 2 网格放入 span-4 窄卡，沿用 .kpi-card 风格，仅补圆角与内边距。 */
+.st-personal-sum {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--s-sm);
+}
+
+.st-personal-sum .kpi-card {
+  border-radius: var(--r-sm);
+  padding: var(--s-sm);
+}
+
 /* --------- 窄屏 --------- */
 
 /**

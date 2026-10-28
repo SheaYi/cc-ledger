@@ -43,8 +43,7 @@
 }
 
 /* 折叠区外壳：桌面不存在这个盒子（见上） */
-.tx-filters__pills,
-.st-filter__zone {
+.tx-filters__pills {
   display: contents;
 }
 
@@ -420,6 +419,11 @@
     flex-wrap: wrap;
     align-items: center;
     gap: var(--s-xs);
+    margin-top: 0;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
   }
 
   .st-filter__zone[data-more='off'] {

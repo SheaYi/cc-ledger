@@ -19,7 +19,7 @@ services:
     # 本地构建时叫 cc-ledger:1.1.9；想直接用 GitHub 上构建好的镜像，
     # 在 .env 里写 CC_IMAGE=ghcr.io/shayi/cc-ledger:latest，然后
     #   docker compose pull && docker compose up -d
-    image: ${CC_IMAGE:-cc-ledger:1.1.9}
+    image: ${CC_IMAGE:-cc-ledger:1.1.10}
     container_name: cc-ledger
     restart: unless-stopped
 

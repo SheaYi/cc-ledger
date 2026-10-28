@@ -252,13 +252,13 @@ export async function renderStats(container, { go } = {}) {
       <section class="section st-filter">
         <div class="card st-filter__card">
           <div class="st-filter__bar">
-            <!-- 分段控件与条件芯片都要随筛选状态重画，所以是空槽 -->
+            <!-- 分段控件随筛选状态重画，所以是空槽 -->
             <div class="segmented st-filter__seg" role="group" aria-label="账期快捷选择" data-role="quick"></div>
 
             <!--
               「更多」紧跟在「自定义」之后（DOM 上是 seg 的下一个兄弟）。
-              不放进 seg 内部：seg 在手机端是**横滑带**，塞进去的按钮会被滑出屏幕，
-              而它恰恰是最该常驻的那个。
+              不放进 seg 内部：seg 在手机端是横滑带，塞进去的按钮会被滑出屏幕，
+              而它恰恰是最该常驻的那个。桌面端此按钮隐藏，筛选面板常驻展开。
             -->
             <button class="st-filter__more" type="button" data-role="more"
                     aria-expanded="false" aria-controls="st-filter-more-zone">更多</button>
@@ -271,31 +271,28 @@ export async function renderStats(container, { go } = {}) {
                       aria-label="下一账期">›</button>
             </div>
 
-            <!--
-              折叠区：分隔线 + 三个下拉 + 搜索框。
-              桌面端 display:contents → 三个控件直接参与 .st-filter__bar 排布，
-              与改造前逐像素一致（「筛选栏只有一行」的断言仍成立）；
-              手机端才折叠成一整块，由上面的「更多」控制。
-            -->
-            <div class="st-filter__zone" id="st-filter-more-zone" data-role="more-zone" data-more="off">
-              <span class="st-filter__div" aria-hidden="true"></span>
-
-              <div class="st-filter__picks" data-role="picks"></div>
-
-              <label class="st-filter__search">
-                <span class="st-filter__search-ico" aria-hidden="true">${icon('search', 14)}</span>
-                <!-- 复用通用的 .input（底色 / 边框 / 字号），这里只覆盖成工具条尺寸 + 胶囊形 -->
-                <input class="input st-filter__kw" type="search" id="st-f-kw"
-                       placeholder="搜索对象 / 名称 / 商家" autocomplete="off" />
-              </label>
-
-              <!-- 展开态的收起入口：与「更多」同一个动作，但出现在用户滑到的地方 -->
-              <button class="st-filter__zone-collapse" type="button" data-role="collapse">收起</button>
-            </div>
-
             <div class="st-filter__acts">
               <button class="btn btn--quiet btn--sm" type="button" data-role="reset" hidden>重置</button>
             </div>
+          </div>
+
+          <!--
+            筛选面板（来源 / 类型 / 分类 / 搜索）。
+            桌面端是工具条下方的常驻面板，独立于工具条一行，所有筛选项始终完整展示；
+            手机端收进折叠区，由上方「更多」控制显隐。
+            结构上与 .st-filter__bar 同级，不再靠 display:contents 把控件塞回工具条。
+          -->
+          <div class="st-filter__zone" id="st-filter-more-zone" data-role="more-zone" data-more="off">
+            <div class="st-filter__picks" data-role="picks"></div>
+
+            <label class="st-filter__search">
+              <span class="st-filter__search-ico" aria-hidden="true">${icon('search', 14)}</span>
+              <input class="input st-filter__kw" type="search" id="st-f-kw"
+                     placeholder="搜索对象 / 名称 / 商家" autocomplete="off" />
+            </label>
+
+            <!-- 展开态的收起入口：与「更多」同一个动作，出现在用户滑到的地方 -->
+            <button class="st-filter__zone-collapse" type="button" data-role="collapse">收起</button>
           </div>
 
           <!-- 自定义区间：只在真的在自定义时才出现，否则就是两行没人看的日期框 -->
@@ -1023,6 +1020,42 @@ export async function renderStats(container, { go } = {}) {
     );
   }
 
+  /**
+   * 个人账本「成员消费」的替代卡（需求 ②）。
+   *
+   * 个人账本没有「成员」维度，原饼图无意义。改为在所选筛选范围内呈现四项
+   * 录入汇总指标，沿用 .kpi-card 风格，与全站设计规范一致。
+   *
+   * 命名采用专业财务术语：
+   *   录入总额 = Σ amount（所有录入金额合计）
+   *   折扣合计 = Σ discount
+   *   手续费合计 = Σ fee
+   *   净额     = Σ actualAmount = 录入总额 + 手续费 − 折扣
+   * 净额公式显式写在卡片副文案里，避免「扣减折扣与手续费」的方向歧义。
+   */
+  function paintPersonalSummary(s) {
+    const recorded = Number(s.totalRecorded ?? 0);
+    const discount = Number(s.totalDiscount ?? 0);
+    const fee = Number(s.totalFee ?? 0);
+    const net = Number(s.netAmount ?? 0);
+    const item = (label, value, note) => `
+      <div class="kpi-card">
+        <span class="kpi-card__label">${esc(label)}</span>
+        <span class="kpi-card__value tnum">${esc(money(value))}</span>
+        <span class="kpi-card__sub">${esc(note)}</span>
+      </div>`;
+    slotMember.innerHTML = section(
+      '本期录入汇总',
+      '所选筛选范围内',
+      `<div class="st-personal-sum">
+        ${item('录入总额', recorded, '所有录入金额合计')}
+        ${item('折扣合计', discount, '折扣金额合计')}
+        ${item('手续费合计', fee, '手续费金额合计')}
+        ${item('净额', net, '录入总额 + 手续费 − 折扣')}
+      </div>`,
+    );
+  }
+
   function paintNetWorth(series) {
     const data = (series ?? []).map((s) => ({
       label: s.label ?? String(s.snapshotDate ?? '').slice(5),
@@ -1197,7 +1230,11 @@ export async function renderStats(container, { go } = {}) {
         return { label, value: Number(d.expense ?? 0), date: day };
       }),
     );
-    paintMember(member);
+    if (ledger.type === 'personal') {
+      if (sum) paintPersonalSummary(sum);
+    } else {
+      paintMember(member);
+    }
     paintNetWorth(nw);
     paintAccounts(accBal);
     await loadWeekday();

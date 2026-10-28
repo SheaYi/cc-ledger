@@ -161,6 +161,37 @@ export function summary(
   const lyFlow = periodFlow(ctx, ledgerId, ly.from, ly.to, keyword);
 
   const kwCond = keywordCondition(keyword);
+
+  /**
+   * 个人账本「本期录入汇总」四指标（需求 ②）。
+   *
+   * 口径与 `biggest()` 完全一致（ledgerId + 未删 + 日期区间 + 关键字），
+   * 只是把「取最大单笔」换成按 `amount / discount / fee / actualAmount` 做 sum。
+   * 这四项**不区分收支类型**（receivable / payable 也计入「录入」），
+   * 因为需求是「所有录入金额的总额」，不是「收支净额」。
+   *
+   * 关系恒等式：净额 = 录入总额 + 手续费 − 折扣，前端卡片里会显式写出，
+   * 避免「扣减折扣与手续费」措辞带来的方向歧义（手续费对支出是加项）。
+   */
+  const entryAgg = ctx.db
+    .select({
+      recorded: sql`coalesce(sum(${transactions.amount}), 0)`,
+      discount: sql`coalesce(sum(${transactions.discount}), 0)`,
+      fee: sql`coalesce(sum(${transactions.fee}), 0)`,
+      actual: sql`coalesce(sum(${transactions.actualAmount}), 0)`,
+    })
+    .from(transactions)
+    .where(
+      and(
+        eq(transactions.ledgerId, ledgerId),
+        isNull(transactions.deletedAt),
+        gte(transactions.txDate, range.from),
+        lte(transactions.txDate, range.to),
+        ...(kwCond ? [kwCond] : []),
+      ),
+    )
+    .get();
+
   // 金额最大的单笔支出 / 收入（用于「最大单笔」提示）
   const biggest = (recordType: 'expense' | 'income') => {
     const row = ctx.db
@@ -197,6 +228,19 @@ export function summary(
 
   return {
     dateRange: { from: range.from, to: range.to },
+
+    /**
+     * 个人账本「本期录入汇总」四指标（元字符串）。
+     * totalRecorded = Σ amount（录入总额）
+     * totalDiscount  = Σ discount（折扣合计）
+     * totalFee       = Σ fee（手续费合计）
+     * netAmount      = Σ actualAmount（净额 = 录入总额 + 手续费 − 折扣）
+     */
+    totalRecorded: formatCents(Number(entryAgg?.recorded ?? 0)),
+    totalDiscount: formatCents(Number(entryAgg?.discount ?? 0)),
+    totalFee: formatCents(Number(entryAgg?.fee ?? 0)),
+    netAmount: formatCents(Number(entryAgg?.actual ?? 0)),
+
     totalExpense: formatCents(flow.expense),
     totalIncome: formatCents(flow.income),
     netBalance: formatCents(flow.net),
