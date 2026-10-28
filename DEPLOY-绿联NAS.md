@@ -295,11 +295,15 @@ docker compose up -d
 
 可用标签：
 
-| 标签 | 什么时候有 | 用途 |
-|---|---|---|
-| `latest` | 每次推 `main` | 日常用这个 |
-| `sha-626e08c` | 每次构建 | 想钉死到某一次提交 |
-| `v1.1.11` | 打了 `v*` tag | 固定版本 |
+| 标签 | 完整镜像地址 | 什么时候有 | 用途 |
+|---|---|---|---|
+| `latest` | `ghcr.io/shayi/cc-ledger:latest` | 每次推 `main` | 日常用这个 |
+| `sha-60b1224` | `ghcr.io/shayi/cc-ledger:sha-60b1224` | 每次构建 | 想钉死到某一次提交 |
+| `v1.1.11` | `ghcr.io/shayi/cc-ledger:v1.1.11` | 打了 `v*` tag | 固定版本 |
+
+> ⚠️ **版本标签带 `v` 前缀**，和 git tag 完全一致：写 `v1.1.11`，**不能**写成 `1.1.11`。
+> 少一个 `v` 拉不到镜像（`manifest unknown`，HTTP 404），但报错只说"找不到"，
+> 很容易误判成"镜像没构建成功"。想锁版本就把 `CC_IMAGE` 写成上面的完整地址。
 
 **想把镜像设为 public（这样任何机器不用登录就能拉）**：
 GitHub → 你的头像 → Your profile → **Packages** → `cc-ledger` → 右侧 **Package settings** →
