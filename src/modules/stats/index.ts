@@ -78,7 +78,18 @@ interface RangeQuery {
   accountId?: string;
   tagId?: string;
   offset?: string;
+  /**
+   * 「所有」模式标记。真值 = `1` / `true`。
+   *
+   * ⚠️ 不能用「dateFrom / dateTo 都为空」来推断「所有」：
+   * 空值同时是「调用方压根没传日期」的状态，而那一路的既有语义是**默认本月**。
+   * 把两者合并会让所有老调用方（概览页、探针、`scripts/`）一夜之间从「本月」变成「全部」。
+   */
+  all?: string;
 }
+
+/** 「所有」模式的真值判定 */
+const isAll = (q: RangeQuery) => q.all === '1' || q.all === 'true';
 
 const dateStr = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, '日期格式应为 YYYY-MM-DD');
 const amountish = z.union([z.string(), z.number()]);
@@ -168,7 +179,7 @@ export async function registerStatsRoutes(app: FastifyInstance, ctx: AppCtx): Pr
         parentCategoryId: q.parentCategoryId,
         categoryId: q.categoryId,
         recordTypes: q.recordType,
-      }),
+      }, isAll(q)),
     );
   });
 
@@ -182,7 +193,7 @@ export async function registerStatsRoutes(app: FastifyInstance, ctx: AppCtx): Pr
         parentCategoryId: q.parentCategoryId,
         categoryId: q.categoryId,
         recordTypes: q.recordType,
-      }),
+      }, isAll(q)),
     );
   });
 
@@ -195,7 +206,7 @@ export async function registerStatsRoutes(app: FastifyInstance, ctx: AppCtx): Pr
         accountId: q.accountId,
         parentCategoryId: q.parentCategoryId,
         categoryId: q.categoryId,
-      }),
+      }, isAll(q)),
     );
   });
 
@@ -208,7 +219,7 @@ export async function registerStatsRoutes(app: FastifyInstance, ctx: AppCtx): Pr
         parentCategoryId: q.parentCategoryId,
         categoryId: q.categoryId,
         recordTypes: q.recordType,
-      }),
+      }, isAll(q)),
     );
   });
 
@@ -293,7 +304,7 @@ export async function registerStatsRoutes(app: FastifyInstance, ctx: AppCtx): Pr
         parentCategoryId: q.parentCategoryId,
         categoryId: q.categoryId,
         recordTypes: q.recordType,
-      }),
+      }, isAll(q)),
     );
   });
 

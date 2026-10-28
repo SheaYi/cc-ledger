@@ -22,7 +22,7 @@ import type { AppCtx } from '../../context.js';
 import { accounts, categories, transactionTags, transactions, tags } from '../../db/schema.js';
 import { formatCents, today as todayStr } from '../../utils/money.js';
 import { keywordCondition, txFilterConds, type TxFilters } from '../../utils/tx-filter.js';
-import { periodFlow, totals } from '../accounts/service.js';
+import { CONTRA_CASE, periodFlow, totals } from '../accounts/service.js';
 import { openDebts } from '../debts/service.js';
 
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -44,12 +44,38 @@ export function defaultRange(): StatsRange {
   return { from: `${y}-${pad(m)}-01`, to: todayStr() };
 }
 
-function normalizeRange(from?: string, to?: string): StatsRange {
+/**
+ * 归一化区间。
+ *
+ * `all = true` 时返回 **空区间** `{from:'', to:''}`，语义是「所有账单、不受时间限制」。
+ * 空区间**不等于**「默认本月」：默认本月是「没传日期」时的兜底，
+ * 而「所有」是用户显式选择的口径 —— 两者必须能区分，否则用户点了「所有」
+ * 却只看到本月，且不会有任何报错提示他看少了。
+ */
+function normalizeRange(from?: string, to?: string, all?: boolean): StatsRange {
+  if (all) return { from: '', to: '' };
   const d = defaultRange();
   const f = from && /^\d{4}-\d{2}-\d{2}$/.test(from) ? from : d.from;
   const t = to && /^\d{4}-\d{2}-\d{2}$/.test(to) ? to : d.to;
   return f <= t ? { from: f, to: t } : { from: t, to: f };
 }
+
+/**
+ * 日期区间条件。「所有」模式（from / to 皆为空串）返回**空数组** = 不加日期限制。
+ *
+ * ⚠️ 不能写成 `gte(txDate, range.from)` 然后指望空串能匹配全部：
+ * `lte(tx_date, '')` 匹配不到任何行，页面会显示「没有任何数据」
+ * 而没有任何提示指向日期范围 —— 这正是「自定义区间只填了一头」时的老坑。
+ */
+function dateConds(range: StatsRange) {
+  const out = [];
+  if (range.from) out.push(gte(transactions.txDate, range.from));
+  if (range.to) out.push(lte(transactions.txDate, range.to));
+  return out;
+}
+
+/** 区间是否「所有」模式 */
+const isAllRange = (r: StatsRange) => !r.from && !r.to;
 
 /** 上一个等长区间（用于环比）。长度按自然日差。 */
 function previousRange(from: string, to: string): StatsRange {
@@ -93,6 +119,30 @@ export function daysInRange(from: string, to: string): number {
   const f = new Date(`${from}T00:00:00`).getTime();
   const t = new Date(`${to}T00:00:00`).getTime();
   return Math.max(1, Math.round((t - f) / 86_400_000) + 1);
+}
+
+/**
+ * 「所有」模式的**实际数据跨度**：最早一笔 → 最晚一笔。
+ *
+ * 空区间本身不能参与任何日期运算（`daysInRange` 会得 NaN、`bucketsOf` 会死循环），
+ * 但「日均」和「趋势」这些派生量又必须要一个跨度。用账目自身的首末笔来兜：
+ *   · 有数据 → 首笔到末笔，日均与趋势都落在真实发生过的区间上；
+ *   · 无数据 → 退化成「今天」，天数为 1，日均等于总额 0，不会出现 NaN。
+ */
+export function actualSpan(ctx: AppCtx, ledgerId: string): StatsRange {
+  const row = ctx.db
+    .select({
+      mn: sql<string>`min(${transactions.txDate})`,
+      mx: sql<string>`max(${transactions.txDate})`,
+    })
+    .from(transactions)
+    .where(and(eq(transactions.ledgerId, ledgerId), isNull(transactions.deletedAt)))
+    .get();
+  const mn = typeof row?.mn === 'string' ? row.mn : '';
+  const mx = typeof row?.mx === 'string' ? row.mx : '';
+  if (mn && mx) return mn <= mx ? { from: mn, to: mx } : { from: mx, to: mn };
+  const t = todayStr();
+  return { from: t, to: t };
 }
 
 /**
@@ -152,8 +202,10 @@ export function summary(
   keyword?: string,
   /** 账户 / 分类 / 类型 三维筛选（可选）。来自统计页「来源 / 类型 / 分类」下拉。 */
   filters?: TxFilters,
+  /** 「所有」模式：不受时间范围限制，统计全部账单 */
+  all?: boolean,
 ) {
-  const range = normalizeRange(from, to);
+  const range = normalizeRange(from, to, all);
   const flow = periodFlow(ctx, ledgerId, range.from, range.to, keyword, filters);
   const t = totals(ctx, ledgerId);
 
@@ -171,35 +223,54 @@ export function summary(
   });
 
   /**
-   * 个人账本「本期录入汇总」四指标（需求 ②）。
+   * 「本期录入汇总」的**折扣合计 / 手续费合计**。
    *
-   * 口径与 `biggest()` 完全一致（ledgerId + 未删 + 日期区间 + 关键字），
-   * 只是把「取最大单笔」换成按 `amount / discount / fee / actualAmount` 做 sum。
-   * 这四项**不区分收支类型**（receivable / payable 也计入「录入」），
-   * 因为需求是「所有录入金额的总额」，不是「收支净额」。
+   * 口径（严格遵循 `docs/03 §1.5` + `§1.6`）：
+   *   · **只认 `expense` / `income`** —— 转账、应收、应付、余额调整不计入净结余，
+   *     它们的手续费同理不该出现在「本期收支」的汇总里（否则「手续费 20」
+   *     里可能混着一笔转账手续费，而转账根本不影响净结余）。
+   *   · **必须减去冲减项**（`docs/03 §1.6`）：退款/红字冲销按规约 F/D 必须为 0，
+   *     但这里仍然显式相减 —— 规约是规约，历史脏数据里可能存在带 F/D 的冲减笔，
+   *     不相减就会让折扣/手续费虚增。这与 `periodFlow()` 的 `netOf()` 同一套语义。
    *
-   * 关系恒等式：净额 = 录入总额 + 手续费 − 折扣，前端卡片里会显式写出，
-   * 避免「扣减折扣与手续费」措辞带来的方向歧义（手续费对支出是加项）。
+   * ⚠️ 支出总额 / 收入总额 / 净额**不在这里算**：它们就是
+   * `periodFlow()` 的 `expense` / `income` / `net`，已经内含「Σ正常 − Σ冲减」。
+   * 在这里另起一套 sum 会让两张卡片在退款场景下给出不同的数
+   * （KPI 说净支出 0、录入汇总说支出 210），那种不一致最难被发现。
    */
-  const entryAgg = ctx.db
+  const fdRows = ctx.db
     .select({
-      recorded: sql`coalesce(sum(${transactions.amount}), 0)`,
-      discount: sql`coalesce(sum(${transactions.discount}), 0)`,
-      fee: sql`coalesce(sum(${transactions.fee}), 0)`,
-      actual: sql`coalesce(sum(${transactions.actualAmount}), 0)`,
+      recordType: transactions.recordType,
+      contra: CONTRA_CASE,
+      discount: sql<number>`coalesce(sum(${transactions.discount}), 0)`,
+      fee: sql<number>`coalesce(sum(${transactions.fee}), 0)`,
     })
     .from(transactions)
     .where(
       and(
         eq(transactions.ledgerId, ledgerId),
         isNull(transactions.deletedAt),
-        gte(transactions.txDate, range.from),
-        lte(transactions.txDate, range.to),
+        ...dateConds(range),
         ...(kwCond ? [kwCond] : []),
         ...txFilterConds(filters),
       ),
     )
-    .get();
+    .groupBy(transactions.recordType, CONTRA_CASE)
+    .all();
+
+  /** 与 `netOf()` 同构：Σ正常 − Σ冲减，且只认 expense / income */
+  const netFd = (pick: (r: (typeof fdRows)[number]) => unknown) => {
+    let normal = 0;
+    let contra = 0;
+    for (const r of fdRows) {
+      if (r.recordType !== 'expense' && r.recordType !== 'income') continue;
+      const v = Number(pick(r) ?? 0);
+      if (!Number.isFinite(v)) continue;
+      if (Number(r.contra) === 1) contra += v;
+      else normal += v;
+    }
+    return normal - contra;
+  };
 
   // 金额最大的单笔支出 / 收入（用于「最大单笔」提示）
   const biggest = (recordType: 'expense' | 'income') => {
@@ -216,8 +287,7 @@ export function summary(
           eq(transactions.ledgerId, ledgerId),
           isNull(transactions.deletedAt),
           eq(transactions.recordType, recordType),
-          gte(transactions.txDate, range.from),
-          lte(transactions.txDate, range.to),
+          ...dateConds(range),
           ...(kwCond ? [kwCond] : []),
           ...acConds,
         ),
@@ -232,24 +302,40 @@ export function summary(
 
   const byType = Object.fromEntries(flow.byType.map((r) => [r.recordType, r]));
 
-  const curDays = daysInRange(range.from, range.to);
+  /**
+   * ⚠️「所有」模式下 `range` 是空区间，直接喂给 `daysInRange('', '')` 会得到
+   * `NaN`（`new Date('T00:00:00')` 是 Invalid Date）—— 日均支出于是变成
+   * `总额 / NaN = NaN`，界面显示「¥ NaN」而不是报错。
+   * 所以天数一律按**实际数据跨度**算：首笔 → 末笔。
+   */
+  const span = isAllRange(range) ? actualSpan(ctx, ledgerId) : range;
+  const curDays = daysInRange(span.from, span.to);
   const momDays = daysInRange(prev.from, prev.to);
   const yoyDays = daysInRange(ly.from, ly.to);
 
   return {
     dateRange: { from: range.from, to: range.to },
+    /** 「所有」模式标记：前端据此把账期芯片渲染成「所有」而不是一段空区间 */
+    allMode: isAllRange(range),
 
     /**
-     * 个人账本「本期录入汇总」四指标（元字符串）。
-     * totalRecorded = Σ amount（录入总额）
-     * totalDiscount  = Σ discount（折扣合计）
-     * totalFee       = Σ fee（手续费合计）
-     * netAmount      = Σ actualAmount（净额 = 录入总额 + 手续费 − 折扣）
+     * 「本期录入汇总」五指标（元字符串）。顺序即前端列表顺序。
+     *
+     *   支出总额 = `periodFlow().expense`  = Σ支出正常 − Σ支出冲减
+     *   收入总额 = `periodFlow().income`   = Σ收入正常 − Σ收入冲减
+     *   折扣合计 = Σ(支出+收入)discount − 冲减侧
+     *   手续费合计 = Σ(支出+收入)fee     − 冲减侧
+     *   净额     = 收入总额 − 支出总额（`docs/03 §1.5` 净结余口径）
+     *
+     * ⚠️ 净额**不是**「Σ actualAmount」。后者会把转账、应收、应付也算进来，
+     * 而这三者在 `§1.5` 里明确「不计入净结余」—— 转账只是账户间搬家，
+     * 应收应付是债权债务，都不改变净资产。
+     * 旧实现用的正是 Σ actualAmount，在「本月转了一笔账」时会给出偏大的净额。
      */
-    totalRecorded: formatCents(Number(entryAgg?.recorded ?? 0)),
-    totalDiscount: formatCents(Number(entryAgg?.discount ?? 0)),
-    totalFee: formatCents(Number(entryAgg?.fee ?? 0)),
-    netAmount: formatCents(Number(entryAgg?.actual ?? 0)),
+    totalDiscount: formatCents(netFd((r) => r.discount)),
+    totalFee: formatCents(netFd((r) => r.fee)),
+    /** 净额 = 全部净收入 − 全部净支出（`§1.5`）。与 `netBalance` 同源同值。 */
+    netAmount: formatCents(flow.net),
 
     totalExpense: formatCents(flow.expense),
     totalIncome: formatCents(flow.income),
@@ -372,17 +458,33 @@ export function trend(
   keyword?: string,
   /** 账户 / 分类 / 类型 三维筛选（可选） */
   filters?: TxFilters,
+  /** 「所有」模式：不受时间范围限制 */
+  all?: boolean,
 ) {
-  const range = normalizeRange(from, to);
+  const range = normalizeRange(from, to, all);
   const g: Granularity = ['day', 'week', 'month', 'year'].includes(granularity) ? granularity : 'day';
-  const buckets = bucketsOf(g, range.from, range.to);
+  /** 「所有」模式：桶按账目自身的首末笔铺开，空区间无法生成桶 */
+  const span = isAllRange(range) ? actualSpan(ctx, ledgerId) : range;
+  const buckets = bucketsOf(g, span.from, span.to);
   const kwCond = keywordCondition(keyword);
+
+  /**
+   * ⚠️ 冲减项（退款 / 红字冲销）必须**相减**，不能相加（`docs/03 §1.6`）。
+   * 支出 210 后全额退款 210，真实净支出是 0；不加这个符号判断就是 420。
+   * 这里是同一笔账在趋势图上的呈现，与 KPI「支出总额」必须是同一个数 ——
+   * 否则会出现「KPI 说支出 0、趋势图峰值 210」这种最难自查的不一致。
+   */
+  const netOf = (type: 'expense' | 'income') =>
+    sql<number>`coalesce(sum(case
+      when ${transactions.recordType} = ${type} and ${transactions.adjustmentReason} in ('reversal','refund') then -${transactions.actualAmount}
+      when ${transactions.recordType} = ${type} then ${transactions.actualAmount}
+      else 0 end), 0)`;
 
   const rows = ctx.db
     .select({
       date: transactions.txDate,
-      expense: sql<number>`coalesce(sum(case when ${transactions.recordType} = 'expense' then ${transactions.actualAmount} else 0 end), 0)`,
-      income: sql<number>`coalesce(sum(case when ${transactions.recordType} = 'income' then ${transactions.actualAmount} else 0 end), 0)`,
+      expense: netOf('expense'),
+      income: netOf('income'),
       cnt: sql<number>`count(*)`,
     })
     .from(transactions)
@@ -390,12 +492,25 @@ export function trend(
       and(
         eq(transactions.ledgerId, ledgerId),
         isNull(transactions.deletedAt),
-        gte(transactions.txDate, range.from),
-        lte(transactions.txDate, range.to),
+        ...dateConds(range),
         ...(kwCond ? [kwCond] : []),
         ...txFilterConds(filters),
       ),
     )
+    /**
+     * ⚠️ **必须有 GROUP BY**（`sum()` / `count()` 是聚合函数）。
+     *
+     * 之前这里没有 groupBy：SQLite 于是把整个区间聚成**一行**，
+     * `date` 取的是其中某一行的 `tx_date`（裸列，未定义取哪行），
+     * 而 `expense` / `income` 是**全区间总和**。
+     * 后续按 `date` 建 Map 时，全部金额就被挂到了那一个日期上 ——
+     * 于是「每日支出趋势」只有第一天有值、其余全 0，
+     * 「近 12 个月」只有第一个月有值。这正是用户报的「全累加到第一个点」。
+     *
+     * 加上 groupBy 后每天/每月各一行，缺失日期由 `buckets` 补 0（下面 map 取不到即 0），
+     * 不重复也不遗漏。
+     */
+    .groupBy(transactions.txDate)
     .all();
 
   const incomeByDate = new Map<string, number>();
@@ -449,8 +564,10 @@ export function byCategory(
   keyword?: string,
   /** 账户 / 分类 筛选（可选；类型由上面的 `recordType` 显式决定，这里不重复接） */
   filters?: Pick<TxFilters, 'accountId' | 'parentCategoryId' | 'categoryId'>,
+  /** 「所有」模式：不受时间范围限制 */
+  all?: boolean,
 ) {
-  const range = normalizeRange(from, to);
+  const range = normalizeRange(from, to, all);
   const rt = recordType === 'income' ? 'income' : 'expense';
   const kwCond = keywordCondition(keyword);
 
@@ -467,8 +584,7 @@ export function byCategory(
         eq(transactions.ledgerId, ledgerId),
         isNull(transactions.deletedAt),
         eq(transactions.recordType, rt),
-        gte(transactions.txDate, range.from),
-        lte(transactions.txDate, range.to),
+        ...dateConds(range),
         ...(kwCond ? [kwCond] : []),
         ...txFilterConds(filters),
       ),
@@ -577,8 +693,10 @@ export function byAccount(
   keyword?: string,
   /** 账户 / 分类 / 类型 三维筛选（可选） */
   filters?: TxFilters,
+  /** 「所有」模式：不受时间范围限制 */
+  all?: boolean,
 ) {
-  const range = normalizeRange(from, to);
+  const range = normalizeRange(from, to, all);
   const kwCond = keywordCondition(keyword);
   const rows = ctx.db
     .select({
@@ -592,8 +710,7 @@ export function byAccount(
       and(
         eq(transactions.ledgerId, ledgerId),
         isNull(transactions.deletedAt),
-        gte(transactions.txDate, range.from),
-        lte(transactions.txDate, range.to),
+        ...dateConds(range),
         ...(kwCond ? [kwCond] : []),
         ...txFilterConds(filters),
       ),
@@ -644,8 +761,7 @@ function byTextField(
         eq(transactions.ledgerId, ledgerId),
         isNull(transactions.deletedAt),
         sql`${column} is not null and trim(${column}) <> ''`,
-        gte(transactions.txDate, range.from),
-        lte(transactions.txDate, range.to),
+        ...dateConds(range),
         ...(kwCond ? [kwCond] : []),
       ),
     )
@@ -704,8 +820,7 @@ export function byTag(
       and(
         eq(transactions.ledgerId, ledgerId),
         isNull(transactions.deletedAt),
-        gte(transactions.txDate, range.from),
-        lte(transactions.txDate, range.to),
+        ...dateConds(range),
         ...(kwCond ? [kwCond] : []),
       ),
     )

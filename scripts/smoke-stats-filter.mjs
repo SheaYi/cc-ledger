@@ -142,49 +142,54 @@ console.log('\n=== 基线 · 不带筛选 ===');
 const base = await summary({});
 check('支出 = 40.00（30.00 + 10.00）', base.totalExpense === '40.00', `got ${base.totalExpense}`);
 check('收入 = 100.00', base.totalIncome === '100.00', `got ${base.totalIncome}`);
-check('录入总额 = 142.00（32 + 10 + 100）', base.totalRecorded === '142.00', `got ${base.totalRecorded}`);
 check('折扣合计 = 2.00', base.totalDiscount === '2.00', `got ${base.totalDiscount}`);
 check('手续费合计 = 0.00', base.totalFee === '0.00', `got ${base.totalFee}`);
-check('净额 = 140.00（录入 + 手续费 − 折扣）', base.netAmount === '140.00', `got ${base.netAmount}`);
+/**
+ * ⚠️ 净额口径是「净收入 − 净支出」（`docs/03 §1.5`），**不是** Σ actualAmount。
+ * 后者会把转账 / 应收 / 应付也算进来，而那三类按规约不计入净结余。
+ * 本例：100 − 40 = 60（旧口径 Σ actual 会得 140，多出来的 80 是虚增）。
+ */
+check('净额 = 60.00（收入 100 − 支出 40）', base.netAmount === '60.00', `got ${base.netAmount}`);
+check('净额与 netBalance 同源同值', base.netAmount === base.netBalance, `${base.netAmount} vs ${base.netBalance}`);
 
 /* =================== 3) 来源账户 =================== */
 console.log('\n=== 来源账户 · accountId ===');
 const byBank = await summary({ accountId: bank.id });
 check('bank 支出 = 30.00', byBank.totalExpense === '30.00', `got ${byBank.totalExpense}`);
 check('bank 收入 = 100.00', byBank.totalIncome === '100.00', `got ${byBank.totalIncome}`);
-check('bank 录入总额 = 132.00', byBank.totalRecorded === '132.00', `got ${byBank.totalRecorded}`);
+check('bank 净额 = 70.00（100 − 30）', byBank.netAmount === '70.00', `got ${byBank.netAmount}`);
 const byWallet = await summary({ accountId: wallet.id });
 check('wallet 支出 = 10.00', byWallet.totalExpense === '10.00', `got ${byWallet.totalExpense}`);
 check('wallet 收入 = 0.00', byWallet.totalIncome === '0.00', `got ${byWallet.totalIncome}`);
-check('wallet 录入总额 = 10.00', byWallet.totalRecorded === '10.00', `got ${byWallet.totalRecorded}`);
+check('wallet 净额 = −10.00（0 − 10）', byWallet.netAmount === '-10.00', `got ${byWallet.netAmount}`);
 
 /* =================== 4) 分类 =================== */
 console.log('\n=== 分类 · categoryId / parentCategoryId ===');
 const bySub = await summary({ categoryId: foodSub.id });
 check('二级分类 支出 = 40.00', bySub.totalExpense === '40.00', `got ${bySub.totalExpense}`);
 check('二级分类 收入 = 0.00', bySub.totalIncome === '0.00', `got ${bySub.totalIncome}`);
-check('二级分类 录入总额 = 42.00', bySub.totalRecorded === '42.00', `got ${bySub.totalRecorded}`);
+check('二级分类 折扣合计 = 2.00', bySub.totalDiscount === '2.00', `got ${bySub.totalDiscount}`);
 const byParent = await summary({ parentCategoryId: foodParent.id });
 check('一级分类 支出 = 40.00', byParent.totalExpense === '40.00', `got ${byParent.totalExpense}`);
-check('一级分类 录入总额 = 42.00', byParent.totalRecorded === '42.00', `got ${byParent.totalRecorded}`);
+check('一级分类 净额 = −40.00', byParent.netAmount === '-40.00', `got ${byParent.netAmount}`);
 
 /* =================== 5) 类型 =================== */
 console.log('\n=== 类型 · recordType ===');
 const onlyExpense = await summary({ recordType: 'expense' });
 check('仅支出：支出 = 40.00', onlyExpense.totalExpense === '40.00', `got ${onlyExpense.totalExpense}`);
 check('仅支出：收入 = 0.00', onlyExpense.totalIncome === '0.00', `got ${onlyExpense.totalIncome}`);
-check('仅支出：录入总额 = 42.00', onlyExpense.totalRecorded === '42.00', `got ${onlyExpense.totalRecorded}`);
+check('仅支出：净额 = −40.00', onlyExpense.netAmount === '-40.00', `got ${onlyExpense.netAmount}`);
 check('仅支出：折扣合计 = 2.00', onlyExpense.totalDiscount === '2.00', `got ${onlyExpense.totalDiscount}`);
 const onlyIncome = await summary({ recordType: 'income' });
 check('仅收入：收入 = 100.00', onlyIncome.totalIncome === '100.00', `got ${onlyIncome.totalIncome}`);
 check('仅收入：支出 = 0.00', onlyIncome.totalExpense === '0.00', `got ${onlyIncome.totalExpense}`);
-check('仅收入：录入总额 = 100.00', onlyIncome.totalRecorded === '100.00', `got ${onlyIncome.totalRecorded}`);
+check('仅收入：净额 = 100.00', onlyIncome.netAmount === '100.00', `got ${onlyIncome.netAmount}`);
 
 /* =================== 6) 组合 =================== */
 console.log('\n=== 组合筛选 ===');
 const combo = await summary({ accountId: bank.id, recordType: 'expense' });
 check('bank + 支出：支出 = 30.00', combo.totalExpense === '30.00', `got ${combo.totalExpense}`);
-check('bank + 支出：录入总额 = 32.00', combo.totalRecorded === '32.00', `got ${combo.totalRecorded}`);
+check('bank + 支出：净额 = −30.00', combo.netAmount === '-30.00', `got ${combo.netAmount}`);
 
 /* =================== 7) 其它统计端点 =================== */
 console.log('\n=== 其它统计端点也响应筛选 ===');

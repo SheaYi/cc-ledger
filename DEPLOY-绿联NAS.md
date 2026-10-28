@@ -216,7 +216,7 @@ cat .env
 | 配置项 | 作用 | 能不能改 |
 |---|---|---|
 | `build: context: .` | 用当前目录的 `Dockerfile` 构建镜像 | 别改 |
-| `image: ${CC_IMAGE:-cc-ledger:1.1.11}` | 用哪个镜像：不设 `CC_IMAGE` 就用本地构建的这个名字；设成 `ghcr.io/shayi/cc-ledger:latest` 就是拉 GitHub 构建好的 | 可改（见 5.0） |
+| `image: ${CC_IMAGE:-cc-ledger:1.1.12}` | 用哪个镜像：不设 `CC_IMAGE` 就用本地构建的这个名字；设成 `ghcr.io/shayi/cc-ledger:latest` 就是拉 GitHub 构建好的 | 可改（见 5.0） |
 | `restart: unless-stopped` | **开机自启的核心**：容器退出就自动拉起；你手动停的则不再拉 | 见第五节 |
 | `ports: "3000:3000"` | **端口映射**，见第六节 | 端口冲突时只改左边 |
 | `JWT_SECRET` | 登录凭证密钥 | **必改**，其余可不动 |
@@ -270,7 +270,7 @@ echo 'CC_IMAGE=ghcr.io/shayi/cc-ledger:latest' >> .env
 ```
 
 > `CC_IMAGE` 不是应用的环境变量，只被 `docker-compose.yml` 读取，用来决定「用哪个镜像」。
-> 不写这一行 = 走本地构建（默认 `cc-ledger:1.1.11`）。
+> 不写这一行 = 走本地构建（默认 `cc-ledger:1.1.12`）。
 
 **第 2 步：登录 ghcr**（镜像设为 public 后可以跳过这步）
 
@@ -299,9 +299,9 @@ docker compose up -d
 |---|---|---|---|
 | `latest` | `ghcr.io/shayi/cc-ledger:latest` | 每次推 `main` | 日常用这个 |
 | `sha-60b1224` | `ghcr.io/shayi/cc-ledger:sha-60b1224` | 每次构建 | 想钉死到某一次提交 |
-| `v1.1.11` | `ghcr.io/shayi/cc-ledger:v1.1.11` | 打了 `v*` tag | 固定版本 |
+| `v1.1.12` | `ghcr.io/shayi/cc-ledger:v1.1.12` | 打了 `v*` tag | 固定版本 |
 
-> ⚠️ **版本标签带 `v` 前缀**，和 git tag 完全一致：写 `v1.1.11`，**不能**写成 `1.1.11`。
+> ⚠️ **版本标签带 `v` 前缀**，和 git tag 完全一致：写 `v1.1.12`，**不能**写成 `1.1.12`。
 > 少一个 `v` 拉不到镜像（`manifest unknown`，HTTP 404），但报错只说"找不到"，
 > 很容易误判成"镜像没构建成功"。想锁版本就把 `CC_IMAGE` 写成上面的完整地址。
 
@@ -721,7 +721,7 @@ curl http://127.0.0.1:3000/healthz
 {
   "status": "ok",
   "app": "CC记账",
-  "version": "1.1.11",
+  "version": "1.1.12",
   "uptimeSeconds": 3944,
   "database": { "connected": true, "migrationsApplied": 17, "walMode": true },
   "scheduler": { "running": true, "nextRun": "...", "tasks": [] }

@@ -25,7 +25,7 @@
 import { Api } from '../api.js';
 import { appFrame, mountTabBar } from '../chrome.js';
 import { currentLedger, loadSession } from '../session.js';
-import { ACCOUNT_TYPE_LABEL, esc, icon, money, toast } from '../ui.js';
+import { ACCOUNT_TYPE_LABEL, esc, icon, money, signedMoney, toast } from '../ui.js';
 import { downloadTextFile } from '../lib/download.js';
 import {
   attachTips,
@@ -105,6 +105,8 @@ function shiftRange(range, dir) {
 }
 
 const periodLabel = (r) => {
+  /** 「所有」= 两端皆空，先判它：空区间同时也是「日期没填完」的形态 */
+  if (!r?.from && !r?.to) return '所有';
   if (!r?.from) return '自定义';
   // 同一自然月 → 「2026-10」；否则给区间
   const f = r.from.slice(0, 7);
@@ -146,10 +148,21 @@ export async function renderStats(container, { go } = {}) {
    * 于是页面显示「这个区间没有任何数据」而没有任何报错指向日期框被清空了。
    * 缺一个就退回本月，至少用户看到的是「有数据的本月」而不是「空报表」。
    */
+  /**
+   * 是否「所有」账期。
+   *
+   * ⚠️ 用 `filters.quick === 'all'` 判定，而不是「dateFrom/dateTo 都为空」：
+   * 空区间同时也是「用户刚点进自定义、日期还没填完」的状态，
+   * 那种情况按既有约定是**退回本月**，不能因为空就当成「所有」。
+   */
+  const isAllMode = () => filters.quick === 'all' && !filters.manualRange;
+
   const activeRange = () => {
     if (filters.manualRange && filters.dateFrom && filters.dateTo) {
       return { from: filters.dateFrom, to: filters.dateTo };
     }
+    /** 「所有」= 全部账单，不受时间范围限制（空区间即「不加日期条件」） */
+    if (isAllMode()) return { from: '', to: '' };
     if (filters.quick === 'week') return weekRange(0);
     if (filters.quick === 'year') return yearRange(0);
     if (filters.quick === 'last12') return last12Range();
@@ -166,8 +179,14 @@ export async function renderStats(container, { go } = {}) {
   const queryOf = () => {
     const r = activeRange();
     return {
-      dateFrom: r.from,
-      dateTo: r.to,
+      /**
+       * 「所有」模式下**不发** dateFrom / dateTo，改发 `all=1`。
+       *
+       * ⚠️ 不能只发空串指望后端识别：后端「没收到日期」的既有语义是
+       * **默认本月**，一路沿用了几十个调用点。真用空串表达「所有」，
+       * 要么后端分不清、要么把所有老调用方一起改成「全部」。
+       */
+      ...(isAllMode() ? { all: '1' } : { dateFrom: r.from, dateTo: r.to }),
       ...(filters.types.size ? { recordType: [...filters.types].join(',') } : {}),
       ...(filters.accountId ? { accountId: filters.accountId } : {}),
       ...(filters.parentCategoryId ? { parentCategoryId: filters.parentCategoryId } : {}),
@@ -416,7 +435,9 @@ export async function renderStats(container, { go } = {}) {
                aria-pressed="${!filters.manualRange && filters.quick === q.key}">${esc(q.label)}</button>`,
         ).join('') +
         `<button class="segmented__item st-filter__segitem" type="button" data-role="custom"
-           aria-pressed="${filters.manualRange}">自定义</button>`;
+           aria-pressed="${filters.manualRange}">自定义</button>` +
+        `<button class="segmented__item st-filter__segitem" type="button" data-role="all"
+           aria-pressed="${isAllMode()}">所有</button>`;
     }
 
     const picks = $('[data-role=picks]');
@@ -459,8 +480,19 @@ export async function renderStats(container, { go } = {}) {
     const kwEl = $('#st-f-kw');
     if (kwEl && kwEl.value !== filters.keyword) kwEl.value = filters.keyword;
 
+    /** 「重置」在「所有」下也要出现：它是从「全部账单」回到本月的唯一入口 */
     const resetBtn = $('[data-role=reset]');
-    if (resetBtn) resetBtn.hidden = !filters.manualRange && !hasExtraFilters();
+    if (resetBtn) resetBtn.hidden = !filters.manualRange && !hasExtraFilters() && !isAllMode();
+
+    /**
+     * 「上一账期 / 下一账期」在「所有」下**禁用**。
+     * 全部账单没有可平移的边界 —— 留着可点，点了会把「所有」悄悄变成某个具体区间，
+     * 而账期芯片同时从「所有」变成日期，用户只会觉得「我明明选的是所有」。
+     */
+    const prevBtn = $('[data-role=prev]');
+    const nextBtn = $('[data-role=next]');
+    if (prevBtn) prevBtn.disabled = isAllMode();
+    if (nextBtn) nextBtn.disabled = isAllMode();
 
     paintMore();
     paintFilterSummary();
@@ -510,6 +542,19 @@ export async function renderStats(container, { go } = {}) {
       const quick = e.target.closest('[data-quick]');
       if (quick) {
         filters.quick = quick.dataset.quick;
+        filters.manualRange = false;
+        filters.dateFrom = '';
+        filters.dateTo = '';
+        paintFilters();
+        load();
+        return;
+      }
+      /**
+       * 「所有」：清空账期约束，按全部账单统计。
+       * 与「自定义」互斥 —— 选它就不再是手填区间，反之亦然。
+       */
+      if (e.target.closest('[data-role=all]')) {
+        filters.quick = 'all';
         filters.manualRange = false;
         filters.dateFrom = '';
         filters.dateTo = '';
@@ -840,7 +885,9 @@ export async function renderStats(container, { go } = {}) {
     try {
       const res = await Api.exportStatsCsv(ledger.id, queryOf());
       // 复用统一下载工具：入 DOM + 异步 revoke（这里原本是同步 revoke，同款隐患）
-      downloadTextFile(`报表-${activeRange().from}-${activeRange().to}.csv`, res.raw ?? '', {
+      // 「所有」下 from/to 皆空，文件名会退化成「报表--.csv」，显式给个可读的名字
+      const fname = isAllMode() ? '报表-所有.csv' : `报表-${activeRange().from}-${activeRange().to}.csv`;
+      downloadTextFile(fname, res.raw ?? '', {
         mime: 'text/csv;charset=utf-8',
         throwOnEmpty: true,
       });
@@ -1169,17 +1216,29 @@ export async function renderStats(container, { go } = {}) {
   }
 
   /**
-   * 个人账本「成员消费」的替代卡（需求 ②）。
+   * 个人账本「成员消费」的替代卡：**本期录入汇总**（列表形式）。
    *
-   * 个人账本没有「成员」维度，原饼图无意义。改为在所选筛选范围内呈现四项
-   * 录入汇总指标，沿用 .kpi-card 风格，与全站设计规范一致。
+   * 个人账本没有「成员」维度，原饼图无意义。改为在所选筛选范围内呈现五项
+   * 账务指标，字段顺序与财务报表的阅读顺序一致（先流出、再流入、再调整、最后结论）。
    *
-   * 命名采用专业财务术语：
-   *   录入总额 = Σ amount（所有录入金额合计）
-   *   折扣合计 = Σ discount
-   *   手续费合计 = Σ fee
-   *   净额     = Σ actualAmount = 录入总额 + 手续费 − 折扣
-   * 净额公式显式写在卡片副文案里，避免「扣减折扣与手续费」的方向歧义。
+   * ## 口径（严格遵循 `docs/03 §1.5` 净结余 + `§1.6` 冲减）
+   *
+   *   支出总额   = Σ支出正常 − Σ支出冲减（`periodFlow().expense`）
+   *   收入总额   = Σ收入正常 − Σ收入冲减（`periodFlow().income`）
+   *   折扣合计   = Σ(支出+收入)discount − 冲减侧
+   *   手续费合计 = Σ(支出+收入)fee     − 冲减侧
+   *   净额       = 收入总额 − 支出总额
+   *
+   * ⚠️ 净额**不是**「Σ actualAmount」。后者会把转账、应收、应付算进来，
+   * 而这三类在 `§1.5` 里明确**不计入净结余**（转账只是账户间搬家，
+   * 应收应付是债权债务，都不改变净资产）。
+   *
+   * ## 为什么用「列表」而不是一排卡片
+   *
+   * 这五项不是并列的五个指标，而是**一条计算链**：前四项推导出第五项。
+   * 铺成 2×2 的卡片网格后，阅读顺序变成「左上→右上→左下→右下」，
+   * 「净额」落在角落，看不出它是前四项的结论。竖排列表 + 净额收尾并加重，
+   * 才是「先明细、后结论」的读法。
    */
   function paintPersonalSummary(s) {
     /**
@@ -1196,24 +1255,40 @@ export async function renderStats(container, { go } = {}) {
       const n = Number(v ?? 0);
       return Number.isFinite(n) ? n : 0;
     };
-    const recorded = num(s?.totalRecorded);
+    /** 顺序即财务报表的阅读顺序：流出 → 流入 → 调整项 → 结论 */
+    const expense = num(s?.totalExpense);
+    const income = num(s?.totalIncome);
     const discount = num(s?.totalDiscount);
     const fee = num(s?.totalFee);
     const net = num(s?.netAmount);
-    const item = (label, value, note) => `
-      <div class="kpi-card">
-        <span class="kpi-card__label">${esc(label)}</span>
-        <span class="kpi-card__value tnum">${esc(money(value))}</span>
-        <span class="kpi-card__sub">${esc(note)}</span>
+
+    /**
+     * 一行 = 标签（+ 口径小字） + 金额。
+     *
+     * `signed` 只给净额：它是唯一**可能为负**的项，也是唯一需要读者
+     * 立刻判断「是赚还是亏」的项。其余四项是「发生额」，按财务惯例一律正数，
+     * 加 `+` 号反而会让「支出 3000」读起来像「收入 3000」。
+     */
+    const row = (label, value, { note = '', signed = false, strong = false } = {}) => {
+      const tone = signed ? (value > 0 ? ' is-pos' : value < 0 ? ' is-neg' : '') : '';
+      return `
+      <div class="st-sum-row${strong ? ' st-sum-row--total' : ''}">
+        <span class="st-sum-row__label">
+          <span class="st-sum-row__name">${esc(label)}</span>${note ? `<span class="st-sum-row__note">${esc(note)}</span>` : ''}
+        </span>
+        <span class="st-sum-row__value tnum${tone}">${esc(signed ? signedMoney(value) : money(value))}</span>
       </div>`;
+    };
+
     slotMember.innerHTML = section(
       '本期录入汇总',
       '所选筛选范围内',
-      `<div class="st-personal-sum">
-        ${item('录入总额', recorded, '所有录入金额合计')}
-        ${item('折扣合计', discount, '折扣金额合计')}
-        ${item('手续费合计', fee, '手续费金额合计')}
-        ${item('净额', net, '录入总额 + 手续费 − 折扣')}
+      `<div class="st-sum-list">
+        ${row('支出总额', expense, { note: '已扣退款冲减' })}
+        ${row('收入总额', income, { note: '已扣退款冲减' })}
+        ${row('折扣合计', discount)}
+        ${row('手续费合计', fee)}
+        ${row('净额', net, { note: '净收入 − 净支出', signed: true, strong: true })}
       </div>`,
     );
   }
@@ -1345,16 +1420,23 @@ export async function renderStats(container, { go } = {}) {
     const [sum, cmp, yoy, trend12, cat, daily, member, nw, accBal, recv, pay] = await Promise.all([
       Api.statsSummary(ledger.id, q).then((r) => r.data).catch(() => null),
       Api.statsComparison(ledger.id, q).then((r) => r.data).catch(() => null),
-      Api.statsYearOverYear(ledger.id, {
-        year: Number(q.dateFrom.slice(0, 4)),
-        month: Number(q.dateFrom.slice(5, 7)),
-        ...(q.accountId ? { accountId: q.accountId } : {}),
-        ...(q.parentCategoryId ? { parentCategoryId: q.parentCategoryId } : {}),
-        ...(q.categoryId ? { categoryId: q.categoryId } : {}),
-        ...(q.recordType ? { recordType: q.recordType } : {}),
-      })
-        .then((r) => r.data)
-        .catch(() => null),
+      /**
+       * ⚠️「所有」模式下 `q.dateFrom` 不存在，直接 `.slice()` 会抛 TypeError，
+       * 而它在 `Promise.all` 里 —— 一个请求炸掉整页所有卡片都不渲染。
+       * 同比本来就要「某一个月的去年同期」，在「所有」下这个概念不成立，跳过。
+       */
+      isAllMode()
+        ? null
+        : Api.statsYearOverYear(ledger.id, {
+            year: Number(q.dateFrom.slice(0, 4)),
+            month: Number(q.dateFrom.slice(5, 7)),
+            ...(q.accountId ? { accountId: q.accountId } : {}),
+            ...(q.parentCategoryId ? { parentCategoryId: q.parentCategoryId } : {}),
+            ...(q.categoryId ? { categoryId: q.categoryId } : {}),
+            ...(q.recordType ? { recordType: q.recordType } : {}),
+          })
+            .then((r) => r.data)
+            .catch(() => null),
       /**
        * 模块 5 标题写的是「近 12 个月」，所以它**必须固定取近 12 个月**，
        * 不能跟着当前账期走。

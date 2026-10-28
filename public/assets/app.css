@@ -7913,17 +7913,64 @@ button.st-filter__pick {
   border-radius: var(--r-md);
 }
 
-/* --------- 个人账本「本期录入汇总」四指标卡（替代成员饼图）---------
- * 2 × 2 网格放入 span-4 窄卡，沿用 .kpi-card 风格，仅补圆角与内边距。 */
-.st-personal-sum {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--s-sm);
+/* --------- 个人账本「本期录入汇总」（替代成员饼图）---------
+ * 竖排列表而非 2×2 卡片网：这五项是**一条计算链**（前四项推出净额），
+ * 网格的「左上→右上→左下→右下」读法会让结论项「净额」落在角落。
+ * 列表 + 净额收尾加重，才是「先明细、后结论」。 */
+.st-sum-list {
+  display: flex;
+  flex-direction: column;
 }
 
-.st-personal-sum .kpi-card {
-  border-radius: var(--r-sm);
-  padding: var(--s-sm);
+.st-sum-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: var(--s-sm);
+  padding: var(--s-xs) 0;
+  border-top: 1px solid var(--c-divider-soft);
+}
+
+.st-sum-row:first-child {
+  border-top: 0;
+}
+
+.st-sum-row__label {
+  min-width: 0;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--c-ink);
+}
+
+/* 口径小字：说明这一行「怎么算出来的」，避免读者自行猜测符号方向 */
+.st-sum-row__note {
+  margin-left: var(--s-xs);
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--c-ink-muted-48);
+}
+
+.st-sum-row__value {
+  font-size: 15px;
+  line-height: 1.5;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* 结论行（净额）：与上面的明细拉开层次 */
+.st-sum-row--total {
+  margin-top: var(--s-xxs);
+  padding-top: var(--s-sm);
+  border-top: 1px solid var(--c-hairline);
+}
+
+.st-sum-row--total .st-sum-row__label {
+  font-weight: 600;
+}
+
+.st-sum-row--total .st-sum-row__value {
+  font-size: 17px;
 }
 
 /* --------- 窄屏 --------- */

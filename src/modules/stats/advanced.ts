@@ -39,6 +39,7 @@ import { formatCents, nowIso, parseAmountToCents, today as todayStr } from '../.
 import { keywordCondition, type TxFilters } from '../../utils/tx-filter.js';
 import { balanceView, periodFlow, totals } from '../accounts/service.js';
 import { budgetProgress } from '../budgets/service.js';
+import { actualSpan } from './service.js';
 
 const pad = (n: number) => String(n).padStart(2, '0');
 const DAY = 86_400_000;
@@ -437,18 +438,29 @@ export function comparison(
   keyword?: string,
   /** 账户 / 分类 / 类型 三维筛选（可选），与上期口径一致 */
   filters?: TxFilters,
+  /**
+   * 「所有」模式：本期 = 全部账单。
+   *
+   * ⚠️ 空区间不能直接喂给 `previousRange()` —— `new Date('T00:00:00')` 是
+   * Invalid Date，算出来的「上期」是 `NaN-NaN-NaN`，既查不到数据也不报错，
+   * 环比就永远显示「—」而没人知道为什么。所以先解析成账目的实际首末笔跨度。
+   */
+  all?: boolean,
 ) {
-  const cur = periodFlow(ctx, ledgerId, from, to, keyword, filters);
-  const prevR = previousRange(from, to);
+  /** 「所有」模式退化成实际数据跨度，好让「上一个等长区间」有意义 */
+  const f = all ? actualSpan(ctx, ledgerId).from : from;
+  const t = all ? actualSpan(ctx, ledgerId).to : to;
+  const cur = periodFlow(ctx, ledgerId, all ? '' : f, all ? '' : t, keyword, filters);
+  const prevR = previousRange(f, t);
   const prev = periodFlow(ctx, ledgerId, prevR.from, prevR.to, keyword, filters);
-  const curDays = daysBetween(from, to);
+  const curDays = daysBetween(f, t);
   const prevDays = daysBetween(prevR.from, prevR.to);
 
   const curDailyExp = Math.round(cur.expense / curDays);
   const prevDailyExp = Math.round(prev.expense / prevDays);
 
   return {
-    current: { from, to, days: curDays, ...centsOf(cur) },
+    current: { from: f, to: t, days: curDays, ...centsOf(cur) },
     previous: { ...prevR, days: prevDays, ...centsOf(prev) },
     expense: {
       amountChangeRate: rate(cur.expense, prev.expense),

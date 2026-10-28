@@ -285,10 +285,10 @@ console.log('\n── 模块 3 · KPI 概览卡 ──');
 /**
  * ⚠️ 计数必须**限定在 KPI 槽位内**（`[data-role=kpi]`）。
  *
- * 个人账本的「本期录入汇总」沿用了 `.kpi-card` 样式，于是页面上
- * 一共有 4（KPI）+ 4（录入汇总）= 8 个 `.kpi-card`。
- * 用全局 `.kpi-card` 计数会把两套卡混成一套 —— 断言的是「KPI 区有 4 张卡」，
- * 不是「全页有 4 个 kpi-card 元素」。
+ * 个人账本的「本期录入汇总」**曾经**沿用 `.kpi-card`，那时全页是
+ * 4（KPI）+ 4（录入汇总）= 8 个。现在它改成了 `.st-sum-row` 竖排列表，
+ * 但用全局 `.kpi-card` 计数仍会把「别的区块恰好也用 kpi-card」的情况混进来 ——
+ * 断言的是「KPI 区有 4 张卡」，不是「全页有 4 个 kpi-card 元素」。
  */
 check('4 张 KPI 卡', Number(await q('[data-role=kpi] .kpi-card')) === 4, `${await q('[data-role=kpi] .kpi-card')} 张`);
 const kLabels = await ev(`Array.from(document.querySelectorAll('[data-role=kpi] .kpi-card__label')).map(x=>x.textContent.trim())`);
@@ -391,18 +391,47 @@ check('星期分布 7 根柱（含无支出日）', Number(await q('[data-role=m
  * 且**必须真的有数**（不是 ¥0.00 的空壳）—— 这正是「本期录入汇总无数据显示」那条 bug 的守门断言。
  */
 if (isPersonal) {
-  const psLabels = await ev(`Array.from(document.querySelectorAll('[data-role=m-member] .kpi-card__label')).map(x=>x.textContent.trim())`);
-  check('个人账本：本期录入汇总四指标齐全',
-    ['录入总额', '折扣合计', '手续费合计', '净额'].every((k) => psLabels.includes(k)),
-    JSON.stringify(psLabels));
-  const psValues = await ev(`Array.from(document.querySelectorAll('[data-role=m-member] .kpi-card__value')).map(x=>x.textContent.trim())`);
-  check('个人账本：本期录入汇总有数（录入总额 > ¥0.00）',
-    psValues.length === 4 && !psValues.every((v) => /[¥]\s*0\.00/.test(v)) && /[1-9]/.test(psValues[0] ?? ''),
-    JSON.stringify(psValues));
+  /**
+   * 「本期录入汇总」已从 2×2 的 `.kpi-card` 网格改为**竖排列表**
+   * （五字段是一条计算链：前四项推出净额，网格读法会让结论落在角落）。
+   * 所以选择器从 `.kpi-card__label` 换成 `.st-sum-row__name`，
+   * 并**断言顺序** —— 顺序本身就是这次需求的交付内容之一。
+   */
+  const psLabels = await ev(`Array.from(document.querySelectorAll('[data-role=m-member] .st-sum-row__name')).map(x=>x.textContent.trim())`);
+  check(
+    '个人账本：本期录入汇总五字段齐全且顺序正确',
+    JSON.stringify(psLabels) === JSON.stringify(['支出总额', '收入总额', '折扣合计', '手续费合计', '净额']),
+    JSON.stringify(psLabels),
+  );
+  const psValues = await ev(`Array.from(document.querySelectorAll('[data-role=m-member] .st-sum-row__value')).map(x=>x.textContent.trim())`);
+  check(
+    '个人账本：本期录入汇总有数（不全是 ¥0.00）',
+    psValues.length === 5 && !psValues.every((v) => /[¥]\s*0\.00/.test(v)) && psValues.some((v) => /[1-9]/.test(v)),
+    JSON.stringify(psValues),
+  );
+  /** 净额是唯一带符号的项（财务惯例：盈余为正、超支为负） */
+  const netText = psValues[4] ?? '';
+  check('个人账本：净额带正负号', /^[+-]?[¥]\s/.test(netText), JSON.stringify(netText));
   check('个人账本：不再渲染成员饼图', Number(await q('[data-role=m-member] .st-slice')) === 0);
 } else {
   check('成员饼图有扇区', Number(await q('[data-role=m-member] .st-slice')) > 0);
 }
+
+/**
+ * 账期「所有」：在「近12月 / 自定义」之后新增的选项。
+ * 选它时按全部账单统计、不受时间范围限制，翻页按钮随之禁用
+ * （「全部账单」没有可平移的边界）。
+ */
+const quickLabels = await ev(`Array.from(document.querySelectorAll('[data-role=quick] .segmented__item')).map(x=>x.textContent.trim())`);
+check(
+  '账期选项顺序含「近12月 → 自定义 → 所有」',
+  quickLabels.includes('近12月') &&
+    quickLabels.includes('自定义') &&
+    quickLabels.includes('所有') &&
+    quickLabels.indexOf('所有') > quickLabels.indexOf('自定义') &&
+    quickLabels.indexOf('自定义') > quickLabels.indexOf('近12月'),
+  JSON.stringify(quickLabels),
+);
 
 /**
  * 星期分布**不再有自己的范围切换器**（需求 4）。

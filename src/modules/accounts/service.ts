@@ -602,7 +602,7 @@ export function netWorth(ctx: AppCtx, ledgerId: string): number {
  * 这是「退款记成收入」之外的第二个坑 —— 用冲减表达虽不虚增收入，
  * 但若不显式相减，支出侧照样翻倍。
  */
-const CONTRA_CASE = sql<number>`case when ${transactions.adjustmentReason} in ('reversal','refund') then 1 else 0 end`;
+export const CONTRA_CASE = sql<number>`case when ${transactions.adjustmentReason} in ('reversal','refund') then 1 else 0 end`;
 
 export function periodFlow(
   ctx: AppCtx,
@@ -637,8 +637,14 @@ export function periodFlow(
       and(
         eq(transactions.ledgerId, ledgerId),
         isNull(transactions.deletedAt),
-        gte(transactions.txDate, from),
-        lte(transactions.txDate, to),
+        /**
+         * 「所有」模式（统计页账期选「所有」）传空串，**不加日期条件**。
+         * ⚠️ 不能直接写 `gte(tx_date, '')`：空串能匹配任何行，看着像「全部」，
+         * 但 `lte(tx_date, '')` 是**匹配不到任何行**的 —— 一加一减之下
+         * 区间退化成空集，页面显示「没有任何数据」且没有任何提示。
+         */
+        ...(from ? [gte(transactions.txDate, from)] : []),
+        ...(to ? [lte(transactions.txDate, to)] : []),
         ...(kwCond ? [kwCond] : []),
         ...txFilterConds(filters),
       ),

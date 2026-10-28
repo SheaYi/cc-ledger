@@ -701,6 +701,26 @@ export function lineChart(points, opt = {}) {
  * 负债是减项，**不**正向叠在资产上（否则「总资产」会被虚增）。
  * 只画资产或负债任一 > 0 的月份；全 0 的月份本就不该出现在净资产图里。
  */
+/**
+ * Y 轴上界：**先留余量，再取整到好看的刻度**。
+ *
+ * 直接拿数据最大值当上界有两个毛病：
+ *   · 曲线峰值**贴死**在图表顶边，2.2px 的描边有一半被 viewBox 裁掉，
+ *     看上去像「线被削平了」；
+ *   · 轴刻度会出现 1234.56 这种读不出来的数。
+ * 所以先乘一个余量系数（留白），再用 1 / 1.2 / 1.5 / 2 / 2.5 / 3 … 的
+ * 刻度序列向上取整 —— 峰值落在 80% 高度附近，顶部有呼吸空间。
+ */
+const NICE_STEPS = [1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10];
+function niceMax(v, headroom = 1.08) {
+  const target = Math.max(Number(v) || 0, 0) * headroom;
+  if (!(target > 0)) return 1;
+  const exp = Math.floor(Math.log10(target));
+  const base = 10 ** exp;
+  const n = target / base;
+  return (NICE_STEPS.find((s) => n <= s + 1e-9) ?? 10) * base;
+}
+
 export function stackedArea(data, opt = {}) {
   // 只画有数据的月份（资产或负债任一 > 0）；全 0 的月份本就不该出现在净资产图里。
   const rows = (data ?? []).filter((d) => num(d.asset) > 0 || num(d.debt) > 0);
@@ -708,17 +728,25 @@ export function stackedArea(data, opt = {}) {
 
   const W = 640;
   const H = 200;
-  const PAD = 8;
+  /**
+   * 四周内边距**分开给**，不再用一个 PAD 通吃：
+   *   · 顶部要留出描边半宽 + 峰值余量（曲线不能贴顶）；
+   *   · 左右要留出「最新数据点」圆点的半径，否则最后一个点被 viewBox 裁掉一半；
+   *   · 底部留给月份标签。
+   */
+  const PAD_X = 14;
+  const PAD_T = 12;
+  const PAD_B = 8;
   const LABEL_H = 16;
-  const plotH = H - PAD * 2 - LABEL_H;
-  const assetMax = Math.max(...rows.map((d) => num(d.asset)), 1);
-  const debtMax = Math.max(...rows.map((d) => num(d.debt)), 1);
-  const stepX = rows.length > 1 ? (W - PAD * 2) / (rows.length - 1) : 0;
-  const x = (i) => PAD + i * stepX;
+  const plotH = H - PAD_T - PAD_B - LABEL_H;
+  const assetMax = niceMax(Math.max(...rows.map((d) => num(d.asset)), 0));
+  const debtMax = niceMax(Math.max(...rows.map((d) => num(d.debt)), 0));
+  const stepX = rows.length > 1 ? (W - PAD_X * 2) / (rows.length - 1) : 0;
+  const x = (i) => PAD_X + i * stepX;
   // 资产占上半 60%，负债占下半 32%（中间留 8% 间隔，分置两个方向）
-  const DIV = PAD + plotH * 0.6;
+  const DIV = PAD_T + plotH * 0.6;
   const GAP = plotH * 0.08;
-  const yAsset = (v) => PAD + plotH * 0.6 * (1 - num(v) / assetMax);
+  const yAsset = (v) => PAD_T + plotH * 0.6 * (1 - num(v) / assetMax);
   const yDebt = (v) => DIV + GAP + plotH * 0.32 * (num(v) / debtMax);
 
   const assetTop = rows.map((d, i) => `${x(i).toFixed(2)},${yAsset(num(d.asset)).toFixed(2)}`);
@@ -732,9 +760,16 @@ export function stackedArea(data, opt = {}) {
    */
   const hits = rows
     .map((d, i) => {
-      const w = rows.length > 1 ? stepX : W - PAD * 2;
-      const left = rows.length > 1 ? x(i) - w / 2 : PAD;
-      return `<rect x="${left.toFixed(2)}" y="${PAD}" width="${w.toFixed(2)}"
+      const half = rows.length > 1 ? stepX / 2 : (W - PAD_X * 2) / 2;
+      /**
+       * ⚠️ 命中区必须**夹在 viewBox 内**。
+       * 首尾两格各有一半落在 `0..W` 之外，而 SVG 默认 `overflow: hidden` ——
+       * 溢出部分既不显示也**不接收指针事件**。后果是「悬停最新一个月没有 tooltip」，
+       * 而最新一个月恰恰是用户最想看的那个月；它不报错，只表现为「提示偶尔失灵」。
+       */
+      const left = Math.max(0, x(i) - half);
+      const right = Math.min(W, x(i) + half);
+      return `<rect x="${left.toFixed(2)}" y="${PAD_T}" width="${Math.max(0, right - left).toFixed(2)}"
         height="${plotH.toFixed(2)}" fill="transparent"${tipAttr(opt.tipOf ? opt.tipOf(d) : null)} />`;
     })
     .join('');
@@ -753,11 +788,26 @@ export function stackedArea(data, opt = {}) {
         .join(' ')}" fill="none" stroke="var(--c-primary)" stroke-width="2.4" opacity="1" />`
     : '';
 
+  /**
+   * 「最新数据点」显式画成圆点。
+   * 折线收尾在 x = W − PAD_X，没有这个点读者看不出「趋势停在哪一个月」；
+   * 描白边是为了在面积填充上也能看清（同色圆点会糊进填充里）。
+   */
+  const lastI = rows.length - 1;
+  const lastDot = `<circle cx="${x(lastI).toFixed(2)}" cy="${yAsset(num(rows[lastI]?.asset)).toFixed(2)}"
+      r="3.4" fill="${tone(0)}" stroke="var(--c-canvas)" stroke-width="1.6" />`;
+
   const labelSet = axisLabelSet(rows.length, 12);
+  /**
+   * 首尾标签**改锚点**（start / end），中间维持 middle。
+   * 一律 middle 时第一个标签有一半落在 x < 0、最后一个有一半落在 x > W，
+   * 都被 viewBox 裁掉 —— 表现是「月份标签少了一半截」。
+   */
+  const anchorOf = (i) => (i === 0 ? 'start' : i === lastI ? 'end' : 'middle');
   const labels = rows
     .map((d, i) =>
       labelSet.has(i)
-        ? `<text x="${x(i).toFixed(2)}" y="${H - 3}" text-anchor="middle" font-size="10"
+        ? `<text x="${x(i).toFixed(2)}" y="${H - 3}" text-anchor="${anchorOf(i)}" font-size="10"
             fill="currentColor" opacity="0.6">${esc(d.label)}</text>`
         : '',
     )
@@ -765,15 +815,16 @@ export function stackedArea(data, opt = {}) {
 
   return `<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" role="img"
     aria-label="${esc(opt.ariaLabel ?? '净资产趋势')}" preserveAspectRatio="none">
-    <line x1="${PAD}" y1="${PAD + plotH}" x2="${W - PAD}" y2="${PAD + plotH}"
+    <line x1="${PAD_X}" y1="${(PAD_T + plotH).toFixed(2)}" x2="${W - PAD_X}" y2="${(PAD_T + plotH).toFixed(2)}"
       stroke="currentColor" stroke-width="1" opacity="0.18" />
-    <line x1="${PAD}" y1="${DIV.toFixed(2)}" x2="${W - PAD}" y2="${DIV.toFixed(2)}"
+    <line x1="${PAD_X}" y1="${DIV.toFixed(2)}" x2="${W - PAD_X}" y2="${DIV.toFixed(2)}"
       stroke="currentColor" stroke-width="1" opacity="0.12" stroke-dasharray="3 3" />
     <polygon points="${assetTop.join(' ')} ${[...assetBase].reverse().join(' ')}" fill="${tone(0)}" opacity="0.10" />
     <polyline points="${assetTop.join(' ')}" fill="none" stroke="${tone(0)}" stroke-width="2.2" opacity="0.95" />
     <polygon points="${debtTop.join(' ')} ${[...debtBase].reverse().join(' ')}" fill="var(--c-danger)" opacity="0.10" />
     <polyline points="${debtTop.join(' ')}" fill="none" stroke="var(--c-danger)" stroke-width="2.2" opacity="0.9" />
     ${netLine}
+    ${lastDot}
     ${labels}
     ${hits}
   </svg>`;
