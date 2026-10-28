@@ -35,15 +35,28 @@ import { execFileSync } from 'node:child_process';
 import { join, relative, extname } from 'node:path';
 
 const ROOT = process.cwd();
-/** 只扫前端资产目录 —— src/ 由 tsc --noEmit 负责 */
-const DIRS = ['public/assets'];
+/**
+ * 扫描目录。
+ *
+ * · `public/assets` —— 零构建前端，语法错 = 白屏（本闸门的由来）。
+ * · `scripts` —— 冒烟 / CDP 探针。它们**只被手动跑**，`tsc` 不看、
+ *   `vitest` 不碰、`audit:imports` 也不解析 —— 于是语法错误只有在
+ *   「手动跑探针」时才炸，而那次炸法往往很难一眼看出是脚本自己坏了
+ *   （探针中途抛错，前面的用例照常打勾，看起来像「测试不稳定」）。
+ *
+ *   真实实例：给 `probe-task5-ui.mjs` 的 `ev()` 模板字符串里写了一段
+ *   带反引号的注释 → 模板字符串被提前闭合 → 整个探针 SyntaxError。
+ */
+const DIRS = ['public/assets', 'scripts'];
+/** `.js`（前端模块 / CommonJS 兼容）与 `.mjs`（本项目的探针与脚本） */
+const EXTS = new Set(['.js', '.mjs']);
 
 const files = [];
 const walk = (dir) => {
   for (const name of readdirSync(dir)) {
     const p = join(dir, name);
     if (statSync(p).isDirectory()) walk(p);
-    else if (extname(p) === '.js') files.push(p);
+    else if (EXTS.has(extname(p))) files.push(p);
   }
 };
 for (const d of DIRS) walk(join(ROOT, d));
@@ -61,9 +74,9 @@ for (const f of files) {
 
 if (failed) {
   console.error(
-    `\n前端语法闸门：${failed} / ${files.length} 个文件无法被解析。` +
+    `\n语法闸门：${failed} / ${files.length} 个文件无法被解析。` +
       `\n零构建前端里这等于白屏 —— 且 tsc / vitest / audit:imports 全都不会报。`,
   );
   process.exit(1);
 }
-console.log(`前端语法闸门：${files.length} 个模块全部可解析 ✓`);
+console.log(`语法闸门：${files.length} 个模块（public/assets + scripts）全部可解析 ✓`);

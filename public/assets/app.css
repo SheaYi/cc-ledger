@@ -7756,6 +7756,26 @@ a.acct-row:hover {
 }
 
 /**
+ * 「分类」改为按钮触发模态树：按钮需 flex 布局让标签左对齐、箭头贴右，
+ * 并让长标签省略号收尾（与 select 下拉等宽等高，视觉连续）。
+ */
+button.st-filter__pick {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  padding-right: 12px;
+  font: inherit;
+  appearance: none;
+}
+
+.st-filter__pick-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/**
  * 搜索框：00-DESIGN 的 search-input 是**胶囊**形（与 CTA 同一套语法），
  * 前置 14px 静音图标。桌面这里取 32px 高与相邻下拉等高，
  * ≤833px 抬到 44px。
@@ -8093,6 +8113,115 @@ a.acct-row:hover {
     max-height: 88vh;
     border-radius: var(--r-lg) var(--r-lg) 0 0;
   }
+}
+
+/* --------- 分类树（统计页「分类」筛选 modal 内部）---------
+ * 树状逐级筛选：类型 → 一级 → 二级。复用 .modal 设计系统，
+ * 只在这层补「树」专属的层级缩进、展开箭头与选中态。
+ * 触屏底线 44px（行 min-height:44px；箭头按钮 44×44）。 */
+.cat-tree {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cat-type {
+  margin: var(--s-sm) 0 4px;
+  padding: 0 var(--s-xs);
+  font-size: 12px;
+  line-height: 1.6;
+  letter-spacing: 1px;
+  color: var(--c-ink-muted-48);
+  text-transform: none;
+}
+
+.cat-node {
+  display: flex;
+  align-items: center;
+  gap: var(--s-xs);
+  min-height: 44px;
+  padding: 0 var(--s-xs);
+  border-radius: var(--r-sm);
+}
+
+.cat-node--parent {
+  padding-left: var(--s-md);
+}
+
+.cat-node--child {
+  padding-left: var(--s-xl);
+}
+
+.cat-node.is-sel {
+  background: var(--c-parchment);
+  box-shadow: inset 3px 0 0 var(--c-primary);
+}
+
+.cat-node__toggle {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--c-ink-muted-48);
+  cursor: pointer;
+  border-radius: var(--r-sm);
+}
+
+.cat-node__toggle:hover {
+  background: var(--c-divider-soft);
+}
+
+.cat-node__label {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--s-xs);
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  color: var(--c-ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.cat-node__label:hover {
+  color: var(--c-primary);
+}
+
+.cat-node__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cat-node__tag {
+  flex: 0 0 auto;
+  font-size: 12px;
+  line-height: 1;
+  padding: 4px 6px;
+  border-radius: var(--r-xs);
+  background: var(--c-parchment);
+  color: var(--c-ink-muted-48);
+}
+
+.cat-node__count {
+  flex: 0 0 auto;
+  font-size: 12px;
+  color: var(--c-ink-muted-48);
+}
+
+.cat-empty {
+  padding: var(--s-md) var(--s-xs);
+  font-size: 14px;
+  color: var(--c-ink-muted-48);
 }
 
 /**
@@ -8756,7 +8885,20 @@ a.acct-row:hover {
 }
 
 @media (max-width: 833px) {
-  .report-grid {
+  /**
+   * ⚠️ 选择器必须写成 `.grid.report-grid`（(0,2,0)），不能只写 `.report-grid`（(0,1,0)）。
+   *
+   * `mobile.css` 里有一条更靠后加载的通用规则
+   * `.grid { gap: var(--card-gap) }`（≤1023px，`--card-gap` = 8px）——
+   * 它与 `.report-grid` **同特异性**，于是靠加载顺序赢了，
+   * 把报表卡片的行间距从 12px 压回 8px。
+   * 结果是 app.css 里这条「报表卡片窄屏收紧到 12px」的意图**整条失效**，
+   * 而且没有任何报错 —— 只有探针量得到。
+   *
+   * 办法是给变体类加作用域前缀（`.grid.report-grid`）提高特异性，
+   * 让报表自己的间距重新说了算。
+   */
+  .grid.report-grid {
     grid-template-columns: minmax(0, 1fr);
     row-gap: var(--s-sm);
   }

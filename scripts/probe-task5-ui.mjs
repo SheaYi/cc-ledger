@@ -147,25 +147,36 @@ console.log('\n── 任务 3 · 统计筛选与图表跳转 ──');
 const fb5 = JSON.parse(
   await ev(`JSON.stringify((() => {
     const bar = document.querySelector('.st-filter__bar');
-    if (!bar) return null;
+    const card = document.querySelector('.st-filter__card');
+    if (!bar || !card) return null;
+    /**
+     * ⚠️ 控件查找必须落在「.st-filter__card」范围内，不能用「.st-filter__bar」。
+     *
+     * v1.1.10 把「来源 / 类型 / 分类 / 搜索」从工具条**内联**挪到了工具条
+     * 下方的常驻筛选面板（.st-filter__zone，与 .st-filter__bar 同级）。
+     * 于是 bar.querySelector('#st-f-source') 一律为 null —— 断言一直红，
+     * 原因不是控件没了，而是找错了容器。
+     * 工具条的高度断言仍针对 .st-filter__bar（它必须保持单行）。
+     */
+    const catBtn = card.querySelector('#st-f-cat');
     return {
-      hasSource: !!bar.querySelector('#st-f-source'),
-      hasType: !!bar.querySelector('#st-f-type'),
-      hasCat: !!bar.querySelector('#st-f-cat'),
-      hasKw: !!bar.querySelector('#st-f-kw'),
+      hasSource: !!card.querySelector('#st-f-source'),
+      hasType: !!card.querySelector('#st-f-type'),
+      hasCat: !!catBtn,
+      catIsButton: !!catBtn && catBtn.tagName === 'BUTTON',
+      hasKw: !!card.querySelector('#st-f-kw'),
       labelCount: bar.querySelectorAll('.field__label').length,
-      catGroups: bar.querySelectorAll('#st-f-cat optgroup').length,
       height: Math.round(bar.getBoundingClientRect().height),
     };
   })())`),
 );
 check(
-  '筛选工具条含 来源 / 类型 / 分类 三个下拉 + 搜索框',
+  '筛选工具条含 来源 / 类型 / 分类 三个控件 + 搜索框',
   Boolean(fb5 && fb5.hasSource && fb5.hasType && fb5.hasCat && fb5.hasKw),
   JSON.stringify(fb5),
 );
 check('控件靠自述文本说清用途（不逐个挂 label）', Number(fb5?.labelCount) === 0, `${fb5?.labelCount} 个 label`);
-check('一级 + 二级合并成一个分类下拉（optgroup 分组）', Number(fb5?.catGroups) > 0, `${fb5?.catGroups} 组`);
+check('分类筛选改为按钮触发模态树', Boolean(fb5 && fb5.catIsButton), `isButton=${fb5?.catIsButton}`);
 check('筛选栏只有一行（不占主视觉高度）', Number(fb5?.height) <= 60, `${fb5?.height}px`);
 
 /**

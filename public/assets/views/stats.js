@@ -397,28 +397,15 @@ export async function renderStats(container, { go } = {}) {
    *    写成芯片后点一下就摘掉，少一次「找到控件在哪」的搜索。
    */
   function paintFilters() {
-    const tree = catTree[filters.types.size === 1 ? [...filters.types][0] : 'expense'] ?? [];
-
     /**
-     * 分类下拉：值带 l1: 前缀表示选的是一级（看整个大类的汇总），
-     * 没有前缀的是二级 id。前缀在渲染时剥离，不进任何 API 请求。
+     * 分类筛选提示：无选择 → 「全部分类」；选了子分类 → 「父 › 子」；
+     * 选了整个一级 → 「父（全部）」。
      */
-    const catOpts = tree
-      .map((p) => {
-        const self = `<option value="l1:${esc(p.id)}"${
-          filters.parentCategoryId === p.id && !filters.categoryId ? ' selected' : ''
-        }>${esc(p.name)}（全部）</option>`;
-        const kids = (p.children ?? [])
-          .map(
-            (c) =>
-              `<option value="${esc(c.id)}"${filters.categoryId === c.id ? ' selected' : ''}>${esc(
-                p.name,
-              )} › ${esc(c.name)}</option>`,
-          )
-          .join('');
-        return `<optgroup label="${esc(p.name)}">${self}${kids}</optgroup>`;
-      })
-      .join('');
+    const catHint = () => {
+      if (filters.categoryId) return categoryName(filters.categoryId);
+      if (filters.parentCategoryId) return `${categoryName(filters.parentCategoryId)}（全部）`;
+      return '全部分类';
+    };
 
     const seg = $('[data-role=quick]');
     if (seg) {
@@ -453,10 +440,11 @@ export async function renderStats(container, { go } = {}) {
             )
             .join('')}
         </select>
-        <select class="st-filter__pick select st-filter__pick--cat" id="st-f-cat" aria-label="支出分类">
-          <option value="">全部分类</option>
-          ${catOpts}
-        </select>`;
+        <button type="button" class="st-filter__pick st-filter__pick--cat" id="st-f-cat"
+                aria-label="分类" aria-haspopup="dialog" aria-expanded="false">
+          <span class="st-filter__pick-label">${esc(catHint())}</span>
+          ${icon('chevron-down', 14)}
+        </button>`;
     }
 
     const rangeRow = $('[data-role=range-row]');
@@ -543,6 +531,10 @@ export async function renderStats(container, { go } = {}) {
         load();
         return;
       }
+      if (e.target.closest('#st-f-cat')) {
+        openCatModal();
+        return;
+      }
       if (e.target.closest('[data-role=more]')) {
         setMore(!moreOpen);
         return;
@@ -596,18 +588,6 @@ export async function renderStats(container, { go } = {}) {
         load();
         return;
       }
-      if (t.id === 'st-f-cat') {
-        if (t.value.startsWith('l1:')) {
-          filters.parentCategoryId = t.value.slice(3);
-          filters.categoryId = '';
-        } else {
-          filters.categoryId = t.value;
-          filters.parentCategoryId = '';
-        }
-        paintFilters();
-        load();
-        return;
-      }
       if (t.id === 'st-f-from' || t.id === 'st-f-to') {
         filters.dateFrom = $('#st-f-from')?.value ?? '';
         filters.dateTo = $('#st-f-to')?.value ?? '';
@@ -656,6 +636,174 @@ export async function renderStats(container, { go } = {}) {
     }
     if (filters.keyword) chips.push(chip('kw', `搜索 ${filters.keyword}`));
     slot.innerHTML = chips.join('');
+  }
+
+  /* ---------------- 模块 1b：分类树 modal ---------------- */
+
+  /**
+   * 分类筛选从「超长的全部分类下拉」改为**模态树状逐级筛选**。
+   *
+   * 为什么是模态而不是内联下拉：
+   * 旧版 `#st-f-cat` 把「一级 + 二级」全塞进一个 select（optgroup），
+   * 分类一多就长得超出视口、且无法在二级之间快速跳转。
+   * 改成居中弹窗 + 压暗遮罩，内部用树状结构（类型 → 一级 → 二级）逐级展开，
+   * 既解决长度问题，也让「看整个大类」与「只看某个二级」两种意图都一目了然。
+   *
+   * 复用既有 `.modal` 设计系统（`.modal / .modal__scrim / .modal__panel`），
+   * 桌面端居中、移动端自动变为底部 sheet（见 `app.css` 的 `.modal` 媒体查询）。
+   */
+
+  /** 哪些类型要作为树顶展示：单选某类型只看该类型；未选 / 多选则四个类型都列出来 */
+  const catTypeKeys = () =>
+    filters.types.size === 1 ? [[...filters.types][0]] : ['expense', 'income', 'receivable', 'payable'];
+
+  /** 已展开的一级分类（会话内记忆，关弹窗不清） */
+  let expandedParents = new Set();
+
+  function catNodeHtml(p, typeKey) {
+    const kids = p.children ?? [];
+    const isOpen = expandedParents.has(p.id);
+    const selParent = filters.parentCategoryId === p.id && !filters.categoryId;
+    const top = `
+      <div class="cat-node cat-node--parent${selParent ? ' is-sel' : ''}">
+        <button class="cat-node__toggle" type="button" data-act="toggle" data-id="${esc(p.id)}"
+                aria-label="展开或收起" aria-expanded="${isOpen}">${icon(isOpen ? 'chevron-down' : 'chevron', 14)}</button>
+        <button class="cat-node__label" type="button" data-act="pick-parent" data-type="${esc(typeKey)}" data-id="${esc(p.id)}">
+          <span class="cat-node__name">${esc(p.name)}</span>
+          <span class="cat-node__tag">全部</span>
+        </button>
+        ${kids.length ? `<span class="cat-node__count">${kids.length}</span>` : ''}
+      </div>`;
+    const children = isOpen && kids.length
+      ? kids
+          .map((c) => {
+            const sel = filters.categoryId === c.id;
+            return `<div class="cat-node cat-node--child${sel ? ' is-sel' : ''}">
+              <button class="cat-node__label" type="button" data-act="pick-child" data-type="${esc(typeKey)}" data-id="${esc(c.id)}">
+                <span class="cat-node__name">${esc(c.name)}</span>
+              </button>
+            </div>`;
+          })
+          .join('')
+      : '';
+    return top + children;
+  }
+
+  function paintCatTree() {
+    const body = $('[data-role=cat-tree]');
+    if (!body) return;
+    const keys = catTypeKeys();
+    const showTypeHeaders = keys.length > 1;
+    body.innerHTML = keys
+      .map((tk) => {
+        const list = catTree[tk] ?? [];
+        const header = showTypeHeaders ? `<div class="cat-type">${esc(TYPE_LABEL[tk] ?? tk)}</div>` : '';
+        const nodes = list.length
+          ? list.map((p) => catNodeHtml(p, tk)).join('')
+          : `<div class="cat-empty">该类型暂无分类</div>`;
+        return header + nodes;
+      })
+      .join('');
+  }
+
+  function onCatKeydown(e) {
+    if (e.key === 'Escape') closeCatModal();
+  }
+
+  function openCatModal() {
+    ensureCatModal();
+    // 自动展开当前选择所在的枝
+    if (filters.parentCategoryId) expandedParents.add(filters.parentCategoryId);
+    else if (filters.categoryId) {
+      for (const list of Object.values(catTree)) {
+        for (const p of list) {
+          if ((p.children ?? []).some((c) => c.id === filters.categoryId)) {
+            expandedParents.add(p.id);
+            break;
+          }
+        }
+      }
+    }
+    paintCatTree();
+    const m = $('.cat-modal');
+    if (m) m.hidden = false;
+    $('#st-f-cat')?.setAttribute('aria-expanded', 'true');
+    frame.addEventListener('keydown', onCatKeydown);
+  }
+
+  function closeCatModal() {
+    const m = $('.cat-modal');
+    if (m) m.hidden = true;
+    $('#st-f-cat')?.setAttribute('aria-expanded', 'false');
+    frame.removeEventListener('keydown', onCatKeydown);
+  }
+
+  /** 懒构建一次，挂在 frame 上（切页时随 frame 一起被回收） */
+  function ensureCatModal() {
+    if ($('.cat-modal')) return;
+    const wrap = document.createElement('div');
+    wrap.className = 'modal cat-modal';
+    wrap.setAttribute('role', 'dialog');
+    wrap.setAttribute('aria-modal', 'true');
+    wrap.setAttribute('aria-label', '选择分类');
+    wrap.hidden = true;
+    wrap.innerHTML = `
+      <div class="modal__scrim" data-role="cat-close"></div>
+      <div class="modal__panel" role="document">
+        <div class="modal__head">
+          <h2 class="modal__title">选择分类</h2>
+          <button class="modal__close" type="button" aria-label="关闭" data-role="cat-close">${icon('close', 18)}</button>
+        </div>
+        <div class="modal__body cat-tree" data-role="cat-tree"></div>
+        <div class="modal__foot">
+          <button class="btn btn--ghost btn--sm" type="button" data-role="cat-clear">清除分类</button>
+          <button class="btn btn--primary btn--sm" type="button" data-role="cat-close">完成</button>
+        </div>
+      </div>`;
+    frame.appendChild(wrap);
+
+    // 关闭：遮罩 / 完成 / 关闭按钮
+    wrap.addEventListener('click', (e) => {
+      if (e.target.closest('[data-role=cat-close]')) {
+        closeCatModal();
+        return;
+      }
+      if (e.target.closest('[data-role=cat-clear]')) {
+        filters.parentCategoryId = '';
+        filters.categoryId = '';
+        closeCatModal();
+        paintFilters();
+        load();
+        return;
+      }
+      const act = e.target.closest('[data-act]');
+      if (!act) return;
+      const id = act.dataset.id;
+      const type = act.dataset.type;
+      if (act.dataset.act === 'toggle') {
+        if (expandedParents.has(id)) expandedParents.delete(id);
+        else expandedParents.add(id);
+        paintCatTree();
+        return;
+      }
+      if (act.dataset.act === 'pick-parent') {
+        filters.types = new Set([type]);
+        filters.parentCategoryId = id;
+        filters.categoryId = '';
+        closeCatModal();
+        paintFilters();
+        load();
+        return;
+      }
+      if (act.dataset.act === 'pick-child') {
+        filters.types = new Set([type]);
+        filters.categoryId = id;
+        filters.parentCategoryId = '';
+        closeCatModal();
+        paintFilters();
+        load();
+      }
+    });
   }
 
   /* ---------------- 模块 2：账期切换器 ---------------- */
@@ -1034,10 +1182,24 @@ export async function renderStats(container, { go } = {}) {
    * 净额公式显式写在卡片副文案里，避免「扣减折扣与手续费」的方向歧义。
    */
   function paintPersonalSummary(s) {
-    const recorded = Number(s.totalRecorded ?? 0);
-    const discount = Number(s.totalDiscount ?? 0);
-    const fee = Number(s.totalFee ?? 0);
-    const net = Number(s.netAmount ?? 0);
+    /**
+     * ⚠️ 永远渲染，不依赖 `s` 是否取到。
+     * 之前只在 `if (sum)` 时绘制，一旦 `statsSummary` 请求失败（catch → null）
+     * 整张卡片就**空白**，用户看到的是「本期录入汇总无数据」。
+     * 现在无论 `sum` 是否到位都画：缺失就显示 ¥0.00，至少给出一个可读的空态，
+     * 而不是一块缺失的卡片。
+     *
+     * 同时做 NaN 兜底：`summary()` 返回的是分数字符串，经 `Number()` 转换后
+     * 必须是有限数；任何非有限值都回落到 0，避免「¥ NaN」这类脏值。
+     */
+    const num = (v) => {
+      const n = Number(v ?? 0);
+      return Number.isFinite(n) ? n : 0;
+    };
+    const recorded = num(s?.totalRecorded);
+    const discount = num(s?.totalDiscount);
+    const fee = num(s?.totalFee);
+    const net = num(s?.netAmount);
     const item = (label, value, note) => `
       <div class="kpi-card">
         <span class="kpi-card__label">${esc(label)}</span>
@@ -1183,7 +1345,14 @@ export async function renderStats(container, { go } = {}) {
     const [sum, cmp, yoy, trend12, cat, daily, member, nw, accBal, recv, pay] = await Promise.all([
       Api.statsSummary(ledger.id, q).then((r) => r.data).catch(() => null),
       Api.statsComparison(ledger.id, q).then((r) => r.data).catch(() => null),
-      Api.statsYearOverYear(ledger.id, { year: Number(q.dateFrom.slice(0, 4)), month: Number(q.dateFrom.slice(5, 7)) })
+      Api.statsYearOverYear(ledger.id, {
+        year: Number(q.dateFrom.slice(0, 4)),
+        month: Number(q.dateFrom.slice(5, 7)),
+        ...(q.accountId ? { accountId: q.accountId } : {}),
+        ...(q.parentCategoryId ? { parentCategoryId: q.parentCategoryId } : {}),
+        ...(q.categoryId ? { categoryId: q.categoryId } : {}),
+        ...(q.recordType ? { recordType: q.recordType } : {}),
+      })
         .then((r) => r.data)
         .catch(() => null),
       /**
@@ -1231,7 +1400,7 @@ export async function renderStats(container, { go } = {}) {
       }),
     );
     if (ledger.type === 'personal') {
-      if (sum) paintPersonalSummary(sum);
+      paintPersonalSummary(sum);
     } else {
       paintMember(member);
     }

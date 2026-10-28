@@ -74,6 +74,7 @@ interface RangeQuery {
   anchor?: string;
   keyword?: string;
   categoryId?: string;
+  parentCategoryId?: string;
   accountId?: string;
   tagId?: string;
   offset?: string;
@@ -161,27 +162,54 @@ export async function registerStatsRoutes(app: FastifyInstance, ctx: AppCtx): Pr
   app.get(`${base}/summary`, opts, async (req) => {
     const m = membershipFromRequest(ctx, req);
     const q = req.query as RangeQuery;
-    return ok(summary(ctx, m.ledgerId, q.dateFrom, q.dateTo, q.keyword));
+    return ok(
+      summary(ctx, m.ledgerId, q.dateFrom, q.dateTo, q.keyword, {
+        accountId: q.accountId,
+        parentCategoryId: q.parentCategoryId,
+        categoryId: q.categoryId,
+        recordTypes: q.recordType,
+      }),
+    );
   });
 
   app.get(`${base}/trend`, opts, async (req) => {
     const m = membershipFromRequest(ctx, req);
     const q = req.query as RangeQuery;
     const g = (q.granularity ?? 'day') as Granularity;
-    return ok(trend(ctx, m.ledgerId, g, q.dateFrom, q.dateTo, q.keyword));
+    return ok(
+      trend(ctx, m.ledgerId, g, q.dateFrom, q.dateTo, q.keyword, {
+        accountId: q.accountId,
+        parentCategoryId: q.parentCategoryId,
+        categoryId: q.categoryId,
+        recordTypes: q.recordType,
+      }),
+    );
   });
 
   app.get(`${base}/by-category`, opts, async (req) => {
     const m = membershipFromRequest(ctx, req);
     const q = req.query as RangeQuery;
     const level = q.level === '2' ? 2 : 1;
-    return ok(byCategory(ctx, m.ledgerId, q.recordType ?? 'expense', q.dateFrom, q.dateTo, level, q.keyword));
+    return ok(
+      byCategory(ctx, m.ledgerId, q.recordType ?? 'expense', q.dateFrom, q.dateTo, level, q.keyword, {
+        accountId: q.accountId,
+        parentCategoryId: q.parentCategoryId,
+        categoryId: q.categoryId,
+      }),
+    );
   });
 
   app.get(`${base}/by-account`, opts, async (req) => {
     const m = membershipFromRequest(ctx, req);
     const q = req.query as RangeQuery;
-    return ok(byAccount(ctx, m.ledgerId, q.dateFrom, q.dateTo, q.keyword));
+    return ok(
+      byAccount(ctx, m.ledgerId, q.dateFrom, q.dateTo, q.keyword, {
+        accountId: q.accountId,
+        parentCategoryId: q.parentCategoryId,
+        categoryId: q.categoryId,
+        recordTypes: q.recordType,
+      }),
+    );
   });
 
   app.get(`${base}/by-merchant`, opts, async (req) => {
@@ -257,8 +285,16 @@ export async function registerStatsRoutes(app: FastifyInstance, ctx: AppCtx): Pr
   /** S-08 环比（含天数校准） */
   app.get(`${base}/comparison`, opts, async (req) => {
     const m = membershipFromRequest(ctx, req);
-    const r = rangeOf(req.query as RangeQuery);
-    return ok(comparison(ctx, m.ledgerId, r.from, r.to, (req.query as RangeQuery).keyword));
+    const q = req.query as RangeQuery;
+    const r = rangeOf(q);
+    return ok(
+      comparison(ctx, m.ledgerId, r.from, r.to, q.keyword, {
+        accountId: q.accountId,
+        parentCategoryId: q.parentCategoryId,
+        categoryId: q.categoryId,
+        recordTypes: q.recordType,
+      }),
+    );
   });
 
   /** S-09 净资产序列 */
@@ -300,6 +336,12 @@ export async function registerStatsRoutes(app: FastifyInstance, ctx: AppCtx): Pr
         Number(q.year ?? now.getFullYear()),
         Number(q.month ?? now.getMonth() + 1),
         q.keyword,
+        {
+          accountId: q.accountId,
+          parentCategoryId: q.parentCategoryId,
+          categoryId: q.categoryId,
+          recordTypes: q.recordType,
+        },
       ),
     );
   });

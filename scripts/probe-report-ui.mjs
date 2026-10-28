@@ -39,6 +39,12 @@ const TOKEN = reg.data.accessToken;
 const AH = { Authorization: `Bearer ${TOKEN}` };
 const POST = { ...AH, ...H };
 const ledger = (await (await fetch(`${API}/ledgers`, { headers: AH })).json()).data[0];
+/**
+ * 新注册用户的默认账本是 **personal**（`ledgers.type` 的 schema 默认值），
+ * 于是统计页按需求隐藏「成员消费」饼图、改显「本期录入汇总」。
+ * 断言必须**按账本类型分支**，否则会把「设计如此」当成回归。
+ */
+const isPersonal = ledger.type === 'personal';
 const groups = (await (await fetch(`${API}${P`/ledgers/${ledger.id}/account-groups`}`, { headers: AH })).json()).data;
 const grp = groups.find((x) => x.id.endsWith('#grp_bank')) ?? groups[0];
 const acc = (
@@ -74,6 +80,22 @@ for (const [d, a] of [[5, '18000.00'], [12, '900.00']]) {
     body: JSON.stringify({ accountId: acc.id, txDate: day(d), fee: '0', discount: '0', recordType: 'income', categoryId: inc.id, name: '工资', amount: a }),
   });
 }
+/**
+ * 上一期的数据：没有它，「周期对比」卡的上期是 0，
+ * 而差异列在上期为 0 时按设计显示「—」（除零没有意义，不谎称「没变」）。
+ * 于是「差异列给出方向箭头」这条断言**永远**为 0 处 —— 而且是**日期相关**的：
+ * 上面那批数据只落在最近 20 天，月底跑就全在本月内，月初跑才可能跨到上月。
+ * 一条会随日历漂移的断言等于没有断言，所以这里显式补上一期的支出。
+ */
+for (const [d, a] of [[38, '520.00'], [44, '310.00']]) {
+  await fetch(`${API}${P`/ledgers/${ledger.id}/transactions`}`, {
+    method: 'POST', headers: POST,
+    body: JSON.stringify({
+      accountId: acc.id, txDate: day(d), fee: '0', discount: '0',
+      recordType: 'expense', categoryId: c0.id, name: `上月消费${d}`, amount: a,
+    }),
+  });
+}
 
 const auth = authInjector({ token: TOKEN });
 const q = (sel) => ev(`document.querySelectorAll(${JSON.stringify(sel)}).length`);
@@ -97,17 +119,18 @@ const fb = JSON.parse(
     const bar = document.querySelector('.st-filter__bar');
     if (!card || !bar) return null;
     const kw = document.querySelector('#st-f-kw');
-    // 三个下拉 + 搜索框已移到工具条下方的常驻筛选面板（与 .st-filter__bar 同级），
+    // 三个控件 + 搜索框已移到工具条下方的常驻筛选面板（与 .st-filter__bar 同级），
     // 故从 .st-filter__card 范围内查找；工具条高度断言仍针对 .st-filter__bar。
+    const catBtn = card.querySelector('#st-f-cat');
     return {
       hasSource: !!card.querySelector('#st-f-source'),
       hasType: !!card.querySelector('#st-f-type'),
-      hasCat: !!card.querySelector('#st-f-cat'),
+      hasCat: !!catBtn,
+      catIsButton: !!catBtn && catBtn.tagName === 'BUTTON',
       hasKw: !!kw,
       labelCount: bar.querySelectorAll('.field__label').length,
-      catGroups: card.querySelectorAll('#st-f-cat optgroup').length,
       sourceHint: ((card.querySelector('#st-f-source option') || {}).textContent || '').trim(),
-      catHint: ((card.querySelector('#st-f-cat option') || {}).textContent || '').trim(),
+      catHint: ((catBtn && catBtn.querySelector('.st-filter__pick-label')) || {}).textContent || '',
       height: Math.round(bar.getBoundingClientRect().height),
       kwRadius: kw ? getComputedStyle(kw).borderTopLeftRadius : 0,
       actsRight: Math.round(bar.querySelector('.st-filter__acts').getBoundingClientRect().right),
@@ -116,7 +139,7 @@ const fb = JSON.parse(
   })())`),
 );
 check(
-  '筛选工具条含 来源 / 类型 / 分类 三个下拉 + 搜索框',
+  '筛选工具条含 来源 / 类型 / 分类 三个控件 + 搜索框',
   Boolean(fb && fb.hasSource && fb.hasType && fb.hasCat && fb.hasKw),
   JSON.stringify(fb),
 );
@@ -125,13 +148,42 @@ check(
   Boolean(fb) && fb.labelCount === 0 && fb.sourceHint === '全部来源' && fb.catHint === '全部分类',
   `label=${fb?.labelCount} 来源=${fb?.sourceHint} 分类=${fb?.catHint}`,
 );
-check('一级 + 二级合并成一个分类下拉（optgroup 分组）', Number(fb?.catGroups) > 0, `${fb?.catGroups} 组`);
+check(
+  '分类筛选改为按钮触发模态树（废弃超长下拉）',
+  Boolean(fb && fb.catIsButton),
+  `isButton=${fb?.catIsButton}`,
+);
 check('筛选栏只有一行（不占主视觉高度）', Number(fb?.height) <= 60, `${fb?.height}px`);
 check(
   '搜索框是胶囊形（00-DESIGN search-input 与 CTA 同一套语法）',
   parseInt(String(fb?.kwRadius), 10) >= 100,
   String(fb?.kwRadius),
 );
+
+/**
+ * 点开分类按钮 → 居中模态树（遮罩 + 树状层级节点）出现；
+ * 关闭后弹窗收起。验证「逐级筛选」的入口与承载形态真的接好了。
+ */
+await ev(`document.querySelector('#st-f-cat').click()`);
+await new Promise((r) => setTimeout(r, 600));
+const catModal = JSON.parse(
+  await ev(`JSON.stringify((() => {
+    const m = document.querySelector('.cat-modal');
+    if (!m || m.hidden) return { open: false };
+    return {
+      open: true,
+      hasScrim: !!m.querySelector('.modal__scrim'),
+      hasTree: !!m.querySelector('[data-role=cat-tree]'),
+      nodeCount: m.querySelectorAll('.cat-node').length,
+    };
+  })())`),
+);
+check('点分类按钮弹出树状模态（含遮罩与树）', Boolean(catModal && catModal.open && catModal.hasScrim && catModal.hasTree), JSON.stringify(catModal));
+check('模态内渲染出分类树节点', Number(catModal?.nodeCount) > 0, `${catModal?.nodeCount} 个`);
+await ev(`document.querySelector('.cat-modal [data-role=cat-close]').click()`);
+await new Promise((r) => setTimeout(r, 400));
+check('关闭按钮收起分类模态', (await ev(`document.querySelector('.cat-modal').hidden`)) === true);
+
 const quicks = await ev(`Array.from(document.querySelectorAll('[data-quick]')).map(x=>x.textContent.trim())`);
 check('快捷账期四选（本周/本月/本年/近12月）',
   quicks.length === 4 && quicks.includes('本周') && quicks.includes('近12月'), JSON.stringify(quicks));
@@ -230,8 +282,16 @@ await new Promise((r) => setTimeout(r, 1200));
 
 /* ══════════ 3. KPI 卡 ══════════ */
 console.log('\n── 模块 3 · KPI 概览卡 ──');
-check('4 张 KPI 卡', Number(await q('.kpi-card')) === 4);
-const kLabels = await ev(`Array.from(document.querySelectorAll('.kpi-card__label')).map(x=>x.textContent.trim())`);
+/**
+ * ⚠️ 计数必须**限定在 KPI 槽位内**（`[data-role=kpi]`）。
+ *
+ * 个人账本的「本期录入汇总」沿用了 `.kpi-card` 样式，于是页面上
+ * 一共有 4（KPI）+ 4（录入汇总）= 8 个 `.kpi-card`。
+ * 用全局 `.kpi-card` 计数会把两套卡混成一套 —— 断言的是「KPI 区有 4 张卡」，
+ * 不是「全页有 4 个 kpi-card 元素」。
+ */
+check('4 张 KPI 卡', Number(await q('[data-role=kpi] .kpi-card')) === 4, `${await q('[data-role=kpi] .kpi-card')} 张`);
+const kLabels = await ev(`Array.from(document.querySelectorAll('[data-role=kpi] .kpi-card__label')).map(x=>x.textContent.trim())`);
 check('卡面为总收入 / 净支出 / 笔数 / 期末现金',
   kLabels.includes('总收入') && kLabels.includes('净支出') && kLabels.includes('期末现金'), JSON.stringify(kLabels));
 /**
@@ -239,7 +299,7 @@ check('卡面为总收入 / 净支出 / 笔数 / 期末现金',
  * 期末现金 = 各账户余额合计，它的**明细**在账户页（每张卡的余额构成），
  * 跳到流水列表反而答非所问。所以断言是「每张都有去处且去处有意义」。
  */
-const kHrefs = await ev(`Array.from(document.querySelectorAll('.kpi-card')).map(a=>a.getAttribute('href'))`);
+const kHrefs = await ev(`Array.from(document.querySelectorAll('[data-role=kpi] .kpi-card')).map(a=>a.getAttribute('href'))`);
 check(
   '每张卡都可点且有意义的去处（收支→流水，现金→账户）',
   kHrefs.length === 4 &&
@@ -247,7 +307,7 @@ check(
     kHrefs[3] === '/accounts',
   JSON.stringify(kHrefs),
 );
-const subs = await ev(`Array.from(document.querySelectorAll('.kpi-card__sub')).map(x=>x.textContent.trim())`);
+const subs = await ev(`Array.from(document.querySelectorAll('[data-role=kpi] .kpi-card__sub')).map(x=>x.textContent.trim())`);
 check('净支出卡给出结余率', subs.some((s) => s.includes('结余率')), JSON.stringify(subs));
 
 /* ══════════ 4. 周期对比表 ══════════ */
@@ -311,7 +371,11 @@ for (const [name, ok] of [
   ['分类排行', t.includes('分类排行')],
   ['每日支出趋势', t.includes('每日支出趋势')],
   ['星期消费分布', t.includes('星期消费分布')],
-  ['成员消费', t.includes('成员消费')],
+  /**
+   * 个人账本**没有**成员饼图（一个成员 = 自己，饼图没有信息量），
+   * 那一格改成「本期录入汇总」。断言必须跟着账本类型走。
+   */
+  isPersonal ? ['本期录入汇总', t.includes('本期录入汇总')] : ['成员消费', t.includes('成员消费')],
   ['净资产趋势', t.includes('净资产趋势')],
   ['账户消费一览', t.includes('账户消费一览')],
 ]) check(`模块「${name}」存在`, ok === true);
@@ -322,7 +386,23 @@ check('环形图有扇区', Number(await q('[data-role=m-donut] .st-arc')) > 0);
 check('排行榜有数据行', Number(await q('[data-role=m-rank] .rank-row')) > 1);
 check('每日趋势有数据点', Number(await q('[data-role=m-daily] .st-point')) > 1);
 check('星期分布 7 根柱（含无支出日）', Number(await q('[data-role=m-weekday] .st-bar')) === 7);
-check('成员饼图有扇区', Number(await q('[data-role=m-member] .st-slice')) > 0);
+/**
+ * 个人账本：那一格是「本期录入汇总」四指标卡（录入总额 / 折扣合计 / 手续费合计 / 净额），
+ * 且**必须真的有数**（不是 ¥0.00 的空壳）—— 这正是「本期录入汇总无数据显示」那条 bug 的守门断言。
+ */
+if (isPersonal) {
+  const psLabels = await ev(`Array.from(document.querySelectorAll('[data-role=m-member] .kpi-card__label')).map(x=>x.textContent.trim())`);
+  check('个人账本：本期录入汇总四指标齐全',
+    ['录入总额', '折扣合计', '手续费合计', '净额'].every((k) => psLabels.includes(k)),
+    JSON.stringify(psLabels));
+  const psValues = await ev(`Array.from(document.querySelectorAll('[data-role=m-member] .kpi-card__value')).map(x=>x.textContent.trim())`);
+  check('个人账本：本期录入汇总有数（录入总额 > ¥0.00）',
+    psValues.length === 4 && !psValues.every((v) => /[¥]\s*0\.00/.test(v)) && /[1-9]/.test(psValues[0] ?? ''),
+    JSON.stringify(psValues));
+  check('个人账本：不再渲染成员饼图', Number(await q('[data-role=m-member] .st-slice')) === 0);
+} else {
+  check('成员饼图有扇区', Number(await q('[data-role=m-member] .st-slice')) > 0);
+}
 
 /**
  * 星期分布**不再有自己的范围切换器**（需求 4）。
@@ -361,7 +441,12 @@ check(
 /* ══════════ 饼图规范与图表提示 ══════════ */
 console.log('\n── 饼图规范 · 图例靠右 / 合计 / Tooltip ──');
 
-/** 图例一律在图的**右侧**（需求 2）：图例左边缘必须在图区右边缘之后 */
+/**
+ * 图例一律在图的**右侧**（需求 2）：图例左边缘必须在图区右边缘之后。
+ *
+ * ⚠️ 个人账本没有成员饼图 —— 那一格换成「本期录入汇总」，**本来就没有图例**。
+ * 所以只对**真实存在饼图**的卡片断言图例规范。
+ */
 const legendGeo = JSON.parse(
   await ev(`JSON.stringify(['m-donut', 'm-member'].map((role) => {
     const card = document.querySelector('[data-role=' + role + ']');
@@ -382,6 +467,10 @@ const legendGeo = JSON.parse(
   }))`),
 );
 for (const g of legendGeo) {
+  if (g.missing) {
+    check(`${g.role} 卡片存在且内含饼图`, isPersonal && g.role === 'm-member', JSON.stringify(g));
+    continue;
+  }
   check(`${g.role} 图例在图的右侧`, g.rightOfPlot === true && g.sameRow === true, JSON.stringify(g));
   check(`${g.role} 图例区给出总金额`, g.hasTotal === true && String(g.totalText).length > 0, String(g.totalText));
   check(`${g.role} 图例条目带色点`, Number(g.dots) > 0 && Number(g.items) > 0, `${g.items} 条`);
@@ -429,13 +518,17 @@ const tipKinds = JSON.parse(
     bargroup: document.querySelectorAll('[data-role=m-trend12] .st-bargroup[data-tip]').length,
     bar: document.querySelectorAll('[data-role=m-weekday] .st-bar[data-tip]').length,
     slice: document.querySelectorAll('[data-role=m-member] .st-slice[data-tip]').length,
+    donut: document.querySelectorAll('[data-role=m-donut] .st-arc[data-tip]').length,
     area: document.querySelectorAll('[data-role=m-networth] svg rect[data-tip]').length,
   })`),
 );
 check('折线图数据点带提示数据', Number(tipKinds.point) > 0, `${tipKinds.point} 点`);
 check('柱状图柱体带提示数据', Number(tipKinds.bargroup) > 0 && Number(tipKinds.bar) > 0,
   `趋势 ${tipKinds.bargroup} 组 · 星期 ${tipKinds.bar} 柱`);
-check('饼图扇区带提示数据', Number(tipKinds.slice) > 0, `${tipKinds.slice} 扇`);
+/** 个人账本没有成员饼图，饼图扇区的守门断言改落在环形图上 */
+check('饼图扇区带提示数据',
+  isPersonal ? Number(tipKinds.donut) > 0 : Number(tipKinds.slice) > 0,
+  `成员 ${tipKinds.slice} 扇 · 环形 ${tipKinds.donut} 扇`);
 /**
  * 空态引导：**每个数据区块都必须在无数据时自己解释清楚**。
  * 新账本没有净资产快照，所以这块要么有图、要么有空态文案 ——

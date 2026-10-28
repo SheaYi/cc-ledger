@@ -4,6 +4,22 @@
 打 `v*` tag 时 GitHub Actions 会产出同名的固定版本镜像（如 `v1.1.0`），
 推 `main` 时产出 `latest` 与 `sha-xxxxxxx`。
 
+## 1.1.11 — 2026-10-30
+
+### 修复 + 改进（统计页筛选：分类模态树 + 筛选生效 + 录入汇总）
+
+- **分类筛选改为模态树（废弃超长下拉）**：统计页「分类」由又长又难用的全部分类 `<select>` 改为按钮触发**居中模态弹窗**（压暗遮罩，移动端自动变为底部 Sheet），弹窗内采用「类型 → 一级 → 二级」的**树状逐级筛选**，点箭头展开/收起、点标签选中（选一级 = 看整个大类，选二级 = 只看该子项）。复用既有 `.modal` 设计系统，触屏行高 ≥44px。
+- **修复筛选条件不生效**：`stats/summary`、`trend`、`by-category`、`by-account` 此前在路由层**丢弃**了 `accountId / categoryId / recordType` 参数，导致来源 / 类型 / 分类筛选对 KPI、对比、录入汇总、趋势、构成等卡片无任何影响。新增统一筛选条件出口 `txFilterConds()`（账户 OR 对方账户；分类 OR 一级；类型 in 集合），路由把这些参数真正透传到聚合查询，选择后列表/卡片正确刷新。
+- **修复「本期录入汇总」无数据显示**：个人账本该卡片原先仅在 `sum` 取到的前提下绘制，一旦 `statsSummary` 请求失败（catch → null）或被 NaN 值污染就整块空白。现改为**始终绘制**并对每个指标做 `Number()` + 有限数兜底（缺失/脏值回落 ¥0.00），保证「所选筛选范围内」始终有可读结果。
+- **新增回归守卫 `smoke:18`（`scripts/smoke-stats-filter.mjs`，已进 verify 链）**：逐维度造数 → 加筛选 → 断言数字**真的变了**（基线 / accountId / categoryId / parentCategoryId / recordType / 组合 / trend / by-category / by-account / comparison，共 31 条）。「路由层丢参数」这类静默失效只有这种测试抓得住。
+- **修复窄屏报表卡片间距失效**：app.css 的 `@media(≤833px) .report-grid{row-gap:12px}` 被**加载更晚**的 `mobile.css` 里 `@media(≤1023px) .grid{gap:var(--card-gap)=8px}` 以同特异性顶掉，意图整条失效且不报错。改用 `.grid.report-grid` 提高特异性后恢复 12px。
+- **修复探针的两处误报与一处日历漂移**：
+  · `probe-report-ui` 长期 94/104（10 红）—— 探针注册的账本是 `personal`（`ledgers.type` 的 schema 默认值），成员饼图本就不渲染、且录入汇总沿用 `.kpi-card` 使全页 `.kpi-card` 变成 8 个。现按账本类型分支断言，KPI 计数限定 `[data-role=kpi]`，并**新增「本期录入汇总四指标齐全 + 录入总额 > ¥0.00」两条守门断言**。
+  · `probe-task5-ui` 一直红 —— v1.1.10 把筛选控件挪出 `.st-filter__bar` 后探针仍在 `bar.querySelector` 里找，查找范围改 `.st-filter__card`。
+  · 「差异列给出方向箭头」原本**随日历漂移**（数据只造最近 20 天 → 上期为空 → 差异按设计显示「—」），现补造上一期数据。
+- **语法闸门扩到 `scripts/`**（33 → 84 个文件）：探针与冒烟脚本只被手动跑，`tsc`/`vitest`/`audit:imports` 都不解析它们，语法错误只在「手动跑探针」时才炸且像是「测试不稳定」。
+- 同步 `public/sw.js` VERSION `cc-ledger-v31`→`v32`，版本号 `1.1.10`→`1.1.11`（package.json / env.ts / docker-compose / DEPLOY / CHANGELOG）。
+
 ## 1.1.10 — 2026-10-29
 
 ### 改进（统计页筛选区重设计 + 个人账本录入汇总卡）

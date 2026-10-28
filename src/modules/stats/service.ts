@@ -21,7 +21,7 @@ import { and, eq, gte, isNull, lte, sql } from 'drizzle-orm';
 import type { AppCtx } from '../../context.js';
 import { accounts, categories, transactionTags, transactions, tags } from '../../db/schema.js';
 import { formatCents, today as todayStr } from '../../utils/money.js';
-import { keywordCondition } from '../../utils/tx-filter.js';
+import { keywordCondition, txFilterConds, type TxFilters } from '../../utils/tx-filter.js';
 import { periodFlow, totals } from '../accounts/service.js';
 import { openDebts } from '../debts/service.js';
 
@@ -150,17 +150,25 @@ export function summary(
   from?: string,
   to?: string,
   keyword?: string,
+  /** 账户 / 分类 / 类型 三维筛选（可选）。来自统计页「来源 / 类型 / 分类」下拉。 */
+  filters?: TxFilters,
 ) {
   const range = normalizeRange(from, to);
-  const flow = periodFlow(ctx, ledgerId, range.from, range.to, keyword);
+  const flow = periodFlow(ctx, ledgerId, range.from, range.to, keyword, filters);
   const t = totals(ctx, ledgerId);
 
   const prev = previousRange(range.from, range.to);
-  const prevFlow = periodFlow(ctx, ledgerId, prev.from, prev.to, keyword);
+  const prevFlow = periodFlow(ctx, ledgerId, prev.from, prev.to, keyword, filters);
   const ly = lastYearMonth(range.from, range.to);
-  const lyFlow = periodFlow(ctx, ledgerId, ly.from, ly.to, keyword);
+  const lyFlow = periodFlow(ctx, ledgerId, ly.from, ly.to, keyword, filters);
 
   const kwCond = keywordCondition(keyword);
+  /** 只含账户 / 分类（不含类型）：`biggest()` 自带 recordType 参数，避免与之冲突 */
+  const acConds = txFilterConds({
+    accountId: filters?.accountId,
+    parentCategoryId: filters?.parentCategoryId,
+    categoryId: filters?.categoryId,
+  });
 
   /**
    * 个人账本「本期录入汇总」四指标（需求 ②）。
@@ -188,6 +196,7 @@ export function summary(
         gte(transactions.txDate, range.from),
         lte(transactions.txDate, range.to),
         ...(kwCond ? [kwCond] : []),
+        ...txFilterConds(filters),
       ),
     )
     .get();
@@ -210,6 +219,7 @@ export function summary(
           gte(transactions.txDate, range.from),
           lte(transactions.txDate, range.to),
           ...(kwCond ? [kwCond] : []),
+          ...acConds,
         ),
       )
       .orderBy(sql`${transactions.actualAmount} desc`)
@@ -360,6 +370,8 @@ export function trend(
   from?: string,
   to?: string,
   keyword?: string,
+  /** 账户 / 分类 / 类型 三维筛选（可选） */
+  filters?: TxFilters,
 ) {
   const range = normalizeRange(from, to);
   const g: Granularity = ['day', 'week', 'month', 'year'].includes(granularity) ? granularity : 'day';
@@ -381,6 +393,7 @@ export function trend(
         gte(transactions.txDate, range.from),
         lte(transactions.txDate, range.to),
         ...(kwCond ? [kwCond] : []),
+        ...txFilterConds(filters),
       ),
     )
     .all();
@@ -434,6 +447,8 @@ export function byCategory(
   to?: string,
   level: 1 | 2 = 1,
   keyword?: string,
+  /** 账户 / 分类 筛选（可选；类型由上面的 `recordType` 显式决定，这里不重复接） */
+  filters?: Pick<TxFilters, 'accountId' | 'parentCategoryId' | 'categoryId'>,
 ) {
   const range = normalizeRange(from, to);
   const rt = recordType === 'income' ? 'income' : 'expense';
@@ -455,6 +470,7 @@ export function byCategory(
         gte(transactions.txDate, range.from),
         lte(transactions.txDate, range.to),
         ...(kwCond ? [kwCond] : []),
+        ...txFilterConds(filters),
       ),
     )
     .groupBy(transactions.categoryId, transactions.parentCategoryId)
@@ -559,6 +575,8 @@ export function byAccount(
   from?: string,
   to?: string,
   keyword?: string,
+  /** 账户 / 分类 / 类型 三维筛选（可选） */
+  filters?: TxFilters,
 ) {
   const range = normalizeRange(from, to);
   const kwCond = keywordCondition(keyword);
@@ -577,6 +595,7 @@ export function byAccount(
         gte(transactions.txDate, range.from),
         lte(transactions.txDate, range.to),
         ...(kwCond ? [kwCond] : []),
+        ...txFilterConds(filters),
       ),
     )
     .groupBy(transactions.accountId)

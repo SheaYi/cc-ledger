@@ -18,7 +18,7 @@ import {
 import { HttpError } from '../../utils/errors.js';
 import { newId, ID_PREFIX } from '../../utils/id.js';
 import { formatCents, nowIso, parseAmountToCents, today } from '../../utils/money.js';
-import { keywordCondition } from '../../utils/tx-filter.js';
+import { keywordCondition, txFilterConds, type TxFilters } from '../../utils/tx-filter.js';
 import { writeAudit } from '../../utils/audit.js';
 import { openDebts } from '../debts/service.js';
 import { assertAccountNotInActivePlan } from '../installment/service.js';
@@ -617,6 +617,11 @@ export function periodFlow(
    * 只是多了一条统计页需要的筛选路径。
    */
   keyword?: string,
+  /**
+   * 账户 / 分类 / 类型 三维筛选（可选）。统计页「来源 / 类型 / 分类」下拉从这里进来。
+   * 不传 = 不过滤，与加参数前行为一致。
+   */
+  filters?: TxFilters,
 ) {
   /** 空值必须返回 undefined，不能退化成「不加条件」之外的任何东西 */
   const kwCond = keywordCondition(keyword);
@@ -635,6 +640,7 @@ export function periodFlow(
         gte(transactions.txDate, from),
         lte(transactions.txDate, to),
         ...(kwCond ? [kwCond] : []),
+        ...txFilterConds(filters),
       ),
     )
     .groupBy(transactions.recordType, CONTRA_CASE)

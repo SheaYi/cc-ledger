@@ -36,7 +36,7 @@ import {
 import { HttpError } from '../../utils/errors.js';
 import { ID_PREFIX, newId } from '../../utils/id.js';
 import { formatCents, nowIso, parseAmountToCents, today as todayStr } from '../../utils/money.js';
-import { keywordCondition } from '../../utils/tx-filter.js';
+import { keywordCondition, type TxFilters } from '../../utils/tx-filter.js';
 import { balanceView, periodFlow, totals } from '../accounts/service.js';
 import { budgetProgress } from '../budgets/service.js';
 
@@ -429,10 +429,18 @@ function dailySeries(ctx: AppCtx, ledgerId: string, from: string, to: string) {
  * 只给总额是最常见的报表错误：2 月 28 天、3 月 31 天，
  * 三月「多花了 10%」可能纯粹是多了 3 天。
  */
-export function comparison(ctx: AppCtx, ledgerId: string, from: string, to: string, keyword?: string) {
-  const cur = periodFlow(ctx, ledgerId, from, to, keyword);
+export function comparison(
+  ctx: AppCtx,
+  ledgerId: string,
+  from: string,
+  to: string,
+  keyword?: string,
+  /** 账户 / 分类 / 类型 三维筛选（可选），与上期口径一致 */
+  filters?: TxFilters,
+) {
+  const cur = periodFlow(ctx, ledgerId, from, to, keyword, filters);
   const prevR = previousRange(from, to);
-  const prev = periodFlow(ctx, ledgerId, prevR.from, prevR.to, keyword);
+  const prev = periodFlow(ctx, ledgerId, prevR.from, prevR.to, keyword, filters);
   const curDays = daysBetween(from, to);
   const prevDays = daysBetween(prevR.from, prevR.to);
 
@@ -687,11 +695,13 @@ export function yearOverYear(
   year: number,
   month: number,
   keyword?: string,
+  /** 账户 / 分类 / 类型 三维筛选（可选），与去年同期口径一致 */
+  filters?: TxFilters,
 ) {
   const r = monthRange(year, month);
   const ly = lastYearRange(r.from, r.to);
-  const cur = periodFlow(ctx, ledgerId, r.from, r.to, keyword);
-  const prev = periodFlow(ctx, ledgerId, ly.from, ly.to, keyword);
+  const cur = periodFlow(ctx, ledgerId, r.from, r.to, keyword, filters);
+  const prev = periodFlow(ctx, ledgerId, ly.from, ly.to, keyword, filters);
   const curDays = daysBetween(r.from, r.to);
   const prevDays = daysBetween(ly.from, ly.to);
   const cats = byCategoryIn(ctx, ledgerId, r.from, r.to, keyword);
