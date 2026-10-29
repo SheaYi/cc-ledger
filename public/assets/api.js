@@ -254,6 +254,8 @@ export const Api = {
     request('DELETE', `/ledgers/${seg(ledgerId)}/categories/${seg(categoryId)}`),
   restoreCategory: (ledgerId, categoryId) =>
     request('POST', `/ledgers/${seg(ledgerId)}/categories/${seg(categoryId)}/restore`),
+  reorderCategories: (ledgerId, ids) =>
+    request('POST', `/ledgers/${seg(ledgerId)}/categories/reorder`, { body: { ids } }),
 
   // ---- 标签 ----
   listTags: (ledgerId, query = {}) =>

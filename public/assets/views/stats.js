@@ -929,7 +929,7 @@ export async function renderStats(container, { go } = {}) {
        ${sub ? `<span class="tt-fine-print">${esc(sub)}</span>` : ''}
        ${action}
      </div>
-     <div class="card ${extraClass}">${body}</div>`;
+     <div class="card ${extraClass}${body.includes('chart-svg') ? ' chart-card' : ''}">${body}</div>`;
 
   /* ---------------- 模块 3：KPI 卡 ---------------- */
 

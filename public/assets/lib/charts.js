@@ -512,7 +512,7 @@ export function groupedBars(data, opt = {}) {
     })
     .join('');
 
-  return `<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" role="img"
+  return `<svg class="chart-svg" viewBox="0 0 ${W} ${H}" width="100%" height="100%" role="img"
     aria-label="${esc(opt.ariaLabel ?? '收支趋势')}" preserveAspectRatio="none">
     <line x1="${PAD_L}" y1="${TOP + plotH}" x2="${W - PAD_R}" y2="${TOP + plotH}"
       stroke="currentColor" stroke-width="1" opacity="0.15" />
@@ -564,7 +564,7 @@ export function bars(data, opt = {}) {
     )
     .join('');
 
-  return `<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" role="img"
+  return `<svg class="chart-svg" viewBox="0 0 ${W} ${H}" width="100%" height="100%" role="img"
     aria-label="${esc(opt.ariaLabel ?? '分布')}">
     <line x1="0" y1="${TOP + plotH}" x2="${W}" y2="${TOP + plotH}"
       stroke="currentColor" stroke-width="1" opacity="0.15" />
@@ -676,7 +676,7 @@ export function lineChart(points, opt = {}) {
 
   return `<div class="chart-trend">
     <div class="chart-trend__plot">
-      <svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" role="img"
+      <svg class="chart-svg" viewBox="0 0 ${W} ${H}" width="100%" height="100%" role="img"
         aria-label="${esc(opt.ariaLabel ?? '趋势')}" preserveAspectRatio="none">
         ${grid}
         <line x1="${PAD}" y1="${PAD + plotH}" x2="${W - PAD}" y2="${PAD + plotH}"
@@ -813,7 +813,7 @@ export function stackedArea(data, opt = {}) {
     )
     .join('');
 
-  return `<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" role="img"
+  return `<svg class="chart-svg" viewBox="0 0 ${W} ${H}" width="100%" height="100%" role="img"
     aria-label="${esc(opt.ariaLabel ?? '净资产趋势')}" preserveAspectRatio="none">
     <line x1="${PAD_X}" y1="${(PAD_T + plotH).toFixed(2)}" x2="${W - PAD_X}" y2="${(PAD_T + plotH).toFixed(2)}"
       stroke="currentColor" stroke-width="1" opacity="0.18" />

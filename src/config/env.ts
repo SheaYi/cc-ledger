@@ -45,7 +45,7 @@ const EnvSchema = z.object({
   ENABLE_SCHEDULER: boolEnv(true),
   BACKUP_ENABLED: boolEnv(true),
   BACKUP_RETENTION_DAYS: z.coerce.number().int().min(0).default(14),
-  APP_VERSION: z.string().min(1).default('1.1.12'),
+  APP_VERSION: z.string().min(1).default('1.1.13'),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

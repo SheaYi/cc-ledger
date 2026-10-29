@@ -7,7 +7,7 @@
 import { Api } from '../api.js';
 import { appFrame, mountTabBar } from '../chrome.js';
 import { currentLedger, loadSession } from '../session.js';
-import { entityIcon, esc, h, lucide, money, setLoading, toast } from '../ui.js';
+import { confirmDialog, entityIcon, esc, h, lucide, money, setLoading, toast } from '../ui.js';
 
 const TABS = [
   { key: 'expense', label: '支出' },
@@ -102,6 +102,39 @@ export async function renderCategories(container, { go }) {
       0,
     );
 
+    /** 主类别上 / 下移：交换同层可见顺序后整体提交，再重渲染（sortOrder 持久化） */
+    const moveMain = async (target, dir) => {
+      const idx = tree.findIndex((p) => p.id === target.id);
+      if (idx < 0) return;
+      const ni = dir === 'up' ? idx - 1 : idx + 1;
+      if (ni < 0 || ni >= tree.length) return;
+      const arr = [...tree];
+      [arr[idx], arr[ni]] = [arr[ni], arr[idx]];
+      try {
+        await Api.reorderCategories(ledger.id, arr.map((p) => p.id));
+        await renderList();
+      } catch (err) {
+        toast(err.message, 'error');
+      }
+    };
+
+    /** 子类别上 / 下移：仅交换同一父级下的可见顺序 */
+    const moveSub = async (parent, childId, dir) => {
+      const kids = showArchived ? parent.children : parent.children.filter((c) => !c.archivedAt);
+      const idx = kids.findIndex((c) => c.id === childId);
+      if (idx < 0) return;
+      const ni = dir === 'up' ? idx - 1 : idx + 1;
+      if (ni < 0 || ni >= kids.length) return;
+      const arr = [...kids];
+      [arr[idx], arr[ni]] = [arr[ni], arr[idx]];
+      try {
+        await Api.reorderCategories(ledger.id, arr.map((c) => c.id));
+        await renderList();
+      } catch (err) {
+        toast(err.message, 'error');
+      }
+    };
+
     listSlot.innerHTML = `
       <div class="list-meta">
         <span class="tt-fine-print">
@@ -137,11 +170,15 @@ export async function renderCategories(container, { go }) {
             ${
               p.archivedAt
                 ? `<button class="btn btn--quiet btn--sm" type="button" data-act="restore-main">恢复</button>`
-                : `<span class="cat-block__actions">
+                : `                     <span class="cat-block__actions">
+                     <button class="btn btn--quiet btn--sm" type="button" data-act="move-up"
+                             title="上移" aria-label="上移">${lucide('chevron-up', 14)}</button>
+                     <button class="btn btn--quiet btn--sm" type="button" data-act="move-down"
+                             title="下移" aria-label="下移">${lucide('chevron-down', 14)}</button>
                      <button class="btn btn--quiet btn--sm" type="button" data-act="add-sub"
                              title="在「${esc(p.name)}」下新增子类别">${lucide('plus', 14)} 子类别</button>
                      <button class="btn btn--quiet btn--sm" type="button" data-act="edit-main">编辑</button>
-                     <button class="btn btn--quiet btn--sm" type="button" data-act="remove-main">停用</button>
+                     <button class="btn btn--quiet btn--sm" type="button" data-act="remove-main">删除</button>
                    </span>`
             }
           </div>
@@ -150,14 +187,20 @@ export async function renderCategories(container, { go }) {
               ? `<div class="cat-chips">
                    ${kids
                      .map(
-                       (c) => `
-                   <button class="cat-chip${c.archivedAt ? ' is-archived' : ''}" type="button"
-                           data-cat="${esc(c.id)}" title="编辑「${esc(c.name)}」">
-                     ${entityIcon(c.icon, 14)}
-                     <span class="cat-chip__name">${esc(c.name)}</span>
-                     ${c.txCount > 0 ? `<span class="cat-chip__count tnum">${c.txCount}</span>` : ''}
-                     ${c.archivedAt ? '<span class="cat-chip__flag">已停用</span>' : ''}
-                   </button>`,
+                       (c, i) => `
+                   <div class="cat-chip${c.archivedAt ? ' is-archived' : ''}" data-cat="${esc(c.id)}"
+                        title="编辑「${esc(c.name)}」">
+                     <button class="cat-chip__move" type="button" data-submove="up" aria-label="上移"
+                             ${i === 0 ? 'disabled' : ''}>${lucide('chevron-up', 14)}</button>
+                     <span class="cat-chip__body" role="button" tabindex="0">
+                       ${entityIcon(c.icon, 14)}
+                       <span class="cat-chip__name">${esc(c.name)}</span>
+                       ${c.txCount > 0 ? `<span class="cat-chip__count tnum">${c.txCount}</span>` : ''}
+                       ${c.archivedAt ? '<span class="cat-chip__flag">已停用</span>' : ''}
+                     </span>
+                     <button class="cat-chip__move" type="button" data-submove="down" aria-label="下移"
+                             ${i === kids.length - 1 ? 'disabled' : ''}>${lucide('chevron-down', 14)}</button>
+                   </div>`,
                      )
                      .join('')}
                  </div>`
@@ -174,14 +217,33 @@ export async function renderCategories(container, { go }) {
       renderList();
     });
 
-    /* 子类别 chip → 编辑 */
-    listSlot.querySelectorAll('.cat-chip').forEach((chip) =>
-      chip.addEventListener('click', () => {
-        const parent = tree.find((p) => p.id === chip.closest('.cat-block')?.dataset.main);
-        const child = parent?.children.find((c) => c.id === chip.dataset.cat);
+    /* 子类别 chip → 编辑（点击主体或回车；上/下移按钮单独处理） */
+    listSlot.querySelectorAll('.cat-chip__body').forEach((body) => {
+      const chip = body.closest('.cat-chip');
+      const open = () => {
+        const parent = tree.find((p) => p.id === chip?.closest('.cat-block')?.dataset.main);
+        const child = parent?.children.find((c) => c.id === chip?.dataset.cat);
         if (parent && child) {
           openForm({ recordType, parentId: parent.id, parentName: parent.name, category: child });
         }
+      };
+      body.addEventListener('click', open);
+      body.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          open();
+        }
+      });
+    });
+
+    /* 子类别上 / 下移 */
+    listSlot.querySelectorAll('[data-submove]').forEach((btn) =>
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (btn.disabled) return;
+        const chip = btn.closest('.cat-chip');
+        const parent = tree.find((p) => p.id === chip?.closest('.cat-block')?.dataset.main);
+        if (parent) moveSub(parent, chip.dataset.cat, btn.dataset.submove);
       }),
     );
 
@@ -195,6 +257,10 @@ export async function renderCategories(container, { go }) {
             openForm({ recordType, parentId: parent.id, parentName: parent.name });
           } else if (act === 'edit-main') {
             openForm({ recordType, category: parent, parentName: '' });
+          } else if (act === 'move-up') {
+            moveMain(parent, 'up');
+          } else if (act === 'move-down') {
+            moveMain(parent, 'down');
           } else if (act === 'remove-main') {
             archiveCategory(parent);
           } else if (act === 'restore-main') {
@@ -210,25 +276,40 @@ export async function renderCategories(container, { go }) {
     });
   };
 
-  /* ---------------- 停用（归档） ---------------- */
-  const archiveCategory = (target) => {
-    const extra =
-      target.txCount > 0
-        ? `该分类近一年被 ${target.txCount} 笔账单引用，将执行「停用」而不是删除，历史账单不受影响。`
-        : '停用后新建账单时不再出现在选择器里，可随时恢复。';
-    if (!window.confirm(`确认停用「${target.name}」？\n\n${extra}`)) return;
-    Api.deleteCategory(ledger.id, target.id)
-      .then((res) => {
-        toast(
-          res.data.txCount > 0
-            ? `已停用「${target.name}」（${res.data.txCount} 笔历史账单保留）`
-            : `已停用「${target.name}」`,
-          'success',
-        );
-        formSlot.replaceChildren();
-        renderList();
-      })
-      .catch((err) => toast(err.message, 'error'));
+  /* ---------------- 删除（实为停用 / 软删除） ---------------- */
+  const archiveCategory = async (target) => {
+    const used = target.txCount > 0;
+    const ok = await confirmDialog({
+      title: `删除分类「${target.name}」`,
+      confirmText: '删除',
+      danger: true,
+      lines: [
+        {
+          text: '删除后该分类会从账单选择器中移除，但已有账单完整保留、金额统计不受影响，且可随时恢复。',
+          strong: true,
+        },
+        used
+          ? `该分类近一年被 ${target.txCount} 笔账单引用，因此只能「停用」而非物理删除；这些账单的归类保持不变。`
+          : '该分类暂无账单引用。',
+        target.level === 1
+          ? '它名下的子类别会一并停用；需要时可从「显示已停用」里逐个恢复。'
+          : '需要时可从「显示已停用」里恢复。',
+      ],
+    });
+    if (!ok) return;
+    try {
+      const res = await Api.deleteCategory(ledger.id, target.id);
+      toast(
+        res.data.txCount > 0
+          ? `已删除「${target.name}」（${res.data.txCount} 笔历史账单保留）`
+          : `已删除「${target.name}」`,
+        'success',
+      );
+      formSlot.replaceChildren();
+      await renderList();
+    } catch (err) {
+      toast(err.message, 'error');
+    }
   };
 
   /* ---------------- 表单（新增 / 编辑 + 图标选择） ---------------- */
@@ -264,7 +345,7 @@ export async function renderCategories(container, { go }) {
               ? `<div class="panel row" style="align-items:flex-start">
                    ${lucide('info', 16)}
                    <span class="tt-fine-print">
-                     内置分类不可修改名称；不需要的分类可以停用（归档），随时可恢复。
+                     内置分类不可修改名称；不需要的分类可以删除（停用，可恢复），随时可恢复。
                    </span>
                  </div>`
               : ''
@@ -284,7 +365,7 @@ export async function renderCategories(container, { go }) {
             <button class="btn btn--quiet btn--sm" type="button" data-role="cancel">取消</button>
             ${
               category && !category.archivedAt
-                ? `<button class="btn btn--quiet btn--sm" type="button" data-role="archive">停用</button>`
+                ? `<button class="btn btn--quiet btn--sm" type="button" data-role="archive">删除</button>`
                 : ''
             }
             ${

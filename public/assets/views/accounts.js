@@ -725,7 +725,11 @@ export async function renderAccounts(container, { go }) {
     const archivedGroups = allGroups.filter((g) => g.archivedAt);
     const shown = allGroups.filter((g) => showArchivedGroups || !g.archivedAt);
 
-    const groupBlocks = shown
+    /** 只渲染「至少有一个账户」的分组（桌面 / 手机一致）：空分组整组不出现，
+     *  分组头与空态占位都不渲染。已停用且无账户的分组同样不出现。 */
+    const visibleGroups = shown.filter((g) => real.some((a) => a.groupId === g.id));
+
+    const groupBlocks = visibleGroups
       .map((g) => {
         const list = real.filter((a) => a.groupId === g.id);
         const head = `
@@ -744,16 +748,6 @@ export async function renderAccounts(container, { go }) {
               }
             </span>
           </div>`;
-
-        if (g.archivedAt && list.length === 0) {
-          return `
-          <div class="acct-group is-archived">
-            ${head}
-            <div class="card card--flush">
-              <div class="empty">分组已停用${g.accountCount > 0 ? `，${g.accountCount} 个历史账户仍归属此分组` : ''}</div>
-            </div>
-          </div>`;
-        }
 
         return `
           <div class="acct-group">
@@ -818,7 +812,7 @@ export async function renderAccounts(container, { go }) {
       -->
       <div class="list-meta" data-role="list-meta">
         <span class="tt-fine-print list-meta__count">
-          ${shown.length} 个分组 · ${real.length} 个账户 · 分组决定账户归类，可随时改名或停用
+          ${visibleGroups.length} 个分组 · ${real.length} 个账户 · 分组决定账户归类，可随时改名或停用
         </span>
         <label class="check">
           <input type="checkbox" data-role="show-archived-groups" ${

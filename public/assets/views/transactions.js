@@ -47,7 +47,6 @@ import {
   amountTone,
   dayLabel,
   dayWeekday,
-  extraText,
   subjectIcon,
   subjectText,
   tagDots,
@@ -1012,14 +1011,17 @@ export async function renderTransactions(container, { go, query }) {
   /**
    * 行：**一套 DOM 服务三档断点**（列显隐全部交给 CSS）。
    *
-   * 六个信息列的顺序与 `docs/13 §9.3` 一致：时间 · 分类 · 名称 · 账户 · 商家/对象 · 金额。
-   * `.tx-row__meta` 是个开关：桌面 `display: contents`（三个子元素各自成为一列），
-   * 移动 `display: flex`（折叠成第二行「名称 · 账户 · 商家」）。
+   * 六个信息列的顺序：时间 · 主键(名称优先/分类回退) · 对象 · 账户 · 商家 · 金额。
+   * `.tx-row__meta` 是个开关：桌面 `display: contents`（子元素各自成为一列），
+   * 移动 `display: contents`（子元素按 grid-area 折叠成第二行「对象 · 商家 · 标签 · 账户」）。
    * 这样就不需要为移动端写第二套模板 —— 两套模板必然会在改字段时漏改一边。
    */
   function rowNode(tx) {
     const delta = Number(tx.signedAmount ?? tx.accountDelta ?? 0);
-    const extra = extraText(tx);
+    // 主键：账单名称优先，名称为空回退到分类（问题⑤·电脑端粗体优先展示名称）
+    const subject = (tx.name && String(tx.name).trim()) || subjectText(tx);
+    // 第二信息列只放「商家」；「对象」已独立成列（同名 slot → counterparty）
+    const extra = tx.merchant ? String(tx.merchant) : '';
     const badge = typeBadge(tx);
     const dots = tagDots(tx);
     /**
@@ -1048,7 +1050,7 @@ export async function renderTransactions(container, { go, query }) {
             不兜底就是一个空方块（看着像没渲染完，且格位塌陷会让相邻行错开）。
           -->
           <span class="tx-row__icon">${entityIcon(subjectIcon(tx), 16) || icon('list', 16)}</span>
-          <span class="tx-row__cat">${esc(subjectText(tx))}</span>
+          <span class="tx-row__cat">${esc(subject)}</span>
           ${
             dots.shown.length
               ? `<span class="tx-row__tags">${dots.shown
@@ -1064,7 +1066,7 @@ export async function renderTransactions(container, { go, query }) {
         </span>
 
         <span class="tx-row__meta">
-          <span class="tx-row__name">${esc(tx.name ?? '')}</span>
+          <span class="tx-row__name">${esc(tx.counterparty ?? '')}</span>
           <span class="tx-row__acct">${esc(tx.account?.name ?? '')}</span>
           <span class="tx-row__extra">${esc(extra)}</span>
           <span class="tx-row__badges">${badges}</span>

@@ -17,7 +17,7 @@
  * 因此两端都不占导航位、也不参与选中态 —— 桌面走侧栏 pill CTA（rounded.pill = 一切动作），
  * 移动走 TabBar 正中央的抬升动作位（docs/13 §3.2）。
  */
-import { esc, h, icon, LEDGER_TYPE_LABEL, toast } from './ui.js';
+import { avatarHtml, esc, h, icon, LEDGER_TYPE_LABEL, toast } from './ui.js';
 import { currentLedger, rememberComposeSource } from './session.js';
 import { openTemplatePanel } from './lib/template-panel.js';
 
@@ -255,10 +255,27 @@ export function sidebar({ active = '', user, ledger = null, hideCompose = false 
       </a>`
     : '';
 
-  // 头像卡片已按设计移除：侧栏底部不再有头像行。
-  // 未登录（user === null）时保留「登录」入口；会话未就绪（undefined）先留空。
+  /**
+   * 侧栏底部的「账户信息栏」。
+   *
+   * 三行结构自上而下：分隔线 → 头像 + 昵称 / @用户名 → （右侧）箭头。
+   * 它是**账号入口**而不是导航项，所以单独落在 `.sidebar__foot`，
+   * 不并入 `accountGroupHtml()` 的「账号」分组 —— 那组是**页面**（成员 / 设置），
+   * 这一行是**身份**：位置固定在最底部（`margin-top:auto`），滚多远都在。
+   *
+   * 昵称走 600（文档：strong inline 是 600），用户名走 muted-48 细体，
+   * 两级对比让「我是谁」先被读到、「我的账号 ID」其次。
+   */
   const foot = user
-    ? ''
+    ? `
+      <a class="user-chip user-chip--full" href="/settings" data-link title="账号与设置">
+        ${avatarHtml(user, 'avatar--sm')}
+        <span class="user-chip__main">
+          <span class="user-chip__name">${esc(user.nickname || user.username)}</span>
+          <span class="user-chip__sub">@${esc(user.username)}</span>
+        </span>
+        ${icon('chevron', 16)}
+      </a>`
     : user === null
       ? `<a class="btn btn--secondary btn--sm btn--block" href="/login" data-link>登录</a>`
       : ''; // user === undefined：会话还没回来，先留空
