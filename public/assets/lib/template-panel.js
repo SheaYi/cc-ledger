@@ -152,7 +152,6 @@ export async function openTemplatePanel({ ledger, go, anchor }) {
         <div class="tpl-skel"></div>
         <div class="tpl-skel"></div>
       </div>
-      <div class="tpl-panel__foot">${lucide('info', 13)}<span>金额只是建议值，可以随意改</span></div>
     </div>
   `);
   host.appendChild(scrim);

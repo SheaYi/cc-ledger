@@ -847,20 +847,31 @@ export function stackedArea(data, opt = {}) {
  * 那是**失衡留白**。加一条按占比伸缩的横条后，空出来的宽度被
  * 「相对大小」这项信息填满，宽度再变也不会难看。
  */
+/**
+ * `collapseAfter`：超过这个条数就折叠，卡片底部给一个「展开 / 收起」。
+ *
+ * ⚠️ 折叠**只隐藏行，不改数据**：占比、累计占比全部按**完整列表**算好再渲染，
+ * 不能折叠后重算 —— 否则展开第 9 行时会看到「占比 100%」这种只对前 8 行成立的数字。
+ *
+ * 展开后列表限高滚动（`max-height` + `overflow-y`），避免 30 个分类把
+ * 下方卡片顶到屏幕外：排行是「找头部」的视图，滚动比撑长更符合它的用途。
+ */
 export function rankTable(rows, opt = {}) {
   const items = rows ?? [];
   if (!items.length) return emptyBox(opt.emptyHint ?? '还没有数据');
 
   const maxRatio = Math.max(...items.map((r) => num(r.ratio)), 1);
+  const collapseAfter = Number(opt.collapseAfter ?? 0);
   let cum = 0;
   const body = items
     .map((r, i) => {
       const ratio = num(r.ratio);
       cum += ratio;
       const href = r.href ?? (opt.hrefOf ? opt.hrefOf(r) : null);
+      const beyond = collapseAfter && i >= collapseAfter ? ' is-beyond' : '';
       const open = href
-        ? `<a data-href="${esc(href)}" role="link" tabindex="0" class="rank-row is-clickable"`
-        : '<div class="rank-row"';
+        ? `<a data-href="${esc(href)}" role="link" tabindex="0" class="rank-row is-clickable${beyond}"`
+        : `<div class="rank-row${beyond}"`;
       return `${open}>
         <span class="rank-row__idx">${i + 1}</span>
         <span class="st-dot" style="background:${esc(r.dot ?? tone(i))}"></span>
@@ -879,6 +890,14 @@ export function rankTable(rows, opt = {}) {
     })
     .join('');
 
+  const more =
+    collapseAfter && items.length > collapseAfter
+      ? `<button type="button" class="rank-more" data-role="rank-toggle" aria-expanded="false">
+           <span class="rank-more__label" data-role="rank-toggle-label">展开全部（共 ${items.length} 项）</span>
+           <span class="rank-more__caret" aria-hidden="true"></span>
+         </button>`
+      : '';
+
   return `<div class="rank-table">
     <div class="rank-row rank-row--head">
       <span class="rank-row__idx"></span>
@@ -890,6 +909,7 @@ export function rankTable(rows, opt = {}) {
       <span class="rank-row__num">占比</span>
       <span class="rank-row__num">小计</span>
     </div>
-    ${body}
+    <div class="rank-table__rows">${body}</div>
+    ${more}
   </div>`;
 }

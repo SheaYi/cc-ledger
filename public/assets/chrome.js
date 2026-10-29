@@ -49,6 +49,7 @@ const NAV_ICONS = {
   budgets: 'target',
   import: 'download',
   reconciliations: 'scale',
+  trash: 'trash',
   settings: 'user',
   invite: 'users',
 };
@@ -75,6 +76,16 @@ const NAV_ITEM_META = {
    * 与导入同属「对已经存在的账做点什么」，而账户页只放「当前待对账的账户」。
    */
   reconciliations: { label: '对账历史', href: '/reconciliations' },
+  /**
+   * 回收站（软删除的账单）。
+   *
+   * 放在「数据」组而不是「记账」：它的动作是**对已经存在的账做点什么**
+   * （把误删的账捞回来 / 彻底清掉），与对账历史同类；而「记账」组是
+   * 记一笔时要用的效率件（分类 / 标签 / 模板）。
+   *
+   * 顺序放最后：它是「出事了才来找」的入口，不该压在统计前面。
+   */
+  trash: { label: '回收站', href: '/trash' },
   settings: { label: '设置', href: '/settings' },
   invite: { label: '成员', href: '/settings' },
 };
@@ -106,7 +117,7 @@ const NAV_GROUPS = [
   { id: 'overview', label: '总览', items: ['overview', 'transactions', 'accounts', 'debts'] },
   { id: 'record', label: '记账', items: ['categories', 'tags', 'templates'] },
   { id: 'plan', label: '规划', items: ['recurring', 'installments', 'budgets'] },
-  { id: 'data', label: '数据', items: ['stats', 'reconciliations', 'import'] },
+  { id: 'data', label: '数据', items: ['stats', 'reconciliations', 'import', 'trash'] },
 ];
 
 /**
@@ -194,35 +205,15 @@ function navGroupsHtml(active) {
 }
 
 /**
- * 「我的」单独成组（成员管理只在协作账本里有意义，故按条件渲染）。
+ * 「账号」分组（成员 / 设置）已移除。
  *
- * 为什么它不在 `NAV_GROUPS` 里：它是**跨账本**的（改密码、退出登录与账本无关），
- * 混进任何一个业务组都会让「换一本账本后侧栏结构变了」——
- * 侧栏的分组结构应当只由账本内的功能决定。
+ * 移除理由：这两项都指向 `/settings`，与侧栏底部的**账户信息栏**（`user-chip`）
+ * 是同一个目的地 —— 同一页在侧栏里出现两次，用户分不清该点哪个，
+ * 而「成员」在协作账本里才用得上，常驻反而占了「数据」组的视觉邻位。
+ *
+ * 账户信息栏仍在最底部（`margin-top:auto`）：它表达的是「我是谁」（身份），
+ * 不是「去哪个页面」，所以不随这一组一起删。
  */
-function accountGroupHtml(active) {
-  const items = [
-    { key: 'invite', label: '成员', href: NAV_ITEM_META.invite.href, icon: NAV_ICONS.invite },
-    { key: 'settings', label: '设置', href: NAV_ITEM_META.settings.href, icon: NAV_ICONS.settings },
-  ];
-  return `
-      <div class="sidenav__group">
-        <p class="sidenav__group-head sidenav__group-head--gap">账号</p>
-        <div class="sidenav__items">
-          ${items
-            .map(
-              (n) => `
-        <a class="sidenav__item" href="${esc(n.href)}" data-link${
-          n.key === active ? ' aria-current="page"' : ''
-        }>
-          ${icon(n.icon, 18)}
-          <span class="sidenav__label">${esc(n.label)}</span>
-        </a>`,
-            )
-            .join('')}
-        </div>
-      </div>`;
-}
 
 /** @deprecated 平铺渲染。保留给「不分组的紧凑列表」场景（如登录页外框） */
 function navItems(active) {
@@ -259,9 +250,10 @@ export function sidebar({ active = '', user, ledger = null, hideCompose = false 
    * 侧栏底部的「账户信息栏」。
    *
    * 三行结构自上而下：分隔线 → 头像 + 昵称 / @用户名 → （右侧）箭头。
-   * 它是**账号入口**而不是导航项，所以单独落在 `.sidebar__foot`，
-   * 不并入 `accountGroupHtml()` 的「账号」分组 —— 那组是**页面**（成员 / 设置），
-   * 这一行是**身份**：位置固定在最底部（`margin-top:auto`），滚多远都在。
+   * 它是**账号入口**而不是导航项，所以单独落在 `.sidebar__foot`
+   * （原先还有个「账号」分组放成员 / 设置，已移除 —— 同一个目的地
+   * 在侧栏出现两次只会让人犹豫点哪个）。
+   * 这一行表达的是**身份**：位置固定在最底部（`margin-top:auto`），滚多远都在。
    *
    * 昵称走 600（文档：strong inline 是 600），用户名走 muted-48 细体，
    * 两级对比让「我是谁」先被读到、「我的账号 ID」其次。
@@ -295,7 +287,6 @@ export function sidebar({ active = '', user, ledger = null, hideCompose = false 
 
       <nav class="sidenav" aria-label="主导航">
         ${navGroupsHtml(active)}
-        ${accountGroupHtml(active)}
       </nav>
 
       <div class="sidebar__foot">${foot}</div>
@@ -483,6 +474,8 @@ const DOCK_FALLBACK = {
   import: 'transactions',
   budgets: 'stats',
   invite: 'settings',
+  /** 回收站里装的是账单 → 归到「账单」槽 */
+  trash: 'transactions',
 };
 
 /** 页面 key → dock 上该亮的槽（不在 5 槽里的走 FALLBACK） */

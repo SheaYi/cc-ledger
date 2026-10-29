@@ -28,6 +28,13 @@ import {
   toast,
 } from '../ui.js';
 
+/**
+ * 有符号数字的语义色：正 = 绿（收入/盈余），负 = 红（支出/亏损），0 = 中性。
+ *
+ * ⚠️ 只喂「有确定好坏含义的有符号数字」。支出这种**金额量**（后端 `periodFlow()`
+ * 返回的 `expense` 是正数，`accountDelta` 才是负数）必须先取反再喂进来，
+ * 否则会被染成绿色 —— "本月支出 ¥2,792" 一片绿，等于说「花得多是好事」。
+ */
 function toneClass(v) {
   const n = Number(v);
   return n > 0 ? 'is-pos' : n < 0 ? 'is-neg' : '';
@@ -201,10 +208,13 @@ export async function renderOverview(container, { go }) {
         </div>
       </section>
 
+      <!-- 三格取色：支出是流出（红）、收入是流入（绿）、结余是有符号数（正绿负红）。
+           支出显示成「量」不带负号：标签已经写明「本月支出」，
+           再写 −¥ 会被读成「支出为负」，那是在描述退款而不是花钱。 -->
       <section class="flow-grid">
         <div class="flow-cell">
           <span class="flow-cell__label">本月支出</span>
-          <span class="flow-cell__value tnum ${toneClass(flow.expense)}">${money(flow.expense)}</span>
+          <span class="flow-cell__value tnum ${toneClass(-Math.abs(flow.expense))}">${money(flow.expense)}</span>
         </div>
         <div class="flow-cell">
           <span class="flow-cell__label">本月收入</span>

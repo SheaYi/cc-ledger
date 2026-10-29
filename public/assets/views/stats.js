@@ -1123,23 +1123,151 @@ export async function renderStats(container, { go } = {}) {
     );
   }
 
+  /**
+   * 模块 5b：分类排行（层级钻取）。
+   *
+   * 三处与旧版不同：
+   *
+   * ① **不再截断到 8 条** —— 旧版 `.slice(0, 8)` 直接把第 9 名之后丢掉，
+   *    用户数着数着发现「餐饮之后就没了」，会当成统计坏了。
+   *    现在全量渲染 + 超过 8 条折叠（默认收起，可手动展开、展开后限高滚动）。
+   *
+   * ② **跟着「类型」筛选走** —— 旧版写死 `recordType: 'expense'`，
+   *    筛「收入」时这张卡仍然算支出，与页面其余部分口径矛盾。
+   *    后端 `byCategory` 只认 expense / income，所以单选「收入」→ 收入，其余 → 支出。
+   *
+   * ③ **点一级下钻二级** —— 二级数据直接取 level=1 响应里已经带好的
+   *    `children`（同一条 SQL、同一套筛选聚合出来的），不再单独发请求：
+   *    既快，也避免两次请求的条件漂移导致「下钻后的和 ≠ 一级的小计」。
+   */
+  const RANK_COLLAPSE_AT = 8;
+  let rankType = 'expense';
+  let rankLevel = 1;
+  let rankParent = null;
+  let rankRows = [];
+
+  /** 排行按哪个方向统计：类型筛选单选「收入」时看收入，其余一律看支出 */
+  const rankTypeOf = () =>
+    filters.types.size === 1 && filters.types.has('income') ? 'income' : 'expense';
+
+  /** 有金额才进排行：0 元分类列出来只会稀释占比、把真正的头部挤下去 */
+  const rankWithAmount = (list) =>
+    (list ?? [])
+      .filter((c) => Number(c.amount ?? 0) > 0)
+      .sort((a, b) => Number(b.amount ?? 0) - Number(a.amount ?? 0));
+
   function paintRank(cat) {
-    const total = (cat ?? []).reduce((a, r) => a + Number(r.amount ?? 0), 0);
-    const rows = (cat ?? [])
-      .slice(0, 8)
-      .map((c, i) => ({
-        name: c.name,
-        amount: money(c.amount),
-        count: c.count ?? 0,
-        ratio: total > 0 ? (Number(c.amount) / total) * 100 : 0,
-        dot: PALETTE[i % PALETTE.length],
-        href: txHref({ recordType: 'expense', categoryId: c.categoryId ?? c.id }),
-      }));
+    rankType = rankTypeOf();
+    rankRows = rankWithAmount(cat);
+    rankLevel = 1;
+    rankParent = null;
+    renderRank();
+  }
+
+  function renderRank() {
+    const typeLabel = rankType === 'income' ? '收入' : '支出';
+    const isChild = rankLevel === 2 && rankParent;
+    const src = isChild ? rankWithAmount(rankParent.children) : rankRows;
+    const total = src.reduce((a, r) => a + Number(r.amount ?? 0), 0);
+
+    const rows = src.map((c, i) => ({
+      name: c.name,
+      amount: money(c.amount),
+      count: c.count ?? 0,
+      ratio: total > 0 ? (Number(c.amount) / total) * 100 : 0,
+      dot: PALETTE[i % PALETTE.length],
+      /**
+       * 一级**不给 href**：点它是「下钻」，不是跳走 —— 跳走后用户就回不到
+       * 这张排行卡了（他本来是在看结构，不是在看某一笔）。
+       * 二级才给 href：此时再点就是「看这个分类的账单」，是合理的终点。
+       */
+      href: isChild ? txHref({ recordType: rankType, categoryId: c.categoryId ?? c.id }) : null,
+    }));
+
+    const title = isChild ? '分类排行 · 二级分类' : '分类排行 · 一级分类';
+    const sub = isChild
+      ? `${rankParent.name} 的二级分类 · 按${typeLabel}金额降序`
+      : `按${typeLabel}统计 · 点分类下钻看二级`;
+    const back = isChild
+      ? `<button type="button" class="rank-back" data-role="rank-back">返回一级分类</button>`
+      : '';
+
     slotRank.innerHTML = section(
-      '分类排行',
-      '金额 · 笔数 · 占比 · 小计',
-      rankTable(rows, { nameTitle: '分类' }),
+      title,
+      sub,
+      rankTable(rows, { nameTitle: '分类', collapseAfter: RANK_COLLAPSE_AT }),
+      '',
+      back,
     );
+    wireRank(isChild, src);
+  }
+
+  function wireRank(isChild, src) {
+    /* ---- 折叠 / 展开 ---- */
+    const toggle = slotRank.querySelector('[data-role=rank-toggle]');
+    if (toggle) {
+      const table = slotRank.querySelector('.rank-table');
+      const count = slotRank.querySelectorAll('.rank-table__rows .rank-row').length;
+      toggle.addEventListener('click', () => {
+        const open = !table.classList.contains('is-expanded');
+        table.classList.toggle('is-expanded', open);
+        toggle.setAttribute('aria-expanded', String(open));
+        const label = toggle.querySelector('[data-role=rank-toggle-label]');
+        if (label) label.textContent = open ? '收起' : `展开全部（共 ${count} 项）`;
+      });
+    }
+
+    /* ---- 返回一级 ---- */
+    const back = slotRank.querySelector('[data-role=rank-back]');
+    if (back) {
+      back.addEventListener('click', () => {
+        rankLevel = 1;
+        rankParent = null;
+        renderRank();
+      });
+    }
+
+    /* ---- 二级：行是链接，跳该分类的账单 ---- */
+    if (isChild) {
+      slotRank.querySelectorAll('[data-href]').forEach((el) => {
+        const jump = () => go(el.dataset.href);
+        el.addEventListener('click', jump);
+        el.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            jump();
+          }
+        });
+      });
+      return;
+    }
+
+    /* ---- 一级：点行下钻到它的二级 ---- */
+    slotRank.querySelectorAll('.rank-table__rows .rank-row').forEach((el, i) => {
+      const parent = src[i];
+      if (!parent) return;
+      el.classList.add('is-clickable');
+      el.setAttribute('role', 'button');
+      el.setAttribute('tabindex', '0');
+      const drill = () => {
+        const kids = rankWithAmount(parent.children);
+        /** 没有二级分类（纯一级记账）时下钻是个空列表 —— 退化成跳账单，别给空卡 */
+        if (!kids.length) {
+          go(txHref({ recordType: rankType, categoryId: parent.categoryId ?? parent.id }));
+          return;
+        }
+        rankLevel = 2;
+        rankParent = parent;
+        renderRank();
+      };
+      el.addEventListener('click', drill);
+      el.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          drill();
+        }
+      });
+    });
   }
 
   function paintDaily(points) {
@@ -1403,9 +1531,19 @@ export async function renderStats(container, { go } = {}) {
 
   /** 星期分布跟随全局账期（卡片内已无独立范围切换器） */
   async function loadWeekday() {
+    /**
+     * ⚠️ 「所有」必须发 `all=1`，**不能**发空日期。
+     *
+     * 后端「没收到合法日期」的既有语义是**默认本月**（`rangeOf` 的兜底），
+     * 发 `dateFrom=&dateTo=` 就等于要本月 —— 于是账期选「所有」时
+     * 这张图只统计本月，而同页其它卡片统计的是全部账单：
+     * 七根柱子矮了一截，不报错，用户只会以为「这周花得少了」。
+     */
     const scope = activeRange();
+    const params = isAllMode() ? { all: '1' } : { dateFrom: scope.from, dateTo: scope.to };
+    if (filters.keyword) params.keyword = filters.keyword;
     try {
-      const r = await Api.statsWeekday(ledger.id, { dateFrom: scope.from, dateTo: scope.to });
+      const r = await Api.statsWeekday(ledger.id, params);
       paintWeekday(r.data ?? []);
     } catch {
       paintWeekday([]);
@@ -1417,7 +1555,7 @@ export async function renderStats(container, { go } = {}) {
     paintFilterSummary();
     paintPeriod();
 
-    const [sum, cmp, yoy, trend12, cat, daily, member, nw, accBal, recv, pay] = await Promise.all([
+    const [sum, cmp, yoy, trend12, cat, rankCat, daily, member, nw, accBal, recv, pay] = await Promise.all([
       Api.statsSummary(ledger.id, q).then((r) => r.data).catch(() => null),
       Api.statsComparison(ledger.id, q).then((r) => r.data).catch(() => null),
       /**
@@ -1451,6 +1589,13 @@ export async function renderStats(container, { go } = {}) {
         .then((r) => r.data)
         .catch(() => []),
       Api.statsByCategory(ledger.id, { ...q, recordType: 'expense', level: 1 }).then((r) => r.data).catch(() => []),
+      /**
+       * 排行单独取一次：口径跟着「类型」筛选走（收入 / 支出），
+       * 而上面那份 `cat` 固定按支出算 —— 它是「支出构成」环形图的数据，
+       * 标题已经写明「支出」，不能跟着筛选变成收入。
+       * 两级数据都在这一个响应里（`children` 字段），下钻不再发请求。
+       */
+      Api.statsByCategory(ledger.id, { ...q, recordType: rankTypeOf(), level: 1 }).then((r) => r.data).catch(() => []),
       Api.statsTrend(ledger.id, { ...q, granularity: 'day' }).then((r) => r.data).catch(() => []),
       Api.statsByMember(ledger.id, q).then((r) => r.data).catch(() => []),
       Api.statsNetWorth(ledger.id, 12).then((r) => r.data).catch(() => []),
@@ -1463,7 +1608,7 @@ export async function renderStats(container, { go } = {}) {
     if (sum) paintCompare(sum, cmp, yoy);
     paintTrend12(trend12);
     paintDonut(cat);
-    paintRank(cat);
+    paintRank(rankCat);
     paintDaily(
       (daily ?? []).map((d) => {
         /**

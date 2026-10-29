@@ -618,9 +618,18 @@
     position: sticky;
     bottom: 0;
     z-index: 10;
-    margin: 0 0 calc(-1 * var(--keyboard-height, 0px));
-    padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
-    /* 高度也回到卡片节奏：上下 12 + 44 的按钮 = 68，与同页其它按钮行同高；
+    /**
+     * ⚠️ **安全区必须用外边距让开，不能加进 padding-bottom**。
+     *
+     * 加进 padding 的后果（iOS 上 safe-area ≈ 34px）：卡片自己被撑高 34px，
+     * 而它是 `bottom: 0` 贴底的 —— 多出来的高度全落在屏幕最底部，
+     * 于是**下边框与两个下圆角被推到 Home 指示条那一条里**：
+     * 用户看到的就是「这张卡片高度不对，边框溢出去了」。
+     * 安全区是**屏幕**的属性，不是卡片内边距的属性，所以它属于卡片外。
+     */
+    margin: 0 0 calc(env(safe-area-inset-bottom, 0px) - var(--keyboard-height, 0px));
+    padding: 12px 16px;
+    /* 高度回到卡片节奏：上下 12 + 44 的按钮 = 68，与同页其它按钮行同高；
        不写死 height，由 44px 的触控底线撑出来，免得以后按钮变高被裁。 */
     min-height: 68px;
     border-radius: var(--r-lg);
@@ -804,9 +813,13 @@
     font-variant-numeric: tabular-nums;
   }
 
-  /* 结余是三格里的结论格，用 Pearl 面把它从两张白卡里抬出来 */
+  /* 三格同面：结余不再靠底色「抬出来」。
+     之前用 parchment 让结余格比两侧深一档，本意是强调结论，
+     但三格是同一级的三个数字（花多少 / 进多少 / 剩多少），
+     给其中一格换底色会让读的人以为它是另一种数据。
+     结论地位靠**顺序**（放最后）和**有符号色**（正绿负红）表达，不动面。 */
   .mh-flow__cell--net {
-    background: var(--c-parchment);
+    background: var(--c-canvas);
   }
 
   /* ③ 记一笔：整条主按钮。它和 dock 中心的「记」不是重复件 ——

@@ -232,12 +232,36 @@ const thisStart = monthStart(0);
 const lastStart = monthStart(-1);
 const lastEnd = monthEnd(-1);
 
+/**
+ * 本期窗口：**本月 1 号起固定 14 天**，且绝不越过今天。
+ *
+ * 这里刻意不用「本月 1 号 → 今天」：那个窗口的天数随「今天是几号」漂移，
+ * 一旦与上月天数撞上（2026-09 是 30 天，而 10-30 这天「本月至今」正好也是 30 天），
+ * 「两个区间天数不同」这个**前提**就不成立，后面三条断言全部失去意义 ——
+ * 而且失败信息长得很像「日均校准算错了」，实际只是日历撞车。
+ * 固定 14 天对上一个**整月**（28~31 天）在任何日历下都不可能相等，前提不再随日期漂移。
+ */
+const WINDOW_DAYS = 14;
+const today = new Date();
+const curEnd = new Date(thisStart);
+curEnd.setDate(curEnd.getDate() + WINDOW_DAYS - 1);
+if (curEnd.getTime() > today.getTime()) curEnd.setTime(today.getTime());
+
+/**
+ * 按日期去重：本期窗口的「上期」落在上月区间里（`previousRange` 取等长的紧邻区间），
+ * 两个循环都会遍历到它，不去重那几天就变成 200/天，日均校准的对照样本就脏了。
+ */
+const calSeen = new Set();
+
 /** 每天记固定 100 元。两个区间覆盖的**每一���**都记一笔。 */
 for (const [from, to] of [
-  [thisStart, new Date()],
+  [thisStart, curEnd],
   [lastStart, lastEnd],
 ]) {
   for (let d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) {
+    const iso = isoOf(d);
+    if (calSeen.has(iso)) continue;
+    calSeen.add(iso);
     await call('POST', `/ledgers/${calL}/transactions`, {
       token,
       body: {
@@ -246,24 +270,24 @@ for (const [from, to] of [
         categoryId: calCat.id,
         name: '等额',
         amount: '100.00',
-        txDate: isoOf(d),
+        txDate: iso,
       },
     });
   }
 }
 
-const calThis = (await call('GET', `/ledgers/${calL}/stats/summary?dateFrom=${isoOf(thisStart)}&dateTo=${isoOf(new Date())}`, { token })).json.data;
+const calThis = (await call('GET', `/ledgers/${calL}/stats/summary?dateFrom=${isoOf(thisStart)}&dateTo=${isoOf(curEnd)}`, { token })).json.data;
 const calLast = (await call('GET', `/ledgers/${calL}/stats/summary?dateFrom=${isoOf(lastStart)}&dateTo=${isoOf(lastEnd)}`, { token })).json.data;
 
 check(
   '对照账本：两个区间天数**确实不同**（前提成立，否则下面两条都无意义）',
   calThis.periodDays !== calLast.periodDays,
-  `本月至今 ${calThis.periodDays} 天 vs 上月整月 ${calLast.periodDays} 天`,
+  `本期 ${WINDOW_DAYS} 天窗口 = ${calThis.periodDays} 天 vs 上月整月 ${calLast.periodDays} 天`,
 );
 check(
   '✅ 日均口径：每天花同样多 → 两个区间日均**完全相等**（校准生效）',
   calThis.dailyExpense === calLast.dailyExpense,
-  `本月日均 ${calThis.dailyExpense} vs 上月日均 ${calLast.dailyExpense}`,
+  `本期日均 ${calThis.dailyExpense} vs 上月日均 ${calLast.dailyExpense}`,
 );
 check(
   '✅ 日均口径的变化率 ≈ 0%（不是天数造成的）',
@@ -274,7 +298,7 @@ check(
 check(
   '⚠️ 同一份数据在**总额口径**下会显示出差异（这正是不做校准的代价）',
   calThis.totalExpense !== calLast.totalExpense,
-  `总额 本月 ${calThis.totalExpense} vs 上月 ${calLast.totalExpense}`,
+  `总额 本期 ${calThis.totalExpense} vs 上月 ${calLast.totalExpense}`,
 );
 
 

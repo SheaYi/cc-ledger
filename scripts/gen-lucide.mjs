@@ -29,6 +29,17 @@ const PICKER = [
   'spray-can', 'brush', 'flower-2', 'leaf', 'sun', 'moon', 'star', 'zap',
   'flame', 'droplet', 'snowflake', 'package', 'tag', 'ticket', 'users',
   'plus', 'info', 'list-filter', 'check', 'archive', 'rotate-ccw',
+  /**
+   * 上移 / 下移（分类排序）。
+   *
+   * ⚠️ 这两个**只能**在这里显式登记：脚本的图标名来自 seed 与 PICKER，
+   *    不扫前端源码。分类排序按钮写了 `lucide('chevron-up')` 而库里没有它时，
+   *    `lucide()` 会静默回退到 `circle-help` —— 用户看到的就是**一个问号**，
+   *    而控制台没有任何报错（缺名只体现在 `data-missing-icon` 属性上）。
+   */
+  'chevron-up', 'chevron-down',
+  /** 预算页的 `lucide('target')`：与上面同源的缺名问号问题 */
+  'target',
 ];
 
 /** 账户分组表单图标选择器提供的候选集（钱包台账语义，用户自建分组用） */

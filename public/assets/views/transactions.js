@@ -1041,8 +1041,6 @@ export async function renderTransactions(container, { go, query }) {
           <input type="checkbox" tabindex="-1" aria-label="选择「${esc(subjectText(tx))}」" />
         </label>
 
-        <span class="tx-row__time tnum">${esc(tx.txTime ? String(tx.txTime).slice(0, 5) : '—')}</span>
-
         <span class="tx-row__subject">
           <!--
             分类图标：与首页「最近记账」**同一套**取法（subjectIcon → entityIcon），
@@ -1247,10 +1245,14 @@ export async function renderTransactions(container, { go, query }) {
     if (!bar) {
       bar = h(`
         <div class="tx-selectbar" data-role="selectbar" role="region" aria-label="批量操作">
-          <span class="tx-selectbar__count" data-role="sel-count"></span>
-          <button class="btn btn--quiet btn--sm" type="button" data-role="sel-cancel">取消</button>
-          <button class="btn btn--quiet btn--sm" type="button" data-role="sel-tag">打标签</button>
-          <button class="btn btn--danger btn--sm" type="button" data-role="sel-del">移入回收站</button>
+          <div class="tx-selectbar__top">
+            <span class="tx-selectbar__count" data-role="sel-count"></span>
+          </div>
+          <div class="tx-selectbar__acts">
+            <button class="btn btn--quiet btn--sm" type="button" data-role="sel-cancel">取消</button>
+            <button class="btn btn--quiet btn--sm" type="button" data-role="sel-tag">打标签</button>
+            <button class="btn btn--danger btn--sm" type="button" data-role="sel-del">移入回收站</button>
+          </div>
         </div>
       `);
       bar.querySelector('[data-role=sel-cancel]').addEventListener('click', () => {

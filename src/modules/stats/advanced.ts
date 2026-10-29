@@ -1807,6 +1807,15 @@ export function byMember(
  *
  * 七个桶**全部返回**（含 0 支出日）：只返回有数据的星期会让柱状图
  * 少几根柱子，而「周二没花钱」正是这张图要给出的信息。
+ *
+ * ⚠️ 日期条件必须**只在非空时添加**：账期选「所有」时 `normalizeRange()` 返回
+ * 空区间 `{from:'',to:''}`，若照写 `gte(tx_date,'') AND lte(tx_date,'')`，
+ * `lte(tx_date,'')` 匹配不到任何行 —— 结果是**七个桶全是 0** 且不报错，
+ * 看起来像「这周没花钱」而不是「统计坏了」。与 `service.ts` 的 `dateConds()` 同口径。
+ *
+ * 跨周 / 跨月 / 首末日边界：区间是闭区间（字符串比较 `>= from AND <= to`），
+ * 首尾两天都计入；星期由 `strftime` 直接对**日期字符串**取模，
+ * 不经过 Date 解析，因此跨周跨月都不会串位。
  */
 export function weekdaySpending(
   ctx: AppCtx,
@@ -1816,6 +1825,10 @@ export function weekdaySpending(
   keyword?: string,
 ) {
   const kwCond = keywordCondition(keyword);
+  const rangeConds = [
+    ...(from ? [gte(transactions.txDate, from)] : []),
+    ...(to ? [lte(transactions.txDate, to)] : []),
+  ];
   const rows = ctx.db
     .select({
       wd: sql<number>`cast(strftime('%w', ${transactions.txDate}) as integer)`,
@@ -1828,8 +1841,7 @@ export function weekdaySpending(
       and(
         eq(transactions.ledgerId, ledgerId),
         isNull(transactions.deletedAt),
-        gte(transactions.txDate, from),
-        lte(transactions.txDate, to),
+        ...rangeConds,
         ...(kwCond ? [kwCond] : []),
       ),
     )

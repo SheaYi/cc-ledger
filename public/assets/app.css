@@ -4298,12 +4298,19 @@ a.acct-row:hover {
   color: var(--c-ink-muted-48);
 }
 
-/* --------- 账单行（列顺序：时间·分类·名称·账户·商家对象·金额） --------- */
+/**
+ * 账单行（列顺序：主键 · 对象 · 账户 · 商家 · 金额）。
+ *
+ * ⚠️ **时间列已移除**：它原先是第 2 列（48px）。
+ * 移除时**必须同时删掉这条轨道** —— 只删元素不删轨道，后面的每一列
+ * 会整体左移一格去补空位：金额落到徽标的位置、徽标落到商家的位置，
+ * 而每一行又都还能显示内容，于是「看起来没错」但整列对不上。
+ */
 .tx-row {
   position: relative;
   display: grid;
   grid-template-columns:
-    28px 48px minmax(0, 1.1fr) minmax(0, 1.4fr)
+    28px minmax(0, 1.1fr) minmax(0, 1.4fr)
     minmax(0, 1fr) minmax(0, 1fr) auto auto 44px;
   align-items: center;
   gap: 12px;
@@ -4349,11 +4356,6 @@ a.acct-row:hover {
   margin: 0;
   accent-color: var(--c-primary);
   cursor: pointer;
-}
-
-.tx-row__time {
-  font-size: 12px;
-  color: var(--c-ink-muted-48);
 }
 
 .tx-row__subject {
@@ -4538,15 +4540,29 @@ a.acct-row:hover {
 }
 
 /* --------- 批量选择条（落底浮条，与记账页操作栏同源语法） --------- */
+/**
+ * 批量操作卡片：**上下两层** —— 上层「已选 N 笔」，下层三个动作。
+ *
+ * 为什么改成两层：横排时「已选 12 笔」与三个按钮挤在同一行，窄屏下要么换行
+ * 换得乱（计数字被挤到第二行、按钮断成两组），要么把计数字压成省略号 ——
+ * 而**选中了几笔**是这个卡片存在的理由，它必须有自己完整的一行。
+ *
+ * 宽度**贴合内容**（`width: fit-content`）而不是拉满整行：
+ * 拉满时它是一条通栏，会把左下角的分割线与分割线下面的内容**整条压住**，
+ * 视觉上像「页面底部多了一层地板」；收成卡片后它才是「浮」在内容上的。
+ */
 .tx-selectbar {
   position: sticky;
-  bottom: 0;
+  bottom: var(--s-sm);
   z-index: 20;
   display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-top: 16px;
-  padding: 12px 20px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  width: fit-content;
+  max-width: 100%;
+  margin: 16px auto 0 0;
+  padding: 12px 16px;
   border: 1px solid var(--c-hairline-soft);
   border-radius: var(--r-lg);
   background: var(--c-frost-bg-strong);
@@ -4554,11 +4570,21 @@ a.acct-row:hover {
   backdrop-filter: var(--frost-blur);
 }
 
+.tx-selectbar__top {
+  display: flex;
+  align-items: center;
+}
+
 .tx-selectbar__count {
-  margin-right: auto;
   font-size: 14px;
   font-weight: 600;
   letter-spacing: -0.016em;
+}
+
+.tx-selectbar__acts {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .tx-batchtag {
@@ -5629,7 +5655,12 @@ a.acct-row:hover {
 /* --------- 模板面板：锚定在 TabBar 动作位上方 --------- */
 .mega--tpl {
   top: auto;
-  bottom: calc(100% + 10px);
+  /**
+   * 让位 22px = 胶囊按钮上抬的 14px（TabBar 的 pill 是 `top: -14px`）+ 8px 间隙。
+   * 只留 10px 时面板底边会压在按钮上沿 —— 长按抬指的那一下会落进面板里，
+   * 变成「没想选却选中了一个模板」。
+   */
+  bottom: calc(100% + 22px);
   left: 50%;
   transform: translateX(-50%);
   width: min(92vw, 420px);
@@ -5675,16 +5706,6 @@ a.acct-row:hover {
   min-height: 0;
   overflow-y: auto;
   padding: 8px;
-}
-
-.tpl-panel__foot {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 10px 16px;
-  border-top: 1px solid var(--c-divider-soft);
-  font-size: 12px;
-  color: var(--c-ink-muted-48);
 }
 
 .tpl-panel__empty {
@@ -6179,21 +6200,16 @@ a.acct-row:hover {
     min-height: 44px;
   }
 
-  .action-bar {
-    position: sticky;
-    bottom: 0;
-    z-index: 10;
-    margin: 0 -16px calc(-1 * var(--keyboard-height, 0px));
-    padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
-    border-radius: var(--r-lg) var(--r-lg) 0 0;
-    border-bottom: 0;
-    /* 落底的操作栏要「压住」滚动内容：用磨砂浮层语法，与顶栏/TabBar 同源 */
-    background: var(--c-frost-bg-strong);
-    -webkit-backdrop-filter: var(--frost-blur);
-    backdrop-filter: var(--frost-blur);
-    border-top: 1px solid var(--c-hairline-soft);
-    transition: margin-bottom var(--d-state) var(--e-standard);
-  }
+  /**
+   * `.action-bar` 的手机形态**已移到 mobile.css**（`≤1023px` 段，卡片节奏：
+   * 四角全圆 + 四边描边 + 安全区走外边距）。
+   *
+   * 这里原来还有一份「贴底抽屉」写法（负左右外边距吃掉页面留白、只收上方两角、
+   * `border-bottom: 0`），与 mobile.css 那份**同特异性**，只靠加载顺序（mobile.css 在后）
+   * 才没生效 —— 两份定义相距两千行，改其中一份时根本看不出另一份在等机会。
+   * 记账页底部保存卡「高度异常、边框溢出」就是在这两份之间来回时被引入的，
+   * 所以这里只留**唯一一份**。
+   */
 }
 
 @media (max-width: 734px) {
@@ -6324,17 +6340,16 @@ a.acct-row:hover {
 }
 
 /* --------- 账单列表 / 详情：断点对应的列裁剪与触控目标 ---------
-   docs/13 §9.3 的行内信息分档：
-     ≥1068px  6 列（时间·分类·名称·账户·商家对象·金额）
-     834–1067 4 列（时间与商家对象收进日期组 / 名称列）
-     ≤833px   两行卡片（第 1 行 分类 + 金额，第 2 行 名称·账户·商家） */
+   行内信息分档（**时间列已移除**，日期信息由日期分组头承担）：
+     ≥1068px  5 列（主键 · 对象 · 账户 · 商家 · 金额）
+     834–1067 4 列（商家列收起）
+     ≤833px   两行卡片（第 1 行 主键 + 金额，第 2 行 对象·商家·标签·账户） */
 @media (max-width: 1067px) {
   .tx-row {
     grid-template-columns:
       28px minmax(0, 1.2fr) minmax(0, 1.4fr) minmax(0, 1fr) auto auto 44px;
   }
 
-  .tx-row__time,
   .tx-row__extra {
     display: none;
   }
@@ -6351,9 +6366,15 @@ a.acct-row:hover {
     top: env(safe-area-inset-top, 0px);
   }
 
-  /* 批量选择条要让开底部 TabBar，否则按钮被压住点不到 */
+  /**
+   * 批量选择条要让开底部 TabBar，否则按钮被压住点不到。
+   *
+   * ⚠️ 多留一个 `--s-sm`：TabBar 顶上有一条灰色分割线，卡片若正好贴在它上面
+   * （`bottom: var(--tabbar-h)`）就把这条线压住了 —— 看起来像 TabBar
+   * 少了一条边。留白之后卡片是「浮在分割线上方」，分割线与 TabBar 都完整可见。
+   */
   .tx-selectbar {
-    bottom: var(--tabbar-h);
+    bottom: calc(var(--tabbar-h) + var(--s-sm));
   }
 }
 
@@ -6490,13 +6511,6 @@ a.acct-row:hover {
     line-height: 1.3;
   }
 
-  /* 时间让位给「名称 + 金额」这条主线：手机上它是重复信息，且会挤掉名称的可显示宽度。
-     分类图标反过来**要显示** —— 它是「这一笔是什么」的第一眼信号，
-     与首页「最近记账」同一个视觉语法（尺寸 / 底色 / 圆角见 mobile.css 的共用规则）。 */
-  .tx-row__time {
-    display: none;
-  }
-
   /* 图标占最左一格、跨两行垂直居中（等价于首页行的 `align-items: center`）。
      `margin-right: 4px` 是补差：行内 column-gap 是 8px，加它才等于首页的 12px。 */
   .tx-row__icon {
@@ -6513,12 +6527,13 @@ a.acct-row:hover {
     font-size: 14px;
   }
 
-  .tx-selectbar {
+  /**
+   * 窄屏不再需要「换行 + 计数独占一行」那两条：卡片本身已经是**上下两层**
+   * （`flex-direction: column`），计数字天然有自己的一行。
+   * 留着它们反而会在按钮挤不下时把「取消 / 打标签 / 移入回收站」断成两组。
+   */
+  .tx-selectbar__acts {
     flex-wrap: wrap;
-  }
-
-  .tx-selectbar__count {
-    flex: 1 1 100%;
   }
 
   .txd__amount {
@@ -6728,19 +6743,30 @@ a.acct-row:hover {
 }
 
 @media (max-width: 833px) {
-  /* 模板面板在移动端是**底部 Sheet**，不是 TabBar 上方的小浮层：
-     触发器在屏幕最底部，向上弹的浮层会被拇指挡住，且可选范围只有 420px 宽。
-     Sheet 铺满宽度、贴底、上圆角，与记账页的分类 / 标签 Sheet 同一套语法。 */
+  /**
+   * 模板面板**上移到「记一笔」按钮上方**（原来它是贴底 Sheet）。
+   *
+   * 原来 `bottom: 0` 的 Sheet 会**盖住「记一笔」这颗按钮本身**：
+   * 长按 → 面板在拇指底下长出来 → 抬指时手指仍停在按钮的位置，
+   * 而那块区域此刻正是面板的第一行模板 —— 于是「想看一眼」变成了「选中了一个模板」。
+   * 这是手势冲突里最难自查的一种：用户以为自己没点，系统确实收到了一次点击。
+   *
+   * 让位 22px = 胶囊按钮上抬的 14px（TabBar 的 pill 是 `top: -14px`）+ 8px 间隙。
+   * 面板底边落在按钮**上沿之上**，按钮全程可见、不被覆盖。
+   *
+   * 顺带它不再是贴底 Sheet：`width: 100%` 在这个定位上下文里等于
+   * 「占满 78px 宽的按钮格子」，所以宽度要自己给（`min(92vw, 420px)`）。
+   */
   .mega--tpl {
     top: auto;
-    bottom: 0;
-    left: 0;
-    transform: none;
-    width: 100%;
+    bottom: calc(100% + 22px);
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(92vw, 420px);
     max-width: none;
-    max-height: min(70vh, 520px);
-    border-radius: var(--r-lg) var(--r-lg) 0 0;
-    border-bottom: 0;
+    max-height: min(68vh, 520px);
+    border-radius: var(--r-lg);
+    border-bottom: 1px solid var(--c-hairline);
   }
 
   /* 触控底线 44×44（00-DESIGN Min 44×44） */
@@ -9163,6 +9189,26 @@ button.st-filter__pick {
     grid-column: span 1;
   }
 
+  /**
+   * **手机端概览改 2×2**（总收入 · 净支出 · 笔数 · 期末现金）。
+   *
+   * 为什么不让它们各占一整行：这四张是一组要**横着对比**的数
+   * （收了多少、花了多少、剩多少），纵排时得上下滑四次才比得完，
+   * 而「对比」正是概览区存在的唯一理由 —— 2×2 让它们同屏可见。
+   *
+   * 做法是让 `.st-kpi-row` 从 `display: contents`（把 4 张卡交给外层 12 栅格）
+   * 变成**自己的 2 列栅格**：外层在这一档已经塌成单列，再靠 `span` 排不出 2 列。
+   *
+   * `grid-auto-rows: 1fr` 让两行等高：四张卡视觉权重一致，
+   * 不会第一排比第二排高一截（副标题有的两行、有的一行时尤其明显）。
+   */
+  .st-kpi-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-auto-rows: 1fr;
+    gap: var(--s-sm);
+  }
+
   .report-grid .card,
   .st-filter__card,
   .st-kpi-row > .kpi-card {
@@ -9424,6 +9470,93 @@ button.st-filter__pick {
   outline-offset: -2px;
 }
 
+/* --------- 排行：折叠 / 展开（超过 8 条才出现，见 charts.js 的 collapseAfter） --------- */
+.rank-table__rows {
+  display: flex;
+  flex-direction: column;
+}
+
+/**
+ * 折叠态隐藏第 9 行及以后。
+ *
+ * ⚠️ **只隐藏、不重算**：占比与累计占比在 `rankTable()` 里已按**完整列表**算好，
+ * 若折叠后再按可见行重算，展开第 9 行时会看到「占比 100%」这种只对前 8 行成立的数字
+ * （数字本身没错，但它回答的是另一个问题）。
+ */
+.rank-table:not(.is-expanded) .rank-row.is-beyond {
+  display: none;
+}
+
+/**
+ * 展开后**限高滚动**：30 个分类全铺开会把下方卡片顶到屏幕外。
+ * 排行是「找头部」的视图（前几名占了多少），滚动比撑长更符合它的用途。
+ */
+.rank-table.is-expanded .rank-table__rows {
+  max-height: 328px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.rank-more {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  align-self: flex-start;
+  min-height: 36px;
+  margin-top: 8px;
+  padding: 0 12px;
+  border: 1px solid var(--c-hairline);
+  border-radius: var(--r-sm);
+  background: transparent;
+  font-size: 13px;
+  color: var(--c-ink-muted-80);
+  transition:
+    background var(--d-state) var(--e-standard),
+    color var(--d-state) var(--e-standard);
+}
+
+.rank-more:hover {
+  background: var(--c-parchment);
+  color: var(--c-ink);
+}
+
+/**
+ * 箭头用 **CSS 画**而不是引图标：图标集里没有「展开 / 收起」这类语义图标时
+ * `lucide()` 会渲染成一个问号（分类排序按钮就栽在这上面），画一个不会出错。
+ */
+.rank-more__caret {
+  width: 7px;
+  height: 7px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: translateY(-2px) rotate(45deg);
+  transition: transform var(--d-state) var(--e-standard);
+}
+
+.rank-table.is-expanded .rank-more__caret {
+  transform: translateY(2px) rotate(-135deg);
+}
+
+/* 返回一级：落在卡片标题行右侧（section() 的 action 插槽） */
+.rank-back {
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--c-hairline);
+  border-radius: var(--r-sm);
+  background: transparent;
+  font-size: 12px;
+  color: var(--c-ink-muted-80);
+  transition:
+    background var(--d-state) var(--e-standard),
+    color var(--d-state) var(--e-standard);
+}
+
+.rank-back:hover {
+  background: var(--c-parchment);
+  color: var(--c-ink);
+}
+
 .rank-row__idx {
   color: var(--c-ink-muted-48);
   font-variant-numeric: tabular-nums;
@@ -9554,6 +9687,17 @@ button.st-filter__pick {
       20px 8px minmax(64px, 96px) minmax(32px, 1fr) 88px 40px 50px 52px;
     gap: 10px;
   }
+
+  /* 触屏：展开 / 收起、返回一级抬到 44px 底线（00-DESIGN Min 44×44） */
+  .rank-more,
+  .rank-back {
+    min-height: 44px;
+  }
+
+  /* 展开后的滚动区在手机上给足一屏内的可读高度（不顶到屏幕外） */
+  .rank-table.is-expanded .rank-table__rows {
+    max-height: 300px;
+  }
 }
 
 @media (max-width: 640px) {
@@ -9585,5 +9729,202 @@ button.st-filter__pick {
   .rank-row--head span:nth-child(n + 6),
   .rank-row > span:nth-child(n + 6) {
     display: none;
+  }
+}
+
+/* ==========================================================================
+   回收站页（/trash）
+   列宽**只写一处**：表头与数据行都引用 `--trash-cols`。
+   两处各写一遍，改列时必然错开（对账历史页的同类教训）。
+   ========================================================================== */
+.trash-list {
+  --trash-cols:
+    36px                 /* 选择 */
+    minmax(0, 1fr)       /* 账单：图标 + 名称 / 分类 */
+    80px                 /* 类型徽标 */
+    120px                /* 账户 */
+    96px                 /* 记账日 */
+    132px                /* 删除时间 */
+    112px                /* 金额 */
+    auto;                /* 操作 */
+  display: flex;
+  flex-direction: column;
+}
+
+.trash-row {
+  display: grid;
+  grid-template-columns: var(--trash-cols);
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  border-top: 1px solid var(--c-divider-soft);
+  font-size: 13px;
+}
+
+.trash-row:first-child {
+  border-top: 0;
+}
+
+/** 桌面：元信息四格各自成一列（`display: contents`，与 `.tx-row__meta` 同套做法） */
+.trash-row__meta {
+  display: contents;
+}
+
+.trash-row__pick {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.trash-row__pick input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--c-primary);
+  cursor: pointer;
+}
+
+.trash-row__main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.trash-row__icon {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-sm);
+  background: var(--c-parchment);
+  color: var(--c-ink-muted-80);
+  overflow: hidden;
+}
+
+.trash-row__text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.trash-row__name {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.016em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trash-row__badge,
+.trash-row__acct,
+.trash-row__date,
+.trash-row__del {
+  min-width: 0;
+  font-size: 12px;
+  color: var(--c-ink-muted-48);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trash-row__amt {
+  justify-self: end;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.022em;
+  white-space: nowrap;
+}
+
+.trash-row__acts {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* 工具条：全选 · 计数 ·（右侧）批量动作 */
+.trash-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: var(--s-sm);
+}
+
+.trash-bar__all {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.trash-bar__all input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--c-primary);
+  cursor: pointer;
+}
+
+.trash-bar__spacer {
+  flex: 1 1 auto;
+}
+
+@media (max-width: 833px) {
+  /**
+   * 手机：三行卡片 ——
+   *   第 1 行 选择 · 账单 + 金额；第 2 行 元信息（类型/账户/记账日/删除时间）；
+   *   第 3 行 操作按钮。
+   * 表头隐藏：手机上没有「列」的概念，表头只会把第一行顶下去。
+   */
+  .trash-row--head {
+    display: none;
+  }
+
+  .trash-row {
+    --trash-cols: 36px minmax(0, 1fr) auto;
+    grid-template-columns: var(--trash-cols);
+    grid-template-areas:
+      'pick main amt'
+      'pick meta meta'
+      'pick acts acts';
+    row-gap: 4px;
+    column-gap: 10px;
+    padding: 10px 12px;
+  }
+
+  .trash-row__pick {
+    grid-area: pick;
+    align-self: center;
+  }
+
+  .trash-row__main {
+    grid-area: main;
+  }
+
+  .trash-row__meta {
+    grid-area: meta;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 10px;
+  }
+
+  .trash-row__amt {
+    grid-area: amt;
+    justify-self: end;
+  }
+
+  .trash-row__acts {
+    grid-area: acts;
+    justify-content: flex-end;
+  }
+
+  /* 触屏：操作按钮抬到 44px 底线（00-DESIGN Min 44×44） */
+  .trash-row__acts .btn,
+  .trash-bar .btn {
+    min-height: 44px;
   }
 }

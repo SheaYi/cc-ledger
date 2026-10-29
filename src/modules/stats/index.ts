@@ -541,8 +541,17 @@ export async function registerStatsRoutes(app: FastifyInstance, ctx: AppCtx): Pr
   /** 星期分布（周日~周六，含 0 支出日） */
   app.get(`${base}/weekday`, opts, async (req) => {
     const m = membershipFromRequest(ctx, req);
-    const r = rangeOf(req.query as RangeQuery);
-    return ok(weekdaySpending(ctx, m.ledgerId, r.from, r.to, (req.query as RangeQuery).keyword));
+    const q = req.query as RangeQuery;
+    /**
+     * ⚠️ `all=1` 必须在这里先认下来。
+     *
+     * `rangeOf()` 只认 `dateFrom / dateTo`，缺哪个就退回「本月 1 号 ~ 今天」——
+     * 于是账期选「所有」时，这张图统计的是**本月**，而页面其余卡片统计的是全部账单。
+     * 图上不会报错，只是七根柱子矮了一截，用户只会觉得「这周花得少了」。
+     * 「所有」= 空区间，`weekdaySpending` 见到空区间就不加日期条件。
+     */
+    const r = isAll(q) ? { from: '', to: '' } : rangeOf(q);
+    return ok(weekdaySpending(ctx, m.ledgerId, r.from, r.to, q.keyword));
   });
 
   /** 账户期初 / 期末 / 结余（用账户页同一个余额函数） */

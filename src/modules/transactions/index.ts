@@ -210,6 +210,25 @@ export async function registerTransactionRoutes(app: FastifyInstance, ctx: AppCt
     return ok({ deleted: n });
   });
 
+  /**
+   * 批量恢复（回收站）。
+   *
+   * 与 `batch-delete` 对称：回收站页要「勾选多条 → 一次性恢复」，
+   * 没有它就得在前端循环调 `POST /:id/restore` —— N 次往返不说，
+   * 中途失败会留下**恢复了一半**的状态，而回收站里剩下的那些
+   * 用户会以为「没勾到」从而再点一次（重复恢复同一笔）。
+   */
+  app.post('/api/v1/ledgers/:ledgerId/transactions/batch-restore', { preHandler: app.requireAuth }, async (req) => {
+    const m = membershipFromRequest(ctx, req);
+    const { ids } = parseOrThrow(batchSchema, req.body);
+    let n = 0;
+    for (const id of ids) {
+      restoreTransaction(ctx, m.userId, m.ledgerId, id);
+      n += 1;
+    }
+    return ok({ restored: n });
+  });
+
   app.post('/api/v1/ledgers/:ledgerId/transactions/batch-tag', { preHandler: app.requireAuth }, async (req) => {
     const m = membershipFromRequest(ctx, req);
     const body = parseOrThrow(

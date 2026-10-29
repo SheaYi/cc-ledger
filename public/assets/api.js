@@ -362,6 +362,9 @@ export const Api = {
     request('POST', `/ledgers/${seg(ledgerId)}/transactions/${seg(id)}/duplicate`, { body: payload }),
   batchDeleteTransactions: (ledgerId, ids) =>
     request('POST', `/ledgers/${seg(ledgerId)}/transactions/batch-delete`, { body: { ids } }),
+  /** 回收站批量恢复（与 batch-delete 对称，后端一次性处理，不做 N 次往返） */
+  batchRestoreTransactions: (ledgerId, ids) =>
+    request('POST', `/ledgers/${seg(ledgerId)}/transactions/batch-restore`, { body: { ids } }),
   batchTagTransactions: (ledgerId, ids, tagIds, mode = 'add') =>
     request('POST', `/ledgers/${seg(ledgerId)}/transactions/batch-tag`, {
       body: { ids, tagIds, mode },

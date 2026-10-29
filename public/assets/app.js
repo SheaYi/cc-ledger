@@ -24,6 +24,7 @@ import { renderLogin, renderRegister } from './views/auth.js';
 import { renderOverview } from './views/overview.js';
 import { renderAccounts } from './views/accounts.js';
 import { renderReconciliations } from './views/reconciliations.js';
+import { renderTrash } from './views/trash.js';
 import { renderCategories } from './views/categories.js';
 import { renderTags } from './views/tags.js';
 import { renderTemplates } from './views/templates.js';
@@ -48,6 +49,7 @@ const PAGES = {
   '/transactions/new': renderTransactionForm,
   '/accounts': renderAccounts,
   '/reconciliations': renderReconciliations,
+  '/trash': renderTrash,
   '/debts': renderDebts,
   '/categories': renderCategories,
   '/tags': renderTags,
