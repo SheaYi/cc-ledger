@@ -33,11 +33,19 @@
    只有 ≤1023px 才把它变成真正的一块（可折叠）。
    ========================================================================== */
 
-/* 手机专属：列表末尾的新建行、两块折叠区的开关与收起入口 */
+/**
+ * 手机专属：列表末尾的新建行、账单页折叠区的开关与收起入口。
+ *
+ * ⚠️ `.st-filter__more` 已从这份「桌面隐藏」名单里移出。
+ * 它原本只在窄屏出现，是因为旧版筛选面板在桌面**常驻展开**、没有可折叠的东西；
+ * 改成单卡片三选项后，「更多」就是三个选项之一，桌面也必须可见 ——
+ * 否则桌面用户面对的是一个不存在的开关，而筛选条件也无法收起。
+ * 展开区里的「收起」仍保持桌面隐藏：桌面上收起动作由「更多」自己承担
+ * （展开后它的文案会变成「收起」），不需要两个入口。
+ */
 .acct-add,
 .tx-more,
 .tx-pill--quiet,
-.st-filter__more,
 .st-filter__zone-collapse {
   display: none;
 }
@@ -413,29 +421,22 @@
     display: none;
   }
 
+  /**
+   * 展开区在窄屏**仍然是内嵌信息区**（羊皮纸底 + 1px 细边框），不再摊平成透明。
+   * 摊平是旧版「桌面常驻展开」的遗留 —— 那时它只是换行后的一段控件；
+   * 现在它是点「更多」才出现的一块信息区，摊平之后边界消失，
+   * 用户看不出这几枚下拉是「展开出来的」还是本来就在那儿。
+   */
   .st-filter__zone {
-    display: flex;
     flex: 1 1 100%;
-    flex-wrap: wrap;
-    align-items: center;
     gap: var(--s-xs);
-    margin-top: 0;
-    padding: 0;
-    background: transparent;
-    border: 0;
-    border-radius: 0;
   }
 
   .st-filter__zone[data-more='off'] {
     display: none;
   }
 
-  /* 分隔线是**桌面工具条**里的分组符；折叠区自己独占一行后不再需要它 */
-  .st-filter__zone > .st-filter__div {
-    display: none;
-  }
-
-  /* 折叠区里：下拉保持手机上既有的「两枚一行」（min-width:132px 已验证），
+  /* 展开区里：下拉保持手机上既有的「两枚一行」（min-width:132px 已验证），
      搜索框独占一行 —— 它要能容下「搜索对象 / 名称 / 商家」这串 placeholder。 */
   .st-filter__picks,
   .st-filter__search {
@@ -451,7 +452,9 @@
     min-width: 0;
   }
 
-  /* 「更多」紧跟在「自定义」之后：它必须常驻可见，所以不放进横滑的 seg 里 */
+  /* 「更多」常驻可见（它不在横滑的 seg 里）。
+     圆角与日期段触发器一致（--r-sm）：三者是同一行的同一级选项，
+     只有它用胶囊圆角会让它看起来像另一种控件。 */
   .st-filter__more {
     flex: none;
     display: inline-flex;
@@ -459,7 +462,7 @@
     min-height: 44px;
     padding: 0 14px;
     border: 1px solid var(--c-hairline);
-    border-radius: var(--r-pill);
+    border-radius: var(--r-sm);
     background: var(--c-canvas);
     color: var(--c-ink-muted-80);
     font-size: 13px;

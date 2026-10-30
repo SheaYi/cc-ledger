@@ -133,8 +133,18 @@ const fb = JSON.parse(
       catHint: ((catBtn && catBtn.querySelector('.st-filter__pick-label')) || {}).textContent || '',
       height: Math.round(bar.getBoundingClientRect().height),
       kwRadius: kw ? getComputedStyle(kw).borderTopLeftRadius : 0,
-      actsRight: Math.round(bar.querySelector('.st-filter__acts').getBoundingClientRect().right),
+      /**
+       * 「更多」是筛选栏里唯一右对齐的控件。
+       * ⚠️ 原来是量 st-filter__acts（旧工具条右侧的按钮容器），
+       * 单卡片改版后那层容器没了，右对齐的动作就是「更多」本身。
+       * （注释内不能用反引号：这段文本本身就在模板字符串里。）
+       */
+      moreRight: Math.round(bar.querySelector('[data-role=more]').getBoundingClientRect().right),
+      moreLeft: Math.round(bar.querySelector('[data-role=more]').getBoundingClientRect().left),
       barRight: Math.round(bar.getBoundingClientRect().right),
+      barLeft: Math.round(bar.getBoundingClientRect().left),
+      barWidth: Math.round(bar.getBoundingClientRect().width),
+      winW: window.innerWidth,
     };
   })())`),
 );
@@ -153,7 +163,18 @@ check(
   Boolean(fb && fb.catIsButton),
   `isButton=${fb?.catIsButton}`,
 );
-check('筛选栏只有一行（不占主视觉高度）', Number(fb?.height) <= 60, `${fb?.height}px`);
+/**
+ * ⚠️ 阈值从 60 放宽到 72：旧版是**扁平工具条**（一行控件，没有标签），
+ * 单卡片改版后每个选项上方多了一行 12px 的小标签（时间范围 / 日期段），
+ * 高度天然 +16px 左右。这条断言要守的是「不摊成多行表单」（那会是 100px+），
+ * 而不是「必须压到 60px 以内」。
+ */
+check('筛选栏只有一行（不占主视觉高度）', Number(fb?.height) <= 72, `${fb?.height}px`);
+check(
+  '「更多」右对齐到筛选栏右边缘',
+  Number(fb?.barRight) - Number(fb?.moreRight) <= 4,
+  `bar=[${fb?.barLeft},${fb?.barRight}] w=${fb?.barWidth} more=[${fb?.moreLeft},${fb?.moreRight}] win=${fb?.winW}`,
+);
 check(
   '搜索框是胶囊形（00-DESIGN search-input 与 CTA 同一套语法）',
   parseInt(String(fb?.kwRadius), 10) >= 100,
@@ -242,18 +263,36 @@ await ev(`document.querySelector('[data-clear=type]').click()`);
 await new Promise((r) => setTimeout(r, 1200));
 check('点芯片的 × 摘掉那一条条件', Number(await q('[data-clear=type]')) === 0);
 
-/** 「自定义」要把当前区间带进去 —— 用户点它是想微调，不是想从两个空框开始填 */
-await ev(`document.querySelector('[data-role=custom]').click()`);
-await new Promise((r) => setTimeout(r, 1200));
-check('点「自定义」露出日期区间行', (await ev(`!document.querySelector('[data-role=range-row]').hidden`)) === true);
+/**
+ * 日期段要把当前区间带进去 —— 用户点它是想微调，不是想从两个空框开始填。
+ *
+ * ⚠️ 旧断言走的是分段控件里的「自定义」按钮 + 常驻日期行（range-row）。
+ * 单卡片改版后自定义区间由「日期段」卡承载：触发器 → 弹层（起 / 止）→ 确定 / 取消。
+ * 功能没变、承载形态变了，所以断言改量弹层与触发器文案。
+ */
+await ev(`document.querySelector('[data-role=range-trigger]').click()`);
+await new Promise((r) => setTimeout(r, 900));
+check('点「日期段」弹出日期选择器（起 / 止）', (await ev(`!document.querySelector('[data-role=range-pop]').hidden`)) === true);
 check(
-  '切进自定义时带上当前区间（不是两个空框）',
+  '打开时带上当前区间（不是两个空框）',
   /^\d{4}-\d{2}-\d{2}$/.test(String(await ev(`document.querySelector('#st-f-from').value`))),
   String(await ev(`document.querySelector('#st-f-from').value`)),
 );
+await ev(`document.querySelector('[data-role=range-apply]').click()`);
+await new Promise((r) => setTimeout(r, 1300));
+check(
+  '「确定」把区间写回并生效（触发器显示起止日期）',
+  /^\d{4}-\d{2}-\d{2} → \d{4}-\d{2}-\d{2}$/.test(
+    String(await ev(`document.querySelector('[data-role=range-text]').textContent.trim()`)),
+  ),
+  String(await ev(`document.querySelector('[data-role=range-text]').textContent.trim()`)),
+);
 await ev(`document.querySelector('[data-quick=month]').click()`);
-await new Promise((r) => setTimeout(r, 1200));
-check('切回快捷账期后日期行收起', (await ev(`document.querySelector('[data-role=range-row]').hidden`)) === true);
+await new Promise((r) => setTimeout(r, 1300));
+check(
+  '切回快捷账期后日期段回到占位文案',
+  (await ev(`document.querySelector('[data-role=range-text]').textContent.trim()`)) === '选择日期段',
+);
 
 /* ══════════ 2. 账期切换器 ══════════ */
 console.log('\n── 模块 2 · 账期切换器 ──');
@@ -418,18 +457,22 @@ if (isPersonal) {
 }
 
 /**
- * 账期「所有」：在「近12月 / 自定义」之后新增的选项。
+ * 账期「所有」：在「近12月」之后新增的选项。
  * 选它时按全部账单统计、不受时间范围限制，翻页按钮随之禁用
  * （「全部账单」没有可平移的边界）。
+ *
+ * ⚠️ 「自定义」已从分段控件里撤出：单卡片改版后自定义区间由**日期段卡**承载
+ * （触发器 → 弹层 → 确定），它不该再作为第五种账期和「本周 / 本月」并列 ——
+ * 那是两种不同性质的东西（一个是快捷账期，一个是手填区间）。
+ * 所以这里只断言四个快捷账期 + 所有 的顺序，日期段的断言在上面模块 1。
  */
 const quickLabels = await ev(`Array.from(document.querySelectorAll('[data-role=quick] .segmented__item')).map(x=>x.textContent.trim())`);
 check(
-  '账期选项顺序含「近12月 → 自定义 → 所有」',
+  '账期选项顺序含「近12月 → 所有」（且不再有「自定义」）',
   quickLabels.includes('近12月') &&
-    quickLabels.includes('自定义') &&
     quickLabels.includes('所有') &&
-    quickLabels.indexOf('所有') > quickLabels.indexOf('自定义') &&
-    quickLabels.indexOf('自定义') > quickLabels.indexOf('近12月'),
+    !quickLabels.includes('自定义') &&
+    quickLabels.indexOf('所有') > quickLabels.indexOf('近12月'),
   JSON.stringify(quickLabels),
 );
 

@@ -890,13 +890,27 @@ export function rankTable(rows, opt = {}) {
     })
     .join('');
 
-  const more =
-    collapseAfter && items.length > collapseAfter
+  /**
+   * 折叠「展开全部」按钮（默认行为）。
+   * 调用方若把展开控件挪到了别处（例如卡片标题行右侧的动作区），
+   * 用 `suppressMore` 关掉这个内置按钮 —— 否则一页会出现两个「展开全部」，
+   * 而两个同名按钮里只有一个在生效，用户点错那个会以为功能坏了。
+   */
+  const autoMore =
+    !opt.suppressMore && collapseAfter && items.length > collapseAfter
       ? `<button type="button" class="rank-more" data-role="rank-toggle" aria-expanded="false">
            <span class="rank-more__label" data-role="rank-toggle-label">展开全部（共 ${items.length} 项）</span>
            <span class="rank-more__caret" aria-hidden="true"></span>
          </button>`
       : '';
+
+  /**
+   * 底部插槽。⚠️ 为空时**连容器一起不渲染**：
+   * `footer` / `autoMore` 都为空说明这张卡没有折叠控件（行数没超阈值），
+   * 此时留一个空 `<div>` 会带出 `margin-top` 的空白，看起来像列表缺了一块。
+   */
+  const footHtml = `${opt.footer ?? ''}${autoMore}`;
+  const foot = footHtml.trim() ? `<div class="rank-table__foot">${footHtml}</div>` : '';
 
   return `<div class="rank-table">
     <div class="rank-row rank-row--head">
@@ -910,6 +924,6 @@ export function rankTable(rows, opt = {}) {
       <span class="rank-row__num">小计</span>
     </div>
     <div class="rank-table__rows">${body}</div>
-    ${more}
+    ${foot}
   </div>`;
 }

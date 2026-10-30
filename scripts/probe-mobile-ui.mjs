@@ -358,7 +358,17 @@ const appBar = JSON.parse(
   const dock = document.getElementById('cc-dock');
   return JSON.stringify({
     hasBar: !!document.querySelector('.app-bar'),
-    hasChip: !!document.querySelector('.user-chip'),
+    /**
+     * ⚠️ 判「可见」而不是「存在」。
+     * chrome.js 在**侧栏底部**渲染了一枚 user-chip（账号与设置的入口），
+     * 它在 DOM 里恒存在；这条断言要守的是「顶栏那枚头像没了」，
+     * 而不是「全站不许有 user-chip」—— 用 querySelector 判存在会恒成立失败。
+     * （注释里不能用反引号：这段文本本身就在模板字符串里。）
+     */
+    hasChip: (() => {
+      const c = document.querySelector('.user-chip');
+      return !!c && !!c.offsetParent;
+    })(),
     hasDock: !!dock,
     dockCompose: !!dock?.querySelector('[data-compose]'),
     /* 顶栏整条移除后，内容不该再被它顶下去：页面顶边应贴着视口（只剩安全区） */
@@ -370,7 +380,7 @@ const appBar = JSON.parse(
 })()`),
 );
 check('顶部固定条 app-bar 已整体移除', appBar.hasBar === false);
-check('页面不再渲染头像卡片（user-chip）', appBar.hasChip === false);
+check('顶栏头像卡片（user-chip）不再可见', appBar.hasChip === false);
 check('底部 dock 仍在（导航不丢）', appBar.hasDock === true);
 check('记一笔入口仍在（dock 动作位）', appBar.dockCompose === true);
 check('内容不再被顶栏顶下去（页面顶边 ≤ 20px）', appBar.pageTop >= 0 && appBar.pageTop <= 20);
@@ -944,14 +954,27 @@ const st1 = JSON.parse(
   const vis = (el) => !!el && !!el.offsetParent;
   const more = document.querySelector('[data-role=more]');
   const zone = document.querySelector('[data-role=more-zone]');
-  const seg = document.querySelector('.st-filter__seg');
+  const bar = document.querySelector('.st-filter__bar');
   const mb = more && more.getBoundingClientRect();
-  const gb = seg && seg.getBoundingClientRect();
+  const bb = bar && bar.getBoundingClientRect();
   return JSON.stringify({
     hero: vis(document.querySelector('.page__hero [data-role=report-actions]')),
     more: vis(more),
     moreH: mb ? Math.round(mb.height) : 0,
-    moreAfterSeg: mb && gb ? mb.left >= gb.right - 1 : false,
+    /**
+     * 「更多」**置于最右**：右边缘贴住筛选栏右缘，且是栏内最后一个控件。
+     *
+     * ⚠️ 旧断言是「它的左边缘在账期段右边缘之后」—— 那测的是「紧随账期段」。
+     * 改成单卡片三选项后，「更多」在最右、窄屏独占一行，
+     * 它的 left 会小于账期段的 right（因为它在下面一行），旧判据必然失败；
+     * 而「最右」这个意图从来没变，所以判据要改成量右边缘。
+     */
+    moreRightMost: mb && bb ? mb.right >= bb.right - 2 : false,
+    moreLast: (() => {
+      if (!more || !bar) return false;
+      const kids = [...bar.children];
+      return kids[kids.length - 1] === more;
+    })(),
     zone: vis(zone),
     picks: zone ? zone.querySelectorAll('.st-filter__pick').length : 0,
     kw: zone ? !!zone.querySelector('#st-f-kw') : false,
@@ -959,7 +982,7 @@ const st1 = JSON.parse(
 })()`),
 );
 check('统计页：导出报表 / 导入账目 整行不显示', st1.hero === false);
-check('统计页：「更多」紧跟在账期段（自定义）之后', st1.more === true && st1.moreAfterSeg === true);
+check('统计页：「更多」置于筛选栏最右（且为最后一个控件）', st1.more === true && st1.moreRightMost === true && st1.moreLast === true);
 check('统计页：筛选区默认收起', st1.zone === false);
 check('统计页：三个下拉 + 搜索框都在折叠区里', st1.picks === 3 && st1.kw === true, `${st1.picks} 个下拉`);
 check('统计页：「更多」触控 ≥44px', st1.moreH >= 44, `${st1.moreH}px`);

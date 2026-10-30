@@ -7860,11 +7860,18 @@ a.acct-row:hover {
  * 换行之后的两行则更远 —— 间距必须能表达这个亲疏差异，
  * 用同一个 gap 会让「掉到第二行的按钮组」看起来还属于第一行。
  */
+/**
+ * 一行装三个选项：时间范围（弹性占满）→ 日期段（按内容）→ 更多（最右）。
+ *
+ * `align-items: flex-end` 是关键：选项内部是「小标签在上、控件在下」的两层结构，
+ * 底部对齐才能让分段控件、日期触发器、更多按钮落在同一条基线上；
+ * 用 center 的话标签行数不同的两项会互相错位。
+ */
 .st-filter__bar {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   flex-wrap: wrap;
-  gap: var(--s-sm) var(--s-xs);
+  gap: var(--s-sm) var(--s-md);
 }
 
 .st-filter__seg {
@@ -8077,9 +8084,183 @@ button.st-filter__pick {
   outline-offset: 1px;
 }
 
+/* --------- 筛选区：一张卡片 + 三个选项 --------- */
+
+/**
+ * 选项组：小标签在上、控件在下，组内间距 8px（gap 给，不再各自 margin）。
+ * `min-width: 0` 是必须的 —— flex 子项默认 `min-width:auto`，
+ * 内容宽度会顶住收缩，窄屏下分段控件就压不出横滑而是把卡片撑破。
+ */
+.st-filter__opt {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-xs);
+  min-width: 0;
+}
+
+/**
+ * 时间范围吃掉剩余宽度：五个账期选项 + 翻页器是三者里最长的一组，
+ * 空间不够时应该先委屈它（它可以横滑），而不是把「更多」挤到下一行。
+ */
+.st-filter__opt--time {
+  flex: 1 1 340px;
+}
+
+.st-filter__time {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-xs);
+}
+
+/** 日期段按内容宽；`position: relative` 是日期弹层的定位参照 */
+.st-filter__opt--range {
+  flex: 0 1 auto;
+  position: relative;
+}
+
+.st-filter__cap {
+  display: block;
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: -0.01em;
+  color: var(--c-ink-muted-48);
+}
+
+/* 日期段卡：触发器外观接近输入控件 */
+.st-filter__range-trigger {
+  display: flex;
+  align-items: center;
+  gap: var(--s-xs);
+  width: 100%;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--c-hairline);
+  border-radius: var(--r-sm);
+  background: var(--c-canvas);
+  font-size: 13px;
+  letter-spacing: -0.016em;
+  color: var(--c-ink);
+  cursor: pointer;
+  transition: border-color var(--d-state) var(--e-standard);
+}
+
+.st-filter__range-trigger:hover {
+  border-color: var(--c-ink-muted-48);
+}
+
+.st-filter__range-trigger:focus-visible {
+  outline: 2px solid var(--c-primary-focus);
+  outline-offset: 1px;
+}
+
+.st-filter__range-text {
+  flex: 1;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.st-filter__range-text.is-placeholder {
+  color: var(--c-ink-muted-48);
+}
+
+.st-filter__range-ico,
+.st-filter__caret {
+  display: inline-flex;
+  color: var(--c-ink-muted-48);
+  flex: none;
+}
+
+/* 日期段弹层（覆盖在卡片之上的浮层） */
+.st-filter__pop {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 30;
+  min-width: 300px;
+  padding: var(--s-md);
+  background: var(--c-canvas);
+  border: 1px solid var(--c-hairline);
+  border-radius: var(--r-md);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-sm);
+}
+
+.st-filter__pop-row {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--s-xs);
+}
+
+.st-filter__pop-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.st-filter__pop-cap {
+  font-size: 12px;
+  color: var(--c-ink-muted-48);
+}
+
+.st-filter__pop-acts {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--s-xs);
+}
+
+/* 更多卡：图标 + 文案的整卡按钮 */
+/**
+ * 更多：**置于最右**。`margin-left: auto` 吃掉该行剩余空间把它顶到行尾；
+ * 换行后它仍落在自己那一行的最右 —— 这比 `order` 或固定宽度稳，
+ * 不依赖「这一行还剩多少空间」的计算。
+ */
+.st-filter__more {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-xs);
+  height: 32px;
+  padding: 0 14px;
+  margin-left: auto;
+  border: 1px solid var(--c-hairline);
+  border-radius: var(--r-sm);
+  background: var(--c-canvas);
+  font-size: 13px;
+  letter-spacing: -0.016em;
+  color: var(--c-ink);
+  cursor: pointer;
+  transition: border-color var(--d-state) var(--e-standard), background var(--d-state) var(--e-standard);
+}
+
+.st-filter__more:hover {
+  background: var(--c-parchment);
+}
+
+.st-filter__more:focus-visible {
+  outline: 2px solid var(--c-primary-focus);
+  outline-offset: 1px;
+}
+
+.st-filter__more.is-on {
+  border-color: var(--c-primary);
+  color: var(--c-primary);
+}
+
+.st-filter__more-ico {
+  display: inline-flex;
+  color: currentColor;
+}
+
 /* --------- 筛选面板（来源 / 类型 / 分类 / 搜索）---------
- * 桌面端作为工具条下方的常驻面板：独立于工具条一行，所有筛选项始终完整展示。
- * 圆角 / 内边距 / 面色走 00-DESIGN 令牌，与 .card 同一套语言。 */
+ * 点「更多」后在卡片内**新增的一行**：内嵌信息区，首行即 来源 / 类型 / 分类 / 搜索框。
+ * 圆角 / 面色走 00-DESIGN 令牌：羊皮纸底 + 1px 细边框，既和外层白卡分层，
+ * 又不引入第二套视觉语言（不加阴影 —— 卡片从不加阴影）。 */
 .st-filter__zone {
   display: flex;
   flex-wrap: wrap;
@@ -8090,6 +8271,24 @@ button.st-filter__pick {
   background: var(--c-parchment);
   border: 1px solid var(--c-hairline);
   border-radius: var(--r-md);
+}
+
+/**
+ * ⚠️ 折叠态必须在**所有宽度**下都隐藏。
+ * 旧版只在窄屏收起（桌面常驻展开），那是因为桌面把「更多」按钮也隐藏了；
+ * 现在「更多」是三个选项之一、全宽度可见，如果桌面面板恒显，
+ * 点「更多」就毫无反应 —— 按钮会说谎。
+ */
+.st-filter__zone[data-more='off'] {
+  display: none;
+}
+
+/* 「重置 / 收起」贴右边：它们是这一行的收尾动作 */
+.st-filter__zone-acts {
+  display: flex;
+  align-items: center;
+  gap: var(--s-xs);
+  margin-left: auto;
 }
 
 /* --------- 个人账本「本期录入汇总」（替代成员饼图）---------
@@ -8162,7 +8361,8 @@ button.st-filter__pick {
   .st-filter__segitem,
   .st-filter__pick,
   .st-filter__kw,
-  .st-filter__date {
+  .st-filter__date,
+  .st-filter__range-trigger {
     height: 44px;
   }
 
@@ -8179,6 +8379,26 @@ button.st-filter__pick {
   .st-filter__pick--cat {
     flex: 1 1 0;
     min-width: 0;
+  }
+
+  /* 窄屏：两个选项各占一行（弹层要能铺开，挤在一行会溢出视口） */
+  .st-filter__opt--time,
+  .st-filter__opt--range {
+    flex: 1 1 100%;
+  }
+
+  /* 日期段弹层在窄屏改为卡内静态展开：绝对定位的浮层在 375px 屏上必然溢出 */
+  .st-filter__pop {
+    position: static;
+    min-width: 0;
+    width: 100%;
+    box-shadow: none;
+    margin-top: var(--s-xs);
+  }
+
+  /* 展开区里搜索框占满一行 */
+  .st-filter__zone .st-filter__search {
+    flex: 1 1 100%;
   }
 
 }
@@ -9286,6 +9506,59 @@ button.st-filter__pick {
     grid-row: 3;
   }
 
+  /**
+   * 账户一览表专用：手机端改为**两行**而不是三行。
+   *
+   * 通用规则把 5 格列成了「账户+类型」/「期初+期末」/「结余」三行，
+   * 结余独占一行既空又碎。这里按 6 列栅格重排：
+   *   行 1 —— 账户（占左半 3 列）+ 类型（占右半 3 列）；
+   *   行 2 —— 期初 / 期末 / 结余各占 2 列（1/3 宽），三项同屏横比。
+   * 轨道数（6）与单元格占用（5 格）一致，不会生成隐式列导致横向溢出。
+   */
+  .report-grid .tbl--acct tr {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 4px 8px;
+  }
+
+  .report-grid .tbl--acct td:nth-child(1) {
+    grid-column: 1 / 4;
+    grid-row: 1;
+  }
+
+  .report-grid .tbl--acct td:nth-child(2) {
+    grid-column: 4 / 7;
+    grid-row: 1;
+    text-align: right;
+  }
+
+  .report-grid .tbl--acct td:nth-child(3) {
+    grid-column: 1 / 3;
+    grid-row: 2;
+    text-align: left;
+  }
+
+  .report-grid .tbl--acct td:nth-child(4) {
+    grid-column: 3 / 5;
+    grid-row: 2;
+    text-align: left;
+  }
+
+  .report-grid .tbl--acct td:nth-child(5) {
+    grid-column: 5 / 7;
+    grid-row: 2;
+    text-align: left;
+  }
+
+  /**
+   * 行 2 三个格子各占 1/3（窄屏约 109px），标签若与金额同行，
+   * 「期初 ¥1,234.56」必然折行 —— 数字被劈成两截比挤一点更难读。
+   * 这里让标签独占一行、金额另起一行：列宽再窄也不会把金额切断。
+   */
+  .report-grid .tbl--acct td[data-label]::before {
+    display: block;
+    margin-bottom: 2px;
+  }
+
   /* 窄屏图 + 图例改成上下排（左右并排时图只占 160px，图例被压到读不了） */
   .chart-figure {
     grid-template-columns: minmax(0, 1fr);
@@ -9516,6 +9789,80 @@ button.st-filter__pick {
     color var(--d-state) var(--e-standard);
 }
 
+/**
+ * 底部插槽容器（可选）。为空时 charts.js 不渲染这个容器。
+ */
+.rank-table__foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+/**
+ * 标题行右侧动作区：「返回一级分类」与「展开全部」**并排**。
+ *
+ * 两个按钮原本分属卡片底部与标题行，现在统一收在标题行最右
+ * （`section()` 的 action 插槽，`h2` 有 `margin-right:auto` 把它们顶到右边）。
+ * 并排的关键是**等高**：`.rank-back` 是 32px、`.rank-more` 是 36px，
+ * 不拉平的话两个按钮会一上一下，看着像没对齐的排版事故。
+ */
+.rank-head-acts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+/**
+ * 两个按钮**同一套尺寸**：高度 32px、内边距 0 10px、字号 12px。
+ *
+ * `.rank-more` 原本是**卡片底部**的独立控件（36px 高、13px 字、`margin-top:8px`、
+ * `align-self:flex-start`），与标题行里的「返回一级分类」（32px / 12px）不是一套。
+ * 并排放时这点差异会被放大成「两个不同辈分的控件」，所以在这里拉齐。
+ *
+ * 同时不再画那个折叠小箭头：它的旋转规则是 `.rank-table.is-expanded .rank-more__caret`，
+ * 而按钮现在在 `.rank-table` **外面**（标题行），那条规则永远匹配不上 ——
+ * 留着它就是一个恒朝下、点了也不动的箭头，比没有更误导。
+ * 状态改由文案本身表达（展开 ↔ 收起）。
+ */
+.rank-head-acts .rank-more,
+.rank-head-acts .rank-back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
+  margin-top: 0;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--c-hairline);
+  border-radius: var(--r-sm);
+  background: transparent;
+  font-size: 12px;
+  line-height: 1;
+  color: var(--c-ink-muted-80);
+  transition:
+    background var(--d-state) var(--e-standard),
+    color var(--d-state) var(--e-standard);
+}
+
+.rank-head-acts .rank-more:hover,
+.rank-head-acts .rank-back:hover {
+  background: var(--c-parchment);
+  color: var(--c-ink);
+}
+
+/**
+ * ≤833px 触控底线 44px（00-DESIGN：触屏没有精密操作豁免）。
+ * 标题行本来就给了 44px 行高，按钮抬到 44 不会把卡片顶边推低。
+ */
+@media (max-width: 833px) {
+  .rank-head-acts .rank-more,
+  .rank-head-acts .rank-back {
+    min-height: 44px;
+  }
+}
+
 .rank-more:hover {
   background: var(--c-parchment);
   color: var(--c-ink);
@@ -9547,6 +9894,7 @@ button.st-filter__pick {
   background: transparent;
   font-size: 12px;
   color: var(--c-ink-muted-80);
+  align-self: center;
   transition:
     background var(--d-state) var(--e-standard),
     color var(--d-state) var(--e-standard);
