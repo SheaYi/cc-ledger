@@ -164,12 +164,14 @@ check(
   `isButton=${fb?.catIsButton}`,
 );
 /**
- * ⚠️ 阈值从 60 放宽到 72：旧版是**扁平工具条**（一行控件，没有标签），
- * 单卡片改版后每个选项上方多了一行 12px 的小标签（时间范围 / 日期段），
- * 高度天然 +16px 左右。这条断言要守的是「不摊成多行表单」（那会是 100px+），
- * 而不是「必须压到 60px 以内」。
+ * ⚠️ 阈值经过三次修正，每次都要跟着**当前形态**重新校准：
+ *   · 60 —— 旧版扁平工具条（一行控件，没有标签）
+ *   · 72 —— 单卡片改版后每个选项上方多了一行 12px 小标签（时间范围 / 日期段）
+ *   · 48 —— 现在标签撤了，「时间段 / 日期段 / 更多」三个**同等高**的控件并排一行，
+ *            高度就是控件本身（桌面 32px）。
+ * 这条断言要守的是「不摊成多行表单」（那会是 100px+），而不是某个具体的魔法数字。
  */
-check('筛选栏只有一行（不占主视觉高度）', Number(fb?.height) <= 72, `${fb?.height}px`);
+check('筛选区默认只显示一行（不占主视觉高度）', Number(fb?.height) <= 48, `${fb?.height}px`);
 check(
   '「更多」右对齐到筛选栏右边缘',
   Number(fb?.barRight) - Number(fb?.moreRight) <= 4,
@@ -180,6 +182,19 @@ check(
   parseInt(String(fb?.kwRadius), 10) >= 100,
   String(fb?.kwRadius),
 );
+
+/**
+ * 筛选区现在是**收起一行 / 展开两行**：第二行（来源 / 类型 / 分类 / 搜索框）
+ * 只在点「更多」之后出现。所以凡是要碰第二行控件的断言，
+ * 都得先展开 —— 否则 querySelector 拿到的是 display:none 的节点，
+ * 点击不会报错、也**不会生效**，断言会以「没起作用」的形式失败。
+ */
+await ev(`document.querySelector('[data-role=more]').click()`);
+await new Promise((r) => setTimeout(r, 600));
+check('点「更多」展开第二行（来源 / 类型 / 分类 / 搜索）',
+  (await ev(`document.querySelector('[data-role=more-zone]').dataset.more`)) === 'on' &&
+  Number(await q('.st-filter__zone .st-filter__pick')) === 3 &&
+  Boolean(await ev(`!!document.querySelector('#st-f-kw')`)));
 
 /**
  * 点开分类按钮 → 居中模态树（遮罩 + 树状层级节点）出现；
@@ -249,19 +264,41 @@ check('动作按钮已从筛选栏移出（不再重复出现）', heroActs?.inB
 check('两个按钮之间留 8px 间距（.row 的既有间距）', Number(heroActs?.gap) === 8, `${heroActs?.gap}px`);
 
 /**
- * 条件芯片：常显 + 可逐个摘掉。
+ * 筛选结果**回显在筛选框内**（需求一.2）：原先这里是一整行条件芯片，
+ * 现在每个控件自己说出自己选了什么 —— 账期由 ‹ 2026-10 › 写出、
+ * 自定义区间由「日期段」触发器写出、来源 / 类型 / 分类 / 搜索由第二行控件的取值写出。
  *
- * 必须常显：账期本身就是筛选条件，用户截图给客服时对方看到的是
- * 一个「看起来没筛选」的页面，而数据其实是某个特定月份的。
- * 必须可摘：写成一句话时想去掉一条得回到对应下拉去改；芯片点一下就摘掉。
+ * 断言因此换了三件事：
+ *   ① 那一行独立的芯片区**确实删掉了**（否则 page 上会有两处重复回显）；
+ *   ② 选了类型之后，第二行的类型下拉**当前值就是它**（回显在同一控件里）；
+ *   ③ 「更多」按钮上带出已选条件数 —— 收起状态下这是唯一能看出「筛过」的痕迹。
  */
-check('条件芯片常显（账期本身就是筛选）', Number(await q('.st-filter-sum .st-chip')) >= 1);
+check('独立的条件芯片行已删除', (await ev(`!!document.querySelector('.st-filter-sum')`)) === false);
 await ev(`(() => { const s = document.querySelector('#st-f-type'); s.value = 'expense'; s.dispatchEvent(new Event('change', { bubbles: true })); })()`);
 await new Promise((r) => setTimeout(r, 1200));
-check('选类型后出现可摘的条件芯片', Number(await q('[data-clear=type]')) === 1, `${await q('[data-clear=type]')} 个`);
-await ev(`document.querySelector('[data-clear=type]').click()`);
+check('选类型后回显在第二行的类型控件上（不是另开一行芯片）',
+  (await ev(`document.querySelector('#st-f-type').value`)) === 'expense' &&
+  (await ev(`!!document.querySelector('[data-clear=type]')`)) === false);
+/**
+ * 「更多 · n」是**收起态**才有的痕迹：展开时第二行每个控件自己就写着选了什么，
+ * 按钮上只留「收起」。所以断言前先收起 —— 上面选类型时它必然是展开的。
+ */
+await ev(`document.querySelector('[data-role=more]').click()`);
+await new Promise((r) => setTimeout(r, 400));
+check('收起态也能看出筛过几条（「更多 · n」）',
+  /更多 · \d+/.test(String(await ev(`document.querySelector('[data-role=more-label]').textContent`))),
+  String(await ev(`document.querySelector('[data-role=more-label]').textContent`)));
+check('收起按钮文案是「更多 · n」而不是「收起」',
+  (await ev(`document.querySelector('[data-role=more]').getAttribute('aria-expanded')`)) === 'false');
+await ev(`document.querySelector('[data-role=more]').click()`);
+await new Promise((r) => setTimeout(r, 400));
+await ev(`(() => { const s = document.querySelector('#st-f-type'); s.value = ''; s.dispatchEvent(new Event('change', { bubbles: true })); })()`);
 await new Promise((r) => setTimeout(r, 1200));
-check('点芯片的 × 摘掉那一条条件', Number(await q('[data-clear=type]')) === 0);
+await ev(`document.querySelector('[data-role=more]').click()`);
+await new Promise((r) => setTimeout(r, 400));
+check('清掉类型后「更多」回到不带计数的文案',
+  String(await ev(`document.querySelector('[data-role=more-label]').textContent`)) === '更多',
+  String(await ev(`document.querySelector('[data-role=more-label]').textContent`)));
 
 /**
  * 日期段要把当前区间带进去 —— 用户点它是想微调，不是想从两个空框开始填。
@@ -291,8 +328,60 @@ await ev(`document.querySelector('[data-quick=month]').click()`);
 await new Promise((r) => setTimeout(r, 1300));
 check(
   '切回快捷账期后日期段回到占位文案',
-  (await ev(`document.querySelector('[data-role=range-text]').textContent.trim()`)) === '选择日期段',
+  (await ev(`document.querySelector('[data-role=range-text]').textContent.trim()`)) === '日期段',
+  String(await ev(`document.querySelector('[data-role=range-text]').textContent.trim()`)),
 );
+
+/**
+ * 时间段 = `‹ 2026-10 ›` 本身，中间的账期文字是**触发器**（需求一.3）。
+ * 点它弹出四个快捷账期 + 所有，选中即生效；与日期段弹层互斥
+ * （两个都从第一行向下展开，同时开必然互相压住）。
+ */
+await ev(`document.querySelector('[data-role=time-trigger]').click()`);
+await new Promise((r) => setTimeout(r, 500));
+check('点账期文字弹出时间段选项', (await ev(`!document.querySelector('[data-role=time-pop]').hidden`)) === true);
+const timeOpts = await ev(`Array.from(document.querySelectorAll('[data-role=time-pop] button')).map(x=>x.textContent.trim())`);
+check('选项为 本周 / 本月 / 本年 / 近12月 / 所有',
+  ['本周', '本月', '本年', '近12月', '所有'].every((t) => timeOpts.includes(t)) &&
+  timeOpts.indexOf('所有') > timeOpts.indexOf('近12月'),
+  JSON.stringify(timeOpts));
+const isPill = JSON.parse(await ev(`JSON.stringify((() => {
+  const pop = document.querySelector('[data-role=time-pop]');
+  const it = pop.querySelector('button');
+  const cs = getComputedStyle(pop);
+  const ci = getComputedStyle(it);
+  const onIt = pop.querySelector("[aria-checked='true']");
+  return {
+    dir: cs.flexDirection,
+    track: cs.backgroundColor,
+    itemRadius: parseInt(ci.borderTopLeftRadius, 10),
+    hasSelected: !!onIt,
+    selectedBg: onIt ? getComputedStyle(onIt).backgroundColor : null,
+  };
+})())`));
+check('弹层是横向药丸：深色底 + 圆形按钮 + 选中项有填充',
+  isPill?.dir === 'row' && Number(isPill?.itemRadius) >= 100 && Boolean(isPill?.selectedBg) &&
+  isPill?.selectedBg !== isPill?.track,
+  JSON.stringify(isPill));
+await ev(`document.querySelector('[data-role=range-trigger]').click()`);
+await new Promise((r) => setTimeout(r, 500));
+check('两个弹层互斥（开日期段时收起时间段）',
+  (await ev(`document.querySelector('[data-role=time-pop]').hasAttribute('hidden')`)) === true &&
+  (await ev(`!document.querySelector('[data-role=range-pop]').hasAttribute('hidden')`)) === true);
+await ev(`document.querySelector('[data-role=range-cancel]').click()`);
+await new Promise((r) => setTimeout(r, 300));
+await ev(`document.querySelector('[data-role=time-trigger]').click()`);
+await new Promise((r) => setTimeout(r, 400));
+await ev(`document.querySelector('[data-role=time-pop] [data-quick=year]').click()`);
+await new Promise((r) => setTimeout(r, 1300));
+check('选「本年」后账期真的变成年份',
+  /^\d{4}$/.test(String(await ev(`document.querySelector('[data-role=period-label]').textContent.trim()`))),
+  String(await ev(`document.querySelector('[data-role=period-label]').textContent.trim()`)));
+check('选完收起弹层', (await ev(`document.querySelector('[data-role=time-pop]').hasAttribute('hidden')`)) === true);
+await ev(`document.querySelector('[data-role=time-trigger]').click()`);
+await new Promise((r) => setTimeout(r, 400));
+await ev(`document.querySelector('[data-role=time-pop] [data-quick=month]').click()`);
+await new Promise((r) => setTimeout(r, 1300));
 
 /* ══════════ 2. 账期切换器 ══════════ */
 console.log('\n── 模块 2 · 账期切换器 ──');
@@ -407,7 +496,11 @@ const t = await titles();
 for (const [name, ok] of [
   ['近 12 个月收支趋势', t.some((x) => x.includes('近 12 个月收支趋势'))],
   ['支出构成', t.includes('支出构成')],
-  ['分类排行', t.includes('分类排行')],
+  /**
+   * 标题带层级后缀（「分类排行 · 一级分类」）—— 能下钻之后必须说清当前看的是哪一层，
+   * 否则展开二级后标题与一级完全一样，用户分不清自己在哪。断言因此改成包含匹配。
+   */
+  ['分类排行', t.some((x) => x.includes('分类排行'))],
   ['每日支出趋势', t.includes('每日支出趋势')],
   ['星期消费分布', t.includes('星期消费分布')],
   /**
@@ -461,12 +554,12 @@ if (isPersonal) {
  * 选它时按全部账单统计、不受时间范围限制，翻页按钮随之禁用
  * （「全部账单」没有可平移的边界）。
  *
- * ⚠️ 「自定义」已从分段控件里撤出：单卡片改版后自定义区间由**日期段卡**承载
- * （触发器 → 弹层 → 确定），它不该再作为第五种账期和「本周 / 本月」并列 ——
- * 那是两种不同性质的东西（一个是快捷账期，一个是手填区间）。
- * 所以这里只断言四个快捷账期 + 所有 的顺序，日期段的断言在上面模块 1。
+ * ⚠️ 选择器从 `[data-role=quick] .segmented__item` 改成 `[data-role=time-pop] button`：
+ * 快捷账期不再常驻成一条分段控件，收进了账期文字底下的选项弹层（需求一.3）。
+ * 「自定义」依旧不在其中 —— 手填区间与快捷账期是两种不同性质的东西，
+ * 它由「日期段」触发器承载，断言在上面模块 1。
  */
-const quickLabels = await ev(`Array.from(document.querySelectorAll('[data-role=quick] .segmented__item')).map(x=>x.textContent.trim())`);
+const quickLabels = await ev(`Array.from(document.querySelectorAll('[data-role=time-pop] button')).map(x=>x.textContent.trim())`);
 check(
   '账期选项顺序含「近12月 → 所有」（且不再有「自定义」）',
   quickLabels.includes('近12月') &&
@@ -774,7 +867,19 @@ check(
 console.log('\n── 交互 · 点击下钻 ──');
 const firstKpi = await ev(`document.querySelector('.kpi-card').getAttribute('href')`);
 check('KPI 卡带类型筛选', String(firstKpi).includes('recordType='), String(firstKpi));
+/**
+ * 排行榜是**两级**的：一级行点一下是「下钻到它的二级」，二级行才是跳转链接
+ * （只有二级分类才对应得上「这个分类的账单」）。所以要连点两次 ——
+ * 只点一级是设计行为，不是没反应，断言必须跟着这条路径走。
+ */
 await ev(`document.querySelector('[data-role=m-rank] .rank-row.is-clickable').click()`);
+await new Promise((r) => setTimeout(r, 900));
+check(
+  '点一级行下钻到二级（不是直接跳走）',
+  String(await ev(`(document.querySelector('[data-role=m-rank] .rank-back')||{}).textContent`)) === '返回一级分类',
+  String(await ev(`location.pathname + location.search`)),
+);
+await ev(`document.querySelector('[data-role=m-rank] .rank-row[data-href]').click()`);
 await new Promise((r) => setTimeout(r, 1300));
 check('点排行榜跳到该分类账单', String(await ev(`location.pathname + location.search`)).includes('categoryId='),
   String(await ev(`location.pathname + location.search`)));

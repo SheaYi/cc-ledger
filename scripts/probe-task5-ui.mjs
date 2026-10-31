@@ -104,11 +104,21 @@ const auth = authInjector({ token: TOKEN });
 console.log('\n── 任务 1 · 侧栏 ──');
 await open('/stats', { wait: '.kpi-card', theme: 'light', arm: auth.arm });
 
+/**
+ * 「账号」分组（成员 / 设置）已**有意移除**（chrome.js 里有完整理由）：
+ * 那两项与侧栏底部账户信息栏指向同一页，同一目的地在侧栏出现两次是噪音。
+ * 所以现在是四个语义分组、14 个业务项 —— 断言跟着这个决定写，
+ * 别拿旧数字去卡一个被主动改掉的形态。
+ */
 const groups2 = await ev(`Array.from(document.querySelectorAll('.sidenav__group-head')).map((x) => x.textContent.trim())`);
-check('侧栏是四个语义分组 + 账号', groups2.length === 5 && groups2[0] === '总览', JSON.stringify(groups2));
+check(
+  '侧栏是四个语义分组（无「账号」重复组）',
+  groups2.length === 4 && groups2[0] === '总览' && !groups2.includes('账号'),
+  JSON.stringify(groups2),
+);
 
 const items = await ev(`Array.from(document.querySelectorAll('.sidenav__item')).map((x) => x.getAttribute('href'))`);
-check('13 个业务项 + 2 个账号项', items.length === 15, `${items.length} 项`);
+check('14 个业务项', items.length === 14, `${items.length} 项`);
 
 // 每个导航项都必须有图标（原来是「部分标题缺少图标」）
 const noIcon = await ev(
@@ -180,20 +190,24 @@ check('分类筛选改为按钮触发模态树', Boolean(fb5 && fb5.catIsButton)
 check('筛选栏只有一行（不占主视觉高度）', Number(fb5?.height) <= 60, `${fb5?.height}px`);
 
 /**
- * 条件摘要**常显**（不再是无筛选时隐藏）。
+ * 当前账期**写在筛选框里**（`‹ 2026-10 ›`），而不是单独一行条件摘要。
  *
- * 旧设计认为「没筛选就不该显示」是减少噪声；但实际问题是：
- * 账期本身就是筛选，用户截图给客服时对方看到一个「看起来没筛选」的页面，
- * 而数据其实是某个特定月份的。所以摘要必须**始终**写明当前账期。
+ * 要守的仍是同一件事：账期本身就是筛选，用户截图给客服时对方不能看到
+ * 一个「看起来没筛选」的页面。版式从「独立芯片行」改成「控件自述」之后，
+ * 断言跟着改成读**第一段筛选控件自己的取值**。
  */
-const sum0 = String(await ev(`(document.querySelector('.st-filter-sum')||{}).textContent || ''`));
-check('条件摘要常显且写明当前账期', /账期\s*\d{4}-\d{2}/.test(sum0), sum0.trim());
+const sum0 = String(await ev(`(document.querySelector('[data-role=period-label]')||{}).textContent || ''`));
+check('账期写在第一段筛选控件内', /^\d{4}-\d{2}$/.test(sum0.trim()), sum0.trim());
+check('独立的条件摘要行已删除', (await ev(`!!document.querySelector('.st-filter-sum')`)) === false);
 
-// 选了类型后摘要必须出现（筛了却看不出来 = 没筛）
+// 选了类型后必须能在筛选框里看出来（筛了却看不出来 = 没筛）
 await ev(`(() => { const s = document.querySelector('#st-f-type'); s.value='expense'; s.dispatchEvent(new Event('change', { bubbles: true })); })()`);
 await new Promise((r) => setTimeout(r, 800));
-const summary = await ev(`(document.querySelector('.st-filter-sum')||{}).textContent || ''`);
-check('筛选后显示条件摘要', String(summary).includes('类型'), String(summary).trim());
+check('筛选结果回显在同一控件上（类型下拉当前值已选中）',
+  (await ev(`document.querySelector('#st-f-type').value`)) === 'expense');
+check('收起态也能看出筛过几条（「更多 · n」）',
+  /更多 · \d+/.test(String(await ev(`document.querySelector('[data-role=more-label]').textContent`))),
+  String(await ev(`document.querySelector('[data-role=more-label]').textContent`)));
 
 /**
  * 图表元素可点。
@@ -210,8 +224,10 @@ check('占比图扇形可点', Number(arcs) > 0, `${arcs} 个`);
 check('排行榜行可点', Number(rankRows) > 0, `${rankRows} 行`);
 check('账户一览表有行', Number(accRows) > 0, `${accRows} 行`);
 
-// 点排行榜 → 跳到带筛选的账单列表
+// 点排行榜 → 先下钻到二级 → 再跳到带筛选的账单列表
 await ev(`document.querySelector('[data-role=m-rank] .rank-row.is-clickable').click()`);
+await new Promise((r) => setTimeout(r, 900));
+await ev(`document.querySelector('[data-role=m-rank] .rank-row[data-href]').click()`);
 await new Promise((r) => setTimeout(r, 1400));
 const url = await ev(`location.pathname + location.search`);
 check('点占比跳到账单列表且带分类筛选', String(url).includes('/transactions?') && String(url).includes('categoryId='), String(url));

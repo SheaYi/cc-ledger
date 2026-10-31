@@ -60,29 +60,18 @@ const SEED_KEY = 'cc-ledger.compose-seed.v1';
  * ------------------------------------------------------------------ */
 
 /**
- * 类型 Mega Menu 的内容（`docs/13 §4.4` 改版）。
- *
- * 旧的「一级分段 [支出][收入][转账] + 更多 ▾」把 6 个类型切成两组，
- * 用户得先点「更多」才知道还有应收应付；而且分段控件只能放得下两三个字，
- * 「应收款项」被压缩成「应收」，语义丢了。Mega Menu 一次摊开全部六种，
- * 用分组标题说明两类语义差别，每一项都带上「这笔到底动谁的钱」的大白话 ——
- * 记账新手卡住的地方几乎都是这一句。
+ * 类型 Mega Menu 的内容（`docs/13 §4.4` 改版）与**三级选择器本身**都住在
+ * `lib/type-cat-picker.js` —— 模板页要用同一个选择器，两份实现必然会在改字段时
+ * 一边改一边漏（详见该模块的头注释）。
  */
-const TYPE_GROUPS = [
-  { label: '常用', types: ['expense', 'income', 'transfer'] },
-  { label: '债权债务', types: ['receivable', 'payable'] },
-];
-const TYPE_META = {
-  expense: { label: '支出', hint: '钱从账户花出去' },
-  income: { label: '收入', hint: '钱进到账户里' },
-  transfer: { label: '转账', hint: '账户之间挪钱' },
-  receivable: { label: '应收款项', hint: '借出，或收回对方还的钱' },
-  payable: { label: '应付款项', hint: '欠了钱，或把欠的还掉' },
-};
-/** 有分类的类型（= 除转账外全部；docs/03 §8.1 的 ✓ 项） */
-const TYPE_WITH_CATEGORY = new Set(['expense', 'income', 'receivable', 'payable']);
-/** 需要用户选第二个账户的类型 */
-const TYPE_WITH_TO_ACCOUNT = new Set(['transfer']);
+import {
+  TYPE_GROUPS,
+  TYPE_META,
+  TYPE_WITH_CATEGORY,
+  TYPE_WITH_TO_ACCOUNT,
+  createTypeCatPicker,
+  pickTriggerHtml,
+} from '../lib/type-cat-picker.js';
 
 /** 记账页就地新建标签用的 8 色盘（与后端 `src/config/constants.ts` 的 TAG_COLORS 一致） */
 const TAG_COLORS = [
@@ -642,45 +631,13 @@ function mountCompose(
             拆成两个控件时用户要在两个浮层之间来回跳；合并后一次展开即可从
             「支出」一路点到「餐饮 › 午餐」，中间状态全部在一个面板里可见。
           -->
+          <!--
+            类型 + 一级 + 二级 三级联动的**标记本体**由 lib/type-cat-picker.js 的
+            pickTriggerHtml() 产出，与模板页同一份结构（同一套 class、同一个 data-role），
+            所以两处的 CSS 与操作手感天然一致，不会各改一边。
+          -->
           <div class="field" data-field="recordType">
-            <span class="field__label" id="tx-pick-label">类型与分类</span>
-            <div class="mega-host" data-role="pick-host">
-              <button class="pick-trigger" type="button" data-role="pick-trigger"
-                      aria-haspopup="menu" aria-expanded="false" aria-labelledby="tx-pick-label">
-                <span class="pick-trigger__icon" data-role="pick-icon"></span>
-                <span class="pick-trigger__text">
-                  <span class="pick-trigger__label" data-role="pick-label"></span>
-                  <span class="pick-trigger__sub" data-role="pick-sub"></span>
-                </span>
-                <span class="pick-trigger__chev">${icon('chevron-down', 16)}</span>
-              </button>
-
-              <div class="mega mega--pick" data-role="pick-panel" role="menu"
-                   aria-labelledby="tx-pick-label" hidden>
-                <!-- 建议：最近 9 笔支出的二级分类（用户指定，放在面板最前） -->
-                <div class="mega__suggest" data-role="suggest" hidden>
-                  <span class="mega__suggest-badge">${lucide('sparkles', 13)}<span>建议</span></span>
-                  <div class="mega__suggest-chips" data-role="suggest-chips"></div>
-                </div>
-
-                <div class="mega__head">
-                  <span class="mega__search-icon">${lucide('search', 15)}</span>
-                  <input class="mega__search" type="search" data-role="cat-search"
-                         placeholder="搜索分类（跨全部类型）" autocomplete="off" enterkeyhint="search" />
-                </div>
-
-                <div class="mega__panes" data-role="panes">
-                  <div class="mega__col mega__col--type" data-role="col-type"></div>
-                  <div class="mega__col mega__col--parent" data-role="col-parent"></div>
-                  <div class="mega__col mega__col--leaf" data-role="col-leaf"></div>
-                </div>
-
-                <div class="mega__foot">
-                  <span class="mega__hint" data-role="pick-hint">分类记在子类别上，一级只是分组</span>
-                  <button class="mega__clear" type="button" data-role="cat-clear" hidden>清除分类</button>
-                </div>
-              </div>
-            </div>
+            ${pickTriggerHtml({ labelId: 'tx-pick-label', label: '类型与分类' })}
             <span class="field__error"></span>
             <span class="field__error" data-error-for="categoryId"></span>
             <span class="char-count" data-role="cat-none" hidden>
@@ -1277,7 +1234,8 @@ function mountCompose(
    * ① 类型 + 分类：**一个** 三级 Mega Menu（docs/13 §4.4 改版二）
    *
    * 三级 = 类型 → 一级分类 → 二级分类，桌面同屏三列，移动端同屏三段（竖排）。
-   * 「点了类型但还没点分类」是一个**中间态**：它只活在面板内部的 `pickDraft`，
+   * 「点了类型但还没点分类」是一个**中间态**：它只活在面板内部的草稿里（见
+   * lib/type-cat-picker.js 的 draft），
    * 不回写 `state` —— 否则用户点开面板看一眼「应收款项」又关掉，表单里的
    * 类型就被悄悄改掉了，而且信用卡账目会莫名多出一笔债权。
    * 只有落到「二级分类」上（或选无分类的转账）才算一次完整选择。
@@ -1288,9 +1246,6 @@ function mountCompose(
     (DIRECTION_CHOICES[t] ?? []).find((c) => c.value === d)?.label ?? null;
 
   /** 面板内的草稿（类型 + 当前展开的一级分类），只在提交时写回 state */
-  const pickDraft = { type: state.recordType, parentId: null };
-  let catQuery = '';
-
   const catTreesOf = (t) =>
     (catByType.get(t) ?? []).filter(
       (p) => !p.archivedAt && (p.children ?? []).some((c) => !c.archivedAt),
@@ -1298,40 +1253,6 @@ function mountCompose(
 
   const currentCat = () =>
     flatCats(state.recordType).find((c) => c.id === state.categoryId) ?? null;
-
-  /** 把草稿对齐到表单当前值：每次展开面板都从「现在的选择」重新出发 */
-  const resetPickDraft = () => {
-    pickDraft.type = state.recordType;
-    const trees = catTreesOf(state.recordType);
-    const cur = currentCat();
-    pickDraft.parentId =
-      (cur && trees.some((p) => p.id === cur.parentId) ? cur.parentId : null) ??
-      trees[0]?.id ??
-      null;
-    catQuery = '';
-    $('[data-role=cat-search]').value = '';
-  };
-
-  const paintPickTrigger = () => {
-    const meta = TYPE_META[state.recordType] ?? TYPE_META.expense;
-    const c = currentCat();
-    const dir = directionLabelOf(state.recordType, state.direction);
-    $('[data-role=pick-icon]').innerHTML = lucide(
-      c?.icon || TYPE_ICON[state.recordType] || 'tag',
-      18,
-    );
-    $('[data-role=pick-label]').textContent = c ? c.name : meta.label;
-    // 副值把「这笔是什么性质」写全：类型 · 阶段 · 一级分类
-    $('[data-role=pick-sub]').textContent = c
-      ? [meta.label, dir, c.parentName].filter(Boolean).join(' · ')
-      : (dir ?? meta.hint);
-    $('[data-role=pick-trigger]').classList.toggle(
-      'is-empty',
-      !c && TYPE_WITH_CATEGORY.has(state.recordType),
-    );
-    $('[data-role=cat-none]').hidden =
-      !TYPE_WITH_CATEGORY.has(state.recordType) || catTreesOf(state.recordType).length > 0;
-  };
 
   /**
    * 建议 = **最近 9 笔支出的二级分类**（用户本轮指定，放在面板最前面）。
@@ -1358,27 +1279,62 @@ function mountCompose(
     return out;
   })();
 
-  const paintSuggest = () => {
-    const host = $('[data-role=suggest]');
-    // 搜索态下建议让位：用户已经在主动找某个分类，再推「最近的」只会碍事
-    const show = suggestCats.length > 0 && !catQuery.trim();
-    host.hidden = !show;
-    if (!show) return;
-    $('[data-role=suggest-chips]').innerHTML = suggestCats
-      .map(
-        (c) => `
-        <button class="suggest-chip" type="button" role="menuitem"
-                data-sug="${esc(c.id)}" title="${esc(`${c.parentName} › ${c.name}`)}">
-          <span class="suggest-chip__icon">${lucide(c.icon || 'tag', 14)}</span>
-          <span class="suggest-chip__name">${esc(c.name)}</span>
-        </button>`,
-      )
-      .join('');
-    $('[data-role=suggest-chips]')
-      .querySelectorAll('[data-sug]')
-      .forEach((el) =>
-        el.addEventListener('click', () => applyPick('expense', el.dataset.sug)),
-      );
+  /**
+   * 提交一次完整选择：类型（必要时）+ 二级分类 → 写回 state 并收起面板。
+   *
+   * 复刻 `setRecordType` 的字段保留策略（分类按类型暂存、转入账户从转账切走即弃、
+   * 方向重置为「产生」），所以先把新分类塞进 stash、再走 `setRecordType`，
+   * 让它顺手把分类恢复成刚点的那个 —— 免得走「先恢复旧值再覆盖」的两跳。
+   */
+  function applyPick(type, categoryId) {
+    if (categoryId) catStash.set(type, categoryId);
+    if (TYPE_WITH_CATEGORY.has(state.recordType)) catStash.set(state.recordType, state.categoryId);
+    if (type !== state.recordType) setRecordType(type);
+    if (categoryId) state.categoryId = categoryId;
+    paintAll();
+    clearFieldError('categoryId');
+    closePanels({ focus: true });
+    // 金额还没填时才抢焦点：用户已经填过就别把他从原来的输入框拽走。
+    // 紧凑形态不抢 —— 那会立刻唤起模态金额键盘（理由见「初始化」处的同款判断）。
+    if (!state.amount && !isCompact()) $('[name=amount]')?.focus();
+  }
+
+  /**
+   * 三级面板实例。
+   *
+   * 三列的渲染、草稿态、搜索都住在 `lib/type-cat-picker.js`（模板页用同一份），
+   * 这里只回答三件事：有哪些类型、分类树怎么取、选中之后交给谁。
+   */
+  const picker = createTypeCatPicker({
+    host: $('[data-field=recordType]'),
+    types: ['expense', 'income', 'transfer', 'receivable', 'payable'],
+    treesOf: catTreesOf,
+    flatCats,
+    value: () => ({
+      recordType: state.recordType,
+      categoryId: state.categoryId,
+      direction: state.direction,
+    }),
+    /** 副值把「这笔是什么性质」写全：类型 · 阶段 · 一级分类 */
+    subLabel: (meta) => {
+      const dir = directionLabelOf(state.recordType, state.direction);
+      const c = currentCat();
+      return c ? [meta.label, dir, c.parentName].filter(Boolean).join(' · ') : dir ?? meta.hint;
+    },
+    suggestions: () => suggestCats,
+    onPick: applyPick,
+  });
+
+  /**
+   * 重画触发按钮 + 那句「该类型下暂无可用分类」的提示。
+   *
+   * 提示**留在本页**而不跟着模块走：只有记账页下面接着账户与金额等字段，
+   * 需要解释「为什么选不了分类」；模板页没有这条提示的位置。
+   */
+  const paintPickTrigger = () => {
+    picker.paintTrigger();
+    $('[data-role=cat-none]').hidden =
+      !TYPE_WITH_CATEGORY.has(state.recordType) || catTreesOf(state.recordType).length > 0;
   };
 
   const paintDirection = () => {
@@ -1527,203 +1483,6 @@ function mountCompose(
       )
       .join('');
   };
-
-  /* ================================================================== *
-   * ② 二级 / 三级：一级分类 → 二级分类（与 ① 同属一个浮层）
-   *
-   * 一列只干一件事：左列改「性质」，中列改「大类」，右列落「子类」。
-   * 点类型的动作**不会**立刻写回表单（见 `pickDraft` 的注释）：
-   * 它只把中/右两列换成本类型的分类树，等右列被点中才提交。
-   * ================================================================== */
-
-  /** 二级分类 chip。`typeTag` 只在「搜索态跨类型」时出现，标明这个子类属于哪种类型 */
-  const catChip = (c, typeTag = null) => {
-    const on = !typeTag && pickDraft.type === state.recordType && c.id === state.categoryId;
-    return `
-      <button class="option-chip${typeTag ? ' option-chip--tagged' : ''}" type="button"
-              role="menuitemradio" aria-checked="${on}"
-              data-cat="${esc(c.id)}"${typeTag ? ` data-cat-type="${esc(typeTag)}"` : ''}
-              title="${esc(`${c.parentName} › ${c.name}`)}">
-        ${c.icon ? lucide(c.icon, 14) : ''}<span>${esc(c.name)}</span>
-        ${typeTag ? `<span class="option-chip__type">${esc(TYPE_META[typeTag]?.label ?? '')}</span>` : ''}
-      </button>`;
-  };
-
-  const paintPickPanel = () => {
-    const panes = $('[data-role=panes]');
-    const colType = $('[data-role=col-type]');
-    const colParent = $('[data-role=col-parent]');
-    const colLeaf = $('[data-role=col-leaf]');
-    const q = catQuery.trim().toLowerCase();
-
-    $('[data-role=cat-clear]').hidden = !state.categoryId;
-    paintSuggest();
-
-    /* ---- 搜索态：三列让位，整幅宽度交给命中结果（跨全部类型） ---- */
-    if (q) {
-      panes.dataset.mode = 'search';
-      colType.hidden = true;
-      colParent.hidden = true;
-      colLeaf.hidden = false;
-      const hits = [];
-      for (const t of TYPE_WITH_CATEGORY) {
-        for (const c of flatCats(t)) {
-          if (c.name.toLowerCase().includes(q) || c.parentName.toLowerCase().includes(q)) {
-            hits.push({ ...c, recordType: t });
-          }
-        }
-      }
-      hits.sort((a, b) => b.count - a.count);
-      colLeaf.innerHTML = hits.length
-        ? `<p class="mega__col-title">命中 ${hits.length} 个</p>
-           <div class="mega__grid">${hits.map((c) => catChip(c, c.recordType)).join('')}</div>`
-        : `<p class="mega__empty">没有匹配的分类</p>`;
-      colLeaf.querySelectorAll('[data-cat]').forEach((el) =>
-        el.addEventListener('click', () => applyPick(el.dataset.catType, el.dataset.cat)),
-      );
-      return;
-    }
-
-    colType.hidden = false;
-    colParent.hidden = false;
-
-    /* ---- 第一级：类型（五种，一次摊开） ---- */
-    colType.innerHTML = TYPE_GROUPS.map(
-      (g) => `
-      <div class="mega__group">
-        <p class="mega__col-title">${esc(g.label)}</p>
-        ${g.types
-          .map((t) => {
-            const m = TYPE_META[t];
-            const on = t === pickDraft.type;
-            return `
-            <button class="mega__item${on ? ' is-on' : ''}" type="button"
-                    role="menuitemradio" aria-checked="${on}" data-type="${esc(t)}">
-              <span class="mega__item-icon">${lucide(TYPE_ICON[t] ?? 'circle-help', 17)}</span>
-              <span class="mega__item-text">
-                <span class="mega__item-name">${esc(m.label)}</span>
-                <span class="mega__item-hint">${esc(m.hint)}</span>
-              </span>
-              ${on ? `<span class="mega__item-mark">${lucide('check', 16)}</span>` : ''}
-            </button>`;
-          })
-          .join('')}
-      </div>`,
-    ).join('');
-    colType.querySelectorAll('[data-type]').forEach((btn) =>
-      btn.addEventListener('click', () => {
-        const next = btn.dataset.type;
-        // 转账没有分类：点到它本身就是「选完了」
-        if (!TYPE_WITH_CATEGORY.has(next)) {
-          applyPick(next, null);
-          return;
-        }
-        pickDraft.type = next;
-        pickDraft.parentId = catTreesOf(next)[0]?.id ?? null;
-        paintPickPanel();
-      }),
-    );
-
-    /* ---- 转账：没有第二、三级，把剩下的宽度换成一句解释 ---- */
-    if (!TYPE_WITH_CATEGORY.has(pickDraft.type)) {
-      panes.dataset.mode = 'leaf-less';
-      colLeaf.hidden = true;
-      colLeaf.innerHTML = '';
-      colParent.innerHTML = `
-        <p class="mega__col-title">分类</p>
-        <p class="mega__empty">转账不记分类 —— 选好下面的「转入账户」就行。</p>`;
-      return;
-    }
-    panes.dataset.mode = 'cascade';
-    colLeaf.hidden = false;
-
-    /* ---- 第二级：一级分类 ---- */
-    const trees = catTreesOf(pickDraft.type);
-    // 分类被删空的类型：没有第二、三级可走，只留「只改类型」的出口（同转账的排布）
-    if (!trees.length) {
-      panes.dataset.mode = 'leaf-less';
-      colLeaf.hidden = true;
-      colLeaf.innerHTML = '';
-      colParent.innerHTML = `
-        <p class="mega__col-title">一级分类</p>
-        <p class="mega__empty">该类型下还没有分类。</p>
-        <button class="btn btn--quiet btn--sm" type="button" data-role="type-only">
-          只用「${esc(TYPE_META[pickDraft.type].label)}」，先不选分类
-        </button>`;
-      colParent
-        .querySelector('[data-role=type-only]')
-        ?.addEventListener('click', () => applyPick(pickDraft.type, null));
-      return;
-    }
-    if (!trees.some((p) => p.id === pickDraft.parentId)) {
-      pickDraft.parentId = trees[0]?.id ?? null;
-    }
-    colParent.innerHTML = `<p class="mega__col-title">一级分类</p>
-         <div class="mega__list">${trees
-           .map((p) => {
-             const kids = (p.children ?? []).filter((c) => !c.archivedAt);
-             const on = p.id === pickDraft.parentId;
-             // 该支下已有选中项 → 留一个点，收起面板后也知道「选在哪一支」
-             const hasPick =
-               pickDraft.type === state.recordType && kids.some((c) => c.id === state.categoryId);
-             return `
-             <button class="mega__navitem${on ? ' is-on' : ''}${hasPick ? ' has-pick' : ''}"
-                     type="button" role="menuitem" aria-checked="${on}" data-parent="${esc(p.id)}">
-               <span class="mega__navitem-icon">${p.icon ? lucide(p.icon, 16) : ''}</span>
-               <span class="mega__navitem-name">${esc(p.name)}</span>
-               <span class="mega__navitem-count">${kids.length}</span>
-             </button>`;
-           })
-           .join('')}</div>`;
-    colParent.querySelectorAll('[data-parent]').forEach((el) =>
-      el.addEventListener('click', () => {
-        pickDraft.parentId = el.dataset.parent;
-        paintPickPanel();
-      }),
-    );
-
-    /* ---- 第三级：二级分类 ---- */
-    const pane = trees.find((p) => p.id === pickDraft.parentId);
-    const kids = (pane?.children ?? [])
-      .filter((c) => !c.archivedAt)
-      .map((c) => ({
-        id: c.id,
-        name: c.name,
-        icon: c.icon,
-        parentId: pane.id,
-        parentName: pane.name,
-        count: c.txCount ?? 0,
-      }))
-      // 频次优先：记账是重复动作，常用分类应该伸手就够得到（docs/05 §3.4）
-      .sort((a, b) => b.count - a.count);
-    colLeaf.innerHTML = pane
-      ? `<p class="mega__col-title">${esc(pane.name)}</p>
-         <div class="mega__grid">${kids.map((c) => catChip(c)).join('')}</div>`
-      : `<p class="mega__empty">选一个一级分类</p>`;
-    colLeaf.querySelectorAll('[data-cat]').forEach((el) =>
-      el.addEventListener('click', () => applyPick(pickDraft.type, el.dataset.cat)),
-    );
-  };
-
-  /**
-   * 提交一次完整选择：类型（必要时）+ 二级分类 → 写回 state 并收起面板。
-   *
-   * 复刻 `setRecordType` 的字段保留策略（分类按类型暂存、转入账户从转账切走即弃、
-   * 方向重置为「产生」），所以先把新分类塞进 stash、再走 `setRecordType`，
-   * 让它顺手把分类恢复成刚点的那个 —— 免得走「先恢复旧值再覆盖」的两跳。
-   */
-  function applyPick(type, categoryId) {
-    if (categoryId) catStash.set(type, categoryId);
-    if (TYPE_WITH_CATEGORY.has(state.recordType)) catStash.set(state.recordType, state.categoryId);
-    if (type !== state.recordType) setRecordType(type);
-    if (categoryId) state.categoryId = categoryId;
-    paintAll();
-    clearFieldError('categoryId');
-    closePanels({ focus: true });
-    // 金额还没填时才抢焦点：用户已经填过就别把他从原来的输入框拽走。
-    // 紧凑形态不抢 —— 那会立刻唤起模态金额键盘（理由见「初始化」处的同款判断）。
-    if (!state.amount && !isCompact()) $('[name=amount]')?.focus();
-  }
 
   const paintTags = () => {
     $('[data-role=tag-row]').innerHTML =
@@ -2146,7 +1905,7 @@ function mountCompose(
     paintDirection();
     paintAccounts();
     paintToAccounts();
-    paintPickPanel();
+    picker.paintPanel();
     paintTextFields();
     paintMoneyFields();
     paintTags();
@@ -2497,13 +2256,13 @@ function mountCompose(
       closePanels({ focus: true });
       return;
     }
-    resetPickDraft();
+    picker.resetDraft();
     openPanel('pick');
-    paintPickPanel();
+    picker.paintPanel();
   });
   $('[data-role=cat-search]').addEventListener('input', (e) => {
-    catQuery = e.target.value;
-    paintPickPanel();
+    picker.setQuery(e.target.value);
+    picker.paintPanel();
   });
   $('[data-role=cat-clear]').addEventListener('click', () => {
     state.categoryId = null;

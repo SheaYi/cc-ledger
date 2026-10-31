@@ -108,6 +108,11 @@ const periodLabel = (r) => {
   /** 「所有」= 两端皆空，先判它：空区间同时也是「日期没填完」的形态 */
   if (!r?.from && !r?.to) return '所有';
   if (!r?.from) return '自定义';
+  // 整自然年 → 「2026」：区间写法 2026-01-01 ~ 2026-12-31 有 23 个字符，
+  // 而「筛选结果回显在筛选框内」要求这个标签短到能一眼读完 —— 整年就只写年份。
+  if (r.from.endsWith('-01-01') && r.to.endsWith('-12-31') && r.from.slice(0, 4) === r.to.slice(0, 4)) {
+    return r.from.slice(0, 4);
+  }
   // 同一自然月 → 「2026-10」；否则给区间
   const f = r.from.slice(0, 7);
   return f === r.to.slice(0, 7) ? f : `${r.from} ~ ${r.to}`;
@@ -172,8 +177,8 @@ export async function renderStats(container, { go } = {}) {
   /** 手机端「更多」折叠区是否展开（桌面端恒常显，这个值不参与桌面渲染） */
   let moreOpen = false;
 
-  /** 日期段弹层：点击空白处关闭的监听器只绑一次 */
-  let rangePopOutsideBound = false;
+  /** 第一行那两个弹层：点击空白处关闭的监听器只绑一次 */
+  let popOutsideBound = false;
 
   /** 除账期以外还有没有在筛选 —— 决定「重置」按钮要不要出现 */
   const hasExtraFilters = () =>
@@ -259,45 +264,56 @@ export async function renderStats(container, { go } = {}) {
       </div>
 
       <!--
-        模块 1：全局筛选区（单卡片重构）。
+        模块 1：全局筛选区。
 
-        整块是**一张卡片**，内部只有三个选项（00-DESIGN：单强调色、无卡片阴影、统一圆角）：
+        形态是**一个筛选框、两行**：
 
-          ① 时间范围：分段控件（本周 / 本月 / 本年 / 近12月 / 所有）+ 账期前后翻页（‹ 当前账期 ›）。
-          ② 日期段：触发器显示当前区间或「选择日期段」，点击弹出日期选择器（起 / 止），确定即生效。
-          ③ 更多：**置于最右**、带漏斗图标，文案随「折叠 / 展开」切换（更多 ↔ 收起，并显示已选条件数）；
-             点击在卡片内**新增一行**信息区，该行首行即 来源 / 类型 / 分类 / 搜索框。
+          第一行（常显）：时间段 ‹ 2026-10 › · 日期段 · 更多（最右）
+          第二行（仅「更多」展开时）：来源 / 类型 / 分类 / 搜索框
 
-        为什么是「一张卡片包三个选项」而不是三张卡片：
-        这三个控件回答的是**同一个问题**（统计哪一段、哪一类账单），
-        拆成三张卡会让它们在视觉上变成三件独立的事，而筛选从来是一次性读一整组条件。
+        ① 时间段就是「‹ 2026-10 ›」本身 —— 两侧的 ‹ › 平移一格账期，
+           中间的账期文字是**可点的触发器**，点它弹出账期选项弹层
+           （本周 / 本月 / 本年 / 近12月 / 所有）。
+           原先那五个并排的分段控件被它替掉了：它要表达的信息只有一条
+           ——「当前统计的是哪一段」，而这条信息「‹ 2026-10 ›」已经写完，
+           再挂一排按钮等于把同一句话讲两遍，还把第一行撑到要换行。
 
-        条件芯片（账期 + 已选来源 / 类型 / 分类 / 搜索）常显，可单独摘掉某项。
+        ② 筛选结果**回显在筛选框内**，不再单独开一行条件芯片：账期由
+           「‹ 2026-10 ›」写出，自定义区间由「日期段」触发器写出，
+           来源 / 类型 / 分类 / 搜索由第二行控件自己当前的取值写出。
+           摘除某项就是动那个控件本身，不需要再去另一个区域找对应芯片。
+
+        ③ 选项不再挂「时间范围 / 日期段」小标签：控件各自的自述文案
+           （2026-10、日期段、更多）已经说清它是什么，标签只是重复。
       -->
       <section class="section st-filter">
         <div class="card st-filter__card">
           <div class="st-filter__bar">
-            <!-- ① 时间范围：分段控件 + 账期翻页 -->
-            <div class="st-filter__opt st-filter__opt--time">
-              <span class="st-filter__cap">时间范围</span>
-              <div class="st-filter__time">
-                <!-- 分段控件随筛选状态重画，所以是空槽 -->
-                <div class="segmented st-filter__seg" role="group" aria-label="账期快捷选择" data-role="quick"></div>
-                <div class="st-filter__stepper">
-                  <button class="btn btn--quiet btn--icon btn--sm" type="button" data-role="prev" aria-label="上一账期">‹</button>
-                  <span class="st-filter__period tnum" data-role="period-label"></span>
-                  <button class="btn btn--quiet btn--icon btn--sm" type="button" data-role="next" aria-label="下一账期">›</button>
-                </div>
-              </div>
+            <!-- ① 时间段：‹ 账期 ›，点账期文字换统计区间 -->
+            <div class="st-filter__stepper st-filter__opt--time" data-role="time-card">
+              <button class="btn btn--quiet btn--icon btn--sm" type="button" data-role="prev"
+                      aria-label="上一账期">‹</button>
+
+              <button class="st-filter__period-trigger" type="button" data-role="time-trigger"
+                      aria-haspopup="menu" aria-expanded="false" aria-label="选择统计时间段">
+                <span class="st-filter__period tnum" data-role="period-label"></span>
+                <span class="st-filter__caret" aria-hidden="true">${icon('chevron-down', 14)}</span>
+              </button>
+
+              <button class="btn btn--quiet btn--icon btn--sm" type="button" data-role="next"
+                      aria-label="下一账期">›</button>
+
+              <!-- 账期选项弹层：药丸式，与既有的分段控件同一套令牌 -->
+              <div class="st-filter__pop st-filter__pop--time" data-role="time-pop" role="menu"
+                   aria-label="统计时间段" hidden></div>
             </div>
 
-            <!-- ② 日期段：点触发器弹日期选择器 -->
-            <div class="st-filter__opt st-filter__opt--range" data-role="range-card">
-              <span class="st-filter__cap">日期段</span>
-              <button class="st-filter__range-trigger" type="button" data-role="range-trigger" aria-haspopup="dialog" aria-expanded="false">
+            <!-- ② 日期段：点触发器弹日期选择器（起 / 止），确定即生效 -->
+            <div class="st-filter__opt--range" data-role="range-card">
+              <button class="st-filter__range-trigger" type="button" data-role="range-trigger"
+                      aria-haspopup="dialog" aria-expanded="false">
                 <span class="st-filter__range-ico" aria-hidden="true">${icon('calendar', 16)}</span>
-                <span class="st-filter__range-text" data-role="range-text">选择日期段</span>
-                <span class="st-filter__caret" aria-hidden="true">${icon('chevron-down', 14)}</span>
+                <span class="st-filter__range-text" data-role="range-text">日期段</span>
               </button>
               <div class="st-filter__pop" data-role="range-pop" hidden>
                 <div class="st-filter__pop-row">
@@ -319,31 +335,29 @@ export async function renderStats(container, { go } = {}) {
             </div>
 
             <!--
-              ③ 更多：**最右**、带漏斗图标。
-              不放进时间范围那一组：它管的不是时间，是「其余条件」，
-              混进去会让用户以为「更多」是第四种账期。
+              ③ 更多：**最右**、带漏斗图标，文案随「折叠 / 展开」切换。
+              它管的不是时间，是「其余条件」，所以不与时间段混在一组。
             -->
-            <button class="st-filter__more" type="button" data-role="more" aria-expanded="false" aria-controls="st-filter-more-panel">
+            <button class="st-filter__more" type="button" data-role="more" aria-expanded="false"
+                    aria-controls="st-filter-more-panel">
               <span class="st-filter__more-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg></span>
               <span class="st-filter__more-label" data-role="more-label">更多</span>
             </button>
           </div>
 
-          <!-- 更多 · 展开后**新增的一行**：首行含 来源 / 类型 / 分类 / 搜索框 -->
+          <!-- 第二行：点「更多」才出现，首行即 来源 / 类型 / 分类 / 搜索框 -->
           <div class="st-filter__zone" id="st-filter-more-panel" data-role="more-zone" data-more="off">
             <div class="st-filter__picks" data-role="picks"></div>
             <label class="st-filter__search">
               <span class="st-filter__search-ico" aria-hidden="true">${icon('search', 14)}</span>
-              <input class="input st-filter__kw" type="search" id="st-f-kw" placeholder="搜索对象 / 名称 / 商家" autocomplete="off" />
+              <input class="input st-filter__kw" type="search" id="st-f-kw"
+                     placeholder="搜索对象 / 名称 / 商家" autocomplete="off" />
             </label>
             <div class="st-filter__zone-acts">
               <button class="btn btn--quiet btn--sm" type="button" data-role="reset" hidden>重置</button>
               <button class="st-filter__zone-collapse" type="button" data-role="collapse">收起</button>
             </div>
           </div>
-
-          <!-- 条件芯片：常显，可单独摘掉某项 -->
-          <div class="st-filter__chips st-filter-sum" data-role="filter-sum"></div>
         </div>
       </section>
 
@@ -446,16 +460,24 @@ export async function renderStats(container, { go } = {}) {
       return '全部分类';
     };
 
-    const seg = $('[data-role=quick]');
-    if (seg) {
-      seg.innerHTML =
+    /**
+     * 时间段弹层的选项（本周 / 本月 / 本年 / 近12月 / 所有）。
+     *
+     * 账期前十一次 revision 里这一组是**并排的分段控件**，现在收进触发器：
+     * 第一行的常显信息是「当前统计哪一段」，而 `‹ 2026-10 ›` 已经把它写完了，
+     * 五个按钮再排一遍等于同一句话讲两遍，还把行撑到要换行。
+     * 「所有」保留 —— 它是从「某个具体区间」回到「全部账单」的唯一入口。
+     */
+    const timePop = $('[data-role=time-pop]');
+    if (timePop) {
+      timePop.innerHTML =
         QUICK.map(
           (q) =>
-            `<button class="segmented__item st-filter__segitem" type="button" data-quick="${q.key}"
-               aria-pressed="${!filters.manualRange && filters.quick === q.key}">${esc(q.label)}</button>`,
+            `<button class="st-filter__timeitem" type="button" role="menuitemradio" data-quick="${q.key}"
+               aria-checked="${!filters.manualRange && filters.quick === q.key}">${esc(q.label)}</button>`,
         ).join('') +
-        `<button class="segmented__item st-filter__segitem" type="button" data-role="all"
-           aria-pressed="${isAllMode()}">所有</button>`;
+        `<button class="st-filter__timeitem" type="button" role="menuitemradio" data-role="all"
+           aria-checked="${isAllMode()}">所有</button>`;
     }
 
     const picks = $('[data-role=picks]');
@@ -487,13 +509,16 @@ export async function renderStats(container, { go } = {}) {
     }
 
     /** 日期段卡：触发器文案随自定义区间状态变化；弹层里的两个日期框始终回填当前值 */
+    /**
+     * 日期段触发器的文案就是这条筛选的**回显**：
+     * 没选 → 「日期段」（占位）；选了 → 把区间原文写出来。
+     * 既然筛选结果统一回显在筛选框内，这里就不能只写一句「已选」让用户猜是哪段。
+     */
     const rangeText = $('[data-role=range-text]');
     if (rangeText) {
-      rangeText.textContent =
-        filters.manualRange && filters.dateFrom && filters.dateTo
-          ? `${filters.dateFrom} → ${filters.dateTo}`
-          : '选择日期段';
-      rangeText.classList.toggle('is-placeholder', !(filters.manualRange && filters.dateFrom && filters.dateTo));
+      const on = Boolean(filters.manualRange && filters.dateFrom && filters.dateTo);
+      rangeText.textContent = on ? `${filters.dateFrom} → ${filters.dateTo}` : '日期段';
+      rangeText.classList.toggle('is-placeholder', !on);
     }
     const rangeTrig = $('[data-role=range-trigger]');
     if (rangeTrig) rangeTrig.setAttribute('aria-expanded', 'false');
@@ -529,7 +554,6 @@ export async function renderStats(container, { go } = {}) {
     if (nextBtn) nextBtn.disabled = isAllMode();
 
     paintMore();
-    paintFilterSummary();
   }
 
   /**
@@ -568,8 +592,12 @@ export async function renderStats(container, { go } = {}) {
     const trig = $('[data-role=range-trigger]');
     if (!pop) return;
     const willOpen = pop.hasAttribute('hidden');
-    if (willOpen) pop.removeAttribute('hidden');
-    else pop.setAttribute('hidden', '');
+    if (willOpen) {
+      closeTimePop();
+      pop.removeAttribute('hidden');
+    } else {
+      pop.setAttribute('hidden', '');
+    }
     if (trig) trig.setAttribute('aria-expanded', String(willOpen));
   }
 
@@ -582,9 +610,37 @@ export async function renderStats(container, { go } = {}) {
   }
 
   /**
+   * 时间段弹层：弹出 / 收起。
+   *
+   * 两个弹层互斥：打开账期选项时要把日期段收回来 —— 它们都从第一行向下展开，
+   * 同时开着会互相压住下半截。
+   */
+  function toggleTimePop() {
+    const pop = $('[data-role=time-pop]');
+    const trig = $('[data-role=time-trigger]');
+    if (!pop) return;
+    const willOpen = pop.hasAttribute('hidden');
+    if (willOpen) {
+      closeRangePop();
+      pop.removeAttribute('hidden');
+    } else {
+      pop.setAttribute('hidden', '');
+    }
+    if (trig) trig.setAttribute('aria-expanded', String(willOpen));
+  }
+
+  /** 时间段弹层：收起（不改筛选） */
+  function closeTimePop() {
+    const pop = $('[data-role=time-pop]');
+    const trig = $('[data-role=time-trigger]');
+    if (pop) pop.setAttribute('hidden', '');
+    if (trig) trig.setAttribute('aria-expanded', 'false');
+  }
+
+  /**
    * 事件统一**委托**到筛选区容器上，只绑一次。
    *
-   * 为什么委托：分段控件与条件芯片都是 paintFilters 重建出来的，
+   * 为什么委托：账期选项与分类按钮都是 paintFilters 重建出来的，
    * 重建后逐个 addEventListener 会得到「同一个按钮挂了 N 次」的重复触发；
    * 绑在不变的容器上则无论内部怎么重建都只有一份监听器。
    */
@@ -592,14 +648,23 @@ export async function renderStats(container, { go } = {}) {
     const root = $('.st-filter');
     if (!root) return;
 
-    /* 戳一下空白关闭日期段弹层（仅当点击落在日期段卡之外） */
-    if (!rangePopOutsideBound) {
-      rangePopOutsideBound = true;
+    /**
+     * 戳一下空白收起第一行那两个弹层。
+     *
+     * ⚠️ 两个都要判：只写日期段的话，账期选项弹层会被留屏幕上，
+     * 而它渲染在「更多」按钮上方——再去点「更多」第一下先关窗， 看着像按钮失灵。
+     */
+    if (!popOutsideBound) {
+      popOutsideBound = true;
       document.addEventListener('click', (e) => {
-        const pop = $('[data-role=range-pop]');
-        if (!pop || pop.hasAttribute('hidden')) return;
-        if (e.target.closest('[data-role=range-card]')) return;
-        closeRangePop();
+        const rangePop = $('[data-role=range-pop]');
+        if (rangePop && !rangePop.hasAttribute('hidden') && !e.target.closest('[data-role=range-card]')) {
+          closeRangePop();
+        }
+        const timePop = $('[data-role=time-pop]');
+        if (timePop && !timePop.hasAttribute('hidden') && !e.target.closest('[data-role=time-card]')) {
+          closeTimePop();
+        }
       });
     }
 
@@ -610,6 +675,7 @@ export async function renderStats(container, { go } = {}) {
         filters.manualRange = false;
         filters.dateFrom = '';
         filters.dateTo = '';
+        closeTimePop();
         paintFilters();
         load();
         return;
@@ -622,8 +688,14 @@ export async function renderStats(container, { go } = {}) {
         filters.manualRange = false;
         filters.dateFrom = '';
         filters.dateTo = '';
+        closeTimePop();
         paintFilters();
         load();
+        return;
+      }
+      /* 账期文字：弹出 / 收起时间段选项 */
+      if (e.target.closest('[data-role=time-trigger]')) {
+        toggleTimePop();
         return;
       }
       /* 日期段触发器：弹出 / 收起日期选择器 */
@@ -679,19 +751,6 @@ export async function renderStats(container, { go } = {}) {
         load();
         return;
       }
-      const clear = e.target.closest('[data-clear]');
-      if (clear) {
-        const k = clear.dataset.clear;
-        if (k === 'type') filters.types = new Set();
-        if (k === 'source') filters.accountId = '';
-        if (k === 'cat') {
-          filters.parentCategoryId = '';
-          filters.categoryId = '';
-        }
-        if (k === 'kw') filters.keyword = '';
-        paintFilters();
-        load();
-      }
     });
 
     root.addEventListener('change', (e) => {
@@ -721,37 +780,10 @@ export async function renderStats(container, { go } = {}) {
       kwTimer = setTimeout(() => {
         if (filters.keyword === v) return;
         filters.keyword = v;
-        paintFilterSummary();
+        paintMore();
         load();
       }, 400);
     });
-  }
-
-  /**
-   * 条件芯片。**必须常显** —— 账期本身就是筛选条件，
-   * 用户截图给客服时对方看到的是一个「看起来没筛选」的页面，
-   * 而数据其实是某个特定月份的。
-   */
-  function paintFilterSummary() {
-    const slot = $('[data-role=filter-sum]');
-    if (!slot) return;
-    const chip = (key, label) =>
-      `<button class="chip chip--mini st-chip" type="button" data-clear="${key}"
-         aria-label="清除条件 ${esc(label)}">${esc(label)}<span class="st-chip__x" aria-hidden="true">×</span></button>`;
-    const chips = [
-      /** 账期不可摘：摘掉它就没有「本周期」这个概念了，所以它不是按钮 */
-      `<span class="st-chip st-chip--fixed">账期 ${esc(periodLabel(activeRange()))}</span>`,
-    ];
-    if (filters.types.size) {
-      chips.push(chip('type', `类型 ${[...filters.types].map((t) => TYPE_LABEL[t]).join('/')}`));
-    }
-    if (filters.accountId) chips.push(chip('source', `来源 ${accountName(filters.accountId)}`));
-    if (filters.categoryId) chips.push(chip('cat', `分类 ${categoryName(filters.categoryId)}`));
-    else if (filters.parentCategoryId) {
-      chips.push(chip('cat', `分类 ${categoryName(filters.parentCategoryId)}（全部）`));
-    }
-    if (filters.keyword) chips.push(chip('kw', `搜索 ${filters.keyword}`));
-    slot.innerHTML = chips.join('');
   }
 
   /* ---------------- 模块 1b：分类树 modal ---------------- */
@@ -1655,7 +1687,6 @@ export async function renderStats(container, { go } = {}) {
 
   async function load() {
     const q = queryOf();
-    paintFilterSummary();
     paintPeriod();
 
     const [sum, cmp, yoy, trend12, cat, rankCat, daily, member, nw, accBal, recv, pay] = await Promise.all([

@@ -207,24 +207,12 @@
     width: 100%;
   }
 
-  .st-filter__seg {
-    overflow-x: auto;
-    flex-wrap: nowrap;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  /* 账期切换器：整行独占，账期文字居中 —— 它挤在快捷段旁边时会被切掉尾巴，
-     而「当前看的是哪个月」是这个屏最重要的上下文。 */
-  .st-filter__stepper {
-    flex: 1 1 100%;
-    justify-content: space-between;
-    gap: 8px;
-  }
-
+  /**
+   * 账期不再是「独占一行居中的切换器」：它就是第一行三个选项里的第一个
+   * （`‹ 2026-10 ›`）。让它独占一行会把「默认只显示一行」的承诺作废，
+   * 而「当前看的是哪个月」这条信息已经由它自己写出来了。
+   */
   .st-filter__period {
-    flex: 1 1 auto;
-    text-align: center;
-    font-size: 15px;
     white-space: nowrap;
   }
 
@@ -443,11 +431,12 @@
     flex: 1 1 100%;
   }
 
-  /* 账期段让出「更多」的宽度。
-     必须是 `flex: 1 1 **0**` 而不是 auto：auto 的基准尺寸是**内容宽度**
-     （五个账期选项的 max-content ≈ 300px），加上「更多」就超过一行，
-     「更多」会被挤到第二行。基准归零后由它自己横滑（overflow-x:auto）。 */
-  .st-filter__seg {
+  /**
+   * 账期给「更多」让出宽度：基准尺寸必须是 **0** 而不是 auto。
+   * auto 的基准是内容宽度（`‹ 2026-10 ›` 的 max-content），
+   * 加上「更多」就超过一行，「更多」会被挤到第二行。
+   */
+  .st-filter__period-trigger {
     flex: 1 1 0;
     min-width: 0;
   }
@@ -1046,5 +1035,54 @@
   .amount-input {
     height: 52px;
     font-size: 24px;
+  }
+
+  /**
+   * ≤419px（iPhone SE / 小屏安卓）：筛选区必须**挤进一行**。
+   *
+   * 「‹ 2026-10 ›」「日期段」「更多」三项实测量下来是 402px，而 `.card` 扣掉
+   * 左右各 24px 内边距后只剩 327–340px —— 差的那点会让它 wrap 成两行，
+   * 「默认只显示一行」的承诺就作废了。
+   *
+   * 顺序按「谁最能压缩」来砍：组间距 → 控件内边距 → 账期触发器里的下拉箭头
+   * （点的是整颗按钮，箭头只是装饰）—— **不动任何一处文字**，
+   * 缩次要元素可以，把「2026-10」截成「2026-1…」不行。
+   */
+  .st-filter__bar {
+    gap: var(--s-xxs);
+  }
+
+  /**
+   * ‹ › 是这一行里**唯一可压缩的空白**：BB 的 .btn--sm 给了 32px 宽，
+   * 而里面只有一个字符。收到 28px 两个共省 8px，仍高于 44px 触控底线（高度没动）。
+   */
+  .st-filter__opt--time .btn--icon {
+    width: 28px;
+    padding: 0;
+  }
+
+  .st-filter__period {
+    font-size: 12px;
+  }
+
+  .st-filter__opt--time {
+    gap: 4px;
+  }
+
+  .st-filter__period-trigger,
+  .st-filter__range-trigger {
+    padding: 0 var(--s-xs);
+  }
+
+  .st-filter__period-trigger .st-filter__caret {
+    display: none;
+  }
+
+  /**
+   * 「更多」是这一行里最后一个压缩位：图标 + 两字已经是最短的自述，
+   * 只能收内边距（16 → 12 → 8 三级递减，跟着屏宽走）。
+   */
+  .st-filter__more {
+    padding: 0 var(--s-xs);
   }
 }

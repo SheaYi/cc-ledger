@@ -4503,10 +4503,25 @@ a.acct-row:hover {
   overflow: visible;
 }
 
+/**
+ * 行的选中 / 悬停底色由行自己画，所以**行的圆角要自己兜**：
+ * 只给最后一行的下圆角，第一行的选中底色就会贴在卡片的上圆角里 ——
+ * 蓝图 GPU 出来的结果是直角，中间隔着一圈白，看着像「选中框没画完」。
+ */
+.tx-day__body > .tx-row:first-child {
+  border-top-left-radius: calc(var(--r-lg) - 1px);
+  border-top-right-radius: calc(var(--r-lg) - 1px);
+}
+
 .tx-day__body > .tx-row:last-child {
   border-bottom-left-radius: calc(var(--r-lg) - 1px);
   border-bottom-right-radius: calc(var(--r-lg) - 1px);
 }
+
+/**
+ * 一天只有一笔时，它同时是首行与末行：上面两条各给一半，合起来才是完整的圆角。
+ * CSS 不做「去重」—— 同一侧不会有两个值冲突，两条都命中就各管一端。
+ */
 
 .tx-row__menu-item {
   display: flex;
@@ -5839,6 +5854,70 @@ a.acct-row:hover {
    十三·补充六、模板管理页
    ========================================================================== */
 
+/**
+ * 模板表单与记账页同一套容器（`.compose` = 720px 居中 + `.compose__block` 分组）。
+ * 宽度也跟着走：模板的字段就是一笔账单的字段，两个页面不一样宽时，
+ * 「预填出来的表单」和「平时记一笔的表单」会有肉眼可见的错位。
+ */
+.tpl-form {
+  margin-bottom: 20px;
+}
+
+/**
+ * 图标选择网格。
+ *
+ * 原先是 `<select>` → option 文案就是图标名（coffee / tram-front），
+ * 用户看到的是一排看不懂的英文。这里每一格直接画图标本身：
+ * 选图标是**形状识别**，不是读名字，图标必须看得见。
+ *
+ * `auto-fill minmax(44px, 1fr)`：44px 是触屏底线，格子按屏宽自动换行，
+ * 不需要为窄屏另写一套列数。
+ */
+.icon-pick {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));
+  gap: 6px;
+  padding: 6px;
+  border: 1px solid var(--c-hairline);
+  border-radius: var(--r-md);
+  background: var(--c-parchment);
+}
+
+.icon-pick__item {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  background: var(--c-canvas);
+  color: var(--c-ink);
+  cursor: pointer;
+  transition: border-color var(--d-state) var(--e-standard), background var(--d-state) var(--e-standard);
+}
+
+.icon-pick__item:hover {
+  background: var(--c-accent-1);
+}
+
+/** 选中 = 可点的反面：用强调色描边说出「这是当前值」，而不是换掉图标本身的颜色 */
+.icon-pick__item[aria-checked='true'] {
+  border-color: var(--c-primary);
+  background: var(--c-accent-2);
+  color: var(--c-primary);
+}
+
+/** 「无」是文字格而不是图标格，给它一个自己的宽度免得被挤成竖排 */
+.icon-pick__item--none {
+  font-size: 13px;
+  color: var(--c-ink-muted-48);
+}
+
+.icon-pick__item--none[aria-checked='true'] {
+  color: var(--c-primary);
+}
+
 .tplm-group {
   margin: 20px 0 8px;
   font-size: 12px;
@@ -5925,13 +6004,35 @@ a.acct-row:hover {
   gap: 4px;
 }
 
-/* 侧栏 / 顶栏的「记一笔」：面板向下向右展开（向上会顶出视口） */
-.mega-host--side .mega--tpl {
-  top: calc(100% + 8px);
+/* --------- 模板面板（长按「记一笔」）挂在 body 顶层浮层上 ---------
+ *
+ * 旧的写法是把面板塞进触发器旁边的 `.mega-host`：一按两种情况都会坏 ——
+ *   · 侧栏那条 host 在 `overflow-y: auto` 的 `.sidebar` 里 → 面板被**裁切**，标题砍半；
+ *   · host 自带层叠上下文 → 面板的 z-index 抬不过 `.shell__main`，账单列表压在它上面；
+ *   · 「向上还是向下」写死在 CSS 里（TabBar 一套、侧栏一套），按钮一挪就顶出视口。
+ * 现在由 .tpl-overlay 承载：不受任何滚动容器约束，自己就是最上面的一层，
+ * 位置由 `placePanel()` 按可用空间实测后写在 inline style 上。
+ */
+.tpl-overlay {
+  position: fixed;
+  inset: 0;
+  /* 高于 .modal(60) 与 .chart-tip(70)：它是从任意页面里抬起来的临时面板 */
+  z-index: 100;
+}
+
+.tpl-overlay[hidden] {
+  display: none;
+}
+
+/**
+ * 归零旧锚定的三个偏移（translateX / bottom / left）。
+ * 不清的话它们会先作用一帧：面板先在旧位置亮一下再跳到 JS 算好的位置，看着像抖了一下。
+ */
+.tpl-overlay .mega--tpl {
+  top: auto;
   bottom: auto;
   left: 0;
   transform: none;
-  width: min(92vw, 400px);
 }
 
 /* 侧栏「记一笔」下方的长按提示：常驻一行细字。
@@ -7861,29 +7962,74 @@ a.acct-row:hover {
  * 用同一个 gap 会让「掉到第二行的按钮组」看起来还属于第一行。
  */
 /**
- * 一行装三个选项：时间范围（弹性占满）→ 日期段（按内容）→ 更多（最右）。
+ * 一行装三个选项：时间段（弹性占满）→ 日期段（按内容）→ 更多（最右）。
  *
- * `align-items: flex-end` 是关键：选项内部是「小标签在上、控件在下」的两层结构，
- * 底部对齐才能让分段控件、日期触发器、更多按钮落在同一条基线上；
- * 用 center 的话标签行数不同的两项会互相错位。
+ * `no-wrap` 是这次改版的核心承诺：**默认只占一行**。
+ * 折叠态下第二行（`.st-filter__zone`）是 `display: none`，所以这一行就是全部；
+ * 空间真的不够时才允许它换行（极窄屏的最后兜底），而不是靠换行去凑第二排。
  */
 .st-filter__bar {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   flex-wrap: wrap;
   gap: var(--s-sm) var(--s-md);
 }
 
-.st-filter__seg {
-  flex: none;
+/**
+ * 时间段 = `‹ 2026-10 ›`。
+ * `position: relative` 是账期选项弹层的定位参照 —— 弹层从这一组下方展开，
+ * 锚在组而不是某个按钮上，才能在窄屏换行后仍然跟着走。
+ */
+.st-filter__opt--time {
+  display: flex;
+  align-items: center;
+  gap: var(--s-xs);
+  position: relative;
+  flex: 1 1 260px;
+  min-width: 0;
 }
 
-/** 分段项比通用 .segmented__item 紧凑：工具条里它是高频控件，且旁边还有三个下拉 */
-.st-filter__segitem {
+/**
+ * 账期文字**本身就是触发器**：height / 圆角 / 内边距与旁边的日期段、更多完全一致
+ * （三者的公共值写在一起，见 `.st-filter__trigger`），它们在同一行里必须同高。
+ */
+.st-filter__period-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-xs);
   height: 32px;
-  padding: 0 10px;
+  padding: 0 12px;
+  border: 1px solid var(--c-hairline);
+  border-radius: var(--r-sm);
+  background: var(--c-canvas);
   font-size: 13px;
   letter-spacing: -0.016em;
+  color: var(--c-ink);
+  cursor: pointer;
+  transition: border-color var(--d-state) var(--e-standard), background var(--d-state) var(--e-standard);
+}
+
+.st-filter__period-trigger:hover {
+  background: var(--c-parchment);
+}
+
+.st-filter__period-trigger:focus-visible,
+.st-filter__timeitem:focus-visible {
+  outline: 2px solid var(--c-primary-focus);
+  outline-offset: 1px;
+}
+
+.st-filter__period {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/** 日期段按内容宽；`position: relative` 是日期弹层的定位参照 */
+.st-filter__opt--range {
+  display: flex;
+  flex: 0 1 auto;
+  position: relative;
 }
 
 .st-filter__div {
@@ -8028,104 +8174,19 @@ button.st-filter__pick {
   color: var(--c-ink-muted-48);
 }
 
-/* --------- 条件芯片 --------- */
-
-/**
- * 条件芯片。
+/* --------- 筛选结果的回显（写在筛选框内，不再单独开一行）---------
  *
- * 为什么必须有它：筛选是**不可见**的状态 ——
- * 界面上只显示「你选了某几个下拉」，而**当前实际生效的区间与类型**
- * 只存在于数据里。用户截图给客服时，对方看到的是一个
- * 「看起来没筛选」的页面 —— 这是最常见的「统计数字不对」工单来源。
+ * 原先这里是一整行「条件芯片」。它解决的是同一个问题 —— 筛选是**不可见**的状态，
+ * 界面看着没筛选、数据其实是某个月份的（最常见的「统计数字不对」工单来源）——
+ * 但它把答案放到了筛选框**外**：多出一行独立的芯片区，还要再维护一套「摘掉某条」的带 × 控件。
  *
- * 为什么是芯片而不是一句话：一句话里想去掉其中一条，得回到对应下拉去改；
- * 芯片点一下就摘掉那一条，少一次「找到控件在哪」的搜索。
+ * 现在的写法是让每个控件**自己说出自己选了什么**：
+ * 账期由 `‹ 2026-10 ›` 写出来、自定义区间由「日期段」触发器写出来、
+ * 来源 / 类型 / 分类 / 搜索由第二行控件当前的取值写出来。
+ * 摘除某项就是动那个控件本身，不需要先找到对应的芯片在哪。
  */
-.st-filter__chips,
-.st-filter-sum {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s-xs);
-  padding-top: var(--s-sm);
-  border-top: 1px solid var(--c-divider-soft);
-}
 
-.st-chip {
-  letter-spacing: -0.016em;
-}
-
-/** 账期不可摘（它是这一页的前提），所以它用虚线边框 + 静音色，且不是按钮态 */
-.st-chip--fixed {
-  border-style: dashed;
-  color: var(--c-ink-muted-48);
-  cursor: default;
-}
-
-.st-chip__x {
-  margin-left: 2px;
-  color: var(--c-ink-muted-48);
-}
-
-/**
- * 悬停时整个芯片转成**强调色**（00-DESIGN：所有可点元素用同一个强调色）。
- * 可摘 = 可点，所以用强调色说出「这个能点」。
- */
-.st-chip:hover {
-  border-color: var(--c-primary);
-  color: var(--c-primary);
-}
-
-.st-chip:hover .st-chip__x {
-  color: var(--c-primary);
-}
-
-.st-chip:focus-visible {
-  outline: 2px solid var(--c-primary-focus);
-  outline-offset: 1px;
-}
-
-/* --------- 筛选区：一张卡片 + 三个选项 --------- */
-
-/**
- * 选项组：小标签在上、控件在下，组内间距 8px（gap 给，不再各自 margin）。
- * `min-width: 0` 是必须的 —— flex 子项默认 `min-width:auto`，
- * 内容宽度会顶住收缩，窄屏下分段控件就压不出横滑而是把卡片撑破。
- */
-.st-filter__opt {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-xs);
-  min-width: 0;
-}
-
-/**
- * 时间范围吃掉剩余宽度：五个账期选项 + 翻页器是三者里最长的一组，
- * 空间不够时应该先委屈它（它可以横滑），而不是把「更多」挤到下一行。
- */
-.st-filter__opt--time {
-  flex: 1 1 340px;
-}
-
-.st-filter__time {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--s-xs);
-}
-
-/** 日期段按内容宽；`position: relative` 是日期弹层的定位参照 */
-.st-filter__opt--range {
-  flex: 0 1 auto;
-  position: relative;
-}
-
-.st-filter__cap {
-  display: block;
-  font-size: 12px;
-  line-height: 16px;
-  letter-spacing: -0.01em;
-  color: var(--c-ink-muted-48);
-}
+/* --------- 筛选区（见上方：第一行 / 第二行的各自定义） --------- */
 
 /* 日期段卡：触发器外观接近输入控件 */
 .st-filter__range-trigger {
@@ -8213,6 +8274,54 @@ button.st-filter__pick {
   display: flex;
   justify-content: flex-end;
   gap: var(--s-xs);
+}
+
+/**
+ * 账期选项弹层：一排**药丸**，与既有的 `.segmented`（旧「时间范围」那条就是它）
+ * 同一套令牌 —— 底 `--c-parchment` + 选中项 `--c-canvas`。
+ * 沿用同一套令牌而不是新写一组颜色，是为了让「在这里选」和「在别处的分段控件里选」
+ * 看起来是同一种东西。
+ *
+ * ⚠️ 必须写在 `.st-filter__pop` **之后**：两者同为单类选择器、优先级相同，
+ * 谁在后谁生效。写成在上面的话，`flex-direction / background / padding / border-radius`
+ * 四条会被基础规则**后来居上**地覆盖回去 —— 弹层会退化成竖排普通面板，
+ * 而且选中项底色 == 面板底色，看起来像「根本没有选中态」。
+ */
+.st-filter__pop--time {
+  min-width: 0;
+  width: max-content;
+  max-width: min(360px, calc(100vw - 48px));
+  padding: 3px;
+  border-radius: var(--r-pill);
+  background: var(--c-parchment);
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+
+.st-filter__timeitem {
+  flex: 1 1 auto;
+  height: 30px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: transparent;
+  font-size: 13px;
+  letter-spacing: -0.016em;
+  color: var(--c-ink-muted-48);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--d-state) var(--e-standard), color var(--d-state) var(--e-standard);
+}
+
+.st-filter__timeitem:hover {
+  color: var(--c-ink);
+}
+
+.st-filter__timeitem[aria-checked='true'] {
+  background: var(--c-canvas);
+  color: var(--c-ink);
+  font-weight: 600;
 }
 
 /* 更多卡：图标 + 文案的整卡按钮 */
@@ -8358,7 +8467,7 @@ button.st-filter__pick {
  * 00-DESIGN 的触屏底线是 44×44，且「触屏没有精密操作豁免」。
  */
 @media (max-width: 833px) {
-  .st-filter__segitem,
+  .st-filter__period-trigger,
   .st-filter__pick,
   .st-filter__kw,
   .st-filter__date,
@@ -8366,8 +8475,9 @@ button.st-filter__pick {
     height: 44px;
   }
 
-  .st-filter__acts {
-    margin-left: 0;
+  .st-filter__timeitem {
+    height: 40px;
+    padding: 0 14px;
   }
 
   .st-filter__search,
@@ -8381,19 +8491,35 @@ button.st-filter__pick {
     min-width: 0;
   }
 
-  /* 窄屏：两个选项各占一行（弹层要能铺开，挤在一行会溢出视口） */
-  .st-filter__opt--time,
-  .st-filter__opt--range {
-    flex: 1 1 100%;
+  /**
+   * 三个选项在窄屏仍**坚持一行**。
+   *
+   * 抬到 44px 后横向更挤，但让某一项独占一行等于作废「默认只显示一行」的承诺 ——
+   * 改由时间段先收缩（它最有弹性：`‹ 2026-10 ›` 之外全是留白），
+   * 日期段次之（选中后区间文案可以省略号），「更多」最短且不可压缩。
+   */
+  .st-filter__opt--time {
+    flex: 1 1 auto;
   }
 
-  /* 日期段弹层在窄屏改为卡内静态展开：绝对定位的浮层在 375px 屏上必然溢出 */
-  .st-filter__pop {
-    position: static;
+  .st-filter__opt--range {
+    flex: 0 1 auto;
     min-width: 0;
-    width: 100%;
-    box-shadow: none;
-    margin-top: var(--s-xs);
+  }
+
+  /**
+   * 弹层**保持绝对定位**：改 `static` 会被塞回第一行，把这一行直接撑成两行。
+   * 换成「限宽度 + 换锚点」来避免溢出 —— 日期段靠右，所以它向左展开。
+   */
+  .st-filter__pop {
+    min-width: 0;
+    width: min(300px, calc(100vw - 40px));
+    max-width: calc(100vw - 40px);
+  }
+
+  .st-filter__opt--range .st-filter__pop {
+    left: auto;
+    right: 0;
   }
 
   /* 展开区里搜索框占满一行 */

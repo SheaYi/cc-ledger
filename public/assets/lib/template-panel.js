@@ -16,11 +16,70 @@ import { currentLedger, loadSession } from '../session.js';
 /** 种子键：与「再记一笔」「往来结清」共用同一个（读掉即焚，一次性） */
 const SEED_KEY = 'cc-ledger.compose-seed.v1';
 
-let host = null;
+/**
+ * 面板与遮罩的**顶层挂点**：常驻 `document.body`，不随任何视图重建。
+ *
+ * 为什么不挂在触发器旁边（`.mega-host`，旧做法）：侧栏那条 `.mega-host` 埋在
+ * `.sidebar` 里面，而侧栏是 `overflow-y: auto` —— 绝对定位的面板会被它**裁切**，
+ * 面板标题被切掉、列表只能露出上半截；同时它的 `z-index` 被锁在侧栏的层叠上下文里，
+ * 抬不过 `-main` 的内容，于是账单列表的金额列压在面板上面，两边互相遮。
+ *
+ * 挂到 body 顶层、`position: fixed` 铺满视口，就同时解决了裁切与层叠两件事：
+ * 面板不再属于任何滚动容器或层叠上下文，**自己就是最上面的一层**。
+ */
+const OVERLAY_ID = 'cc-tpl-overlay';
+
+function overlayRoot() {
+  let el = document.getElementById(OVERLAY_ID);
+  if (!el) {
+    el = h('<div class="tpl-overlay" hidden></div>');
+    el.id = OVERLAY_ID;
+    document.body.appendChild(el);
+  }
+  return el;
+}
+
+/**
+ * 把面板放到触发器旁边。
+ *
+ * `above / below` 由**实测可用空间**决定，不再按「是侧栏还是 TabBar」猜：
+ * 旧规则把两者写成两套 CSS（`.mega--tpl` 向上、`.mega-host--side` 向下），
+ * 一旦按钮换位置或视口变矮，写死的方向就会把面板顶出视口。
+ */
+function placePanel(panel, anchor) {
+  const pad = 12;
+  const gap = 8;
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const rect = anchor ? anchor.getBoundingClientRect() : null;
+
+  const width = Math.min(rect ? Math.max(rect.width, 280) : 360, vw - pad * 2);
+  let left = rect ? rect.left : (vw - width) / 2;
+  left = Math.max(pad, Math.min(left, vw - width - pad));
+
+  const below = rect ? vh - rect.bottom - gap - pad : vh - pad * 2;
+  const above = rect ? rect.top - gap - pad : 0;
+  /** 下方连 220px 都放不下就翻上去（220 ≈ 头 + 两条模板，再短就没用了） */
+  const openUp = below < 220 && above > below;
+
+  panel.style.width = `${Math.round(width)}px`;
+  panel.style.left = `${Math.round(left)}px`;
+  panel.style.transform = 'none';
+  if (openUp) {
+    panel.style.top = 'auto';
+    panel.style.bottom = `${Math.round(vh - (rect?.top ?? vh) + gap)}px`;
+    panel.style.maxHeight = `${Math.round(Math.min(above, vh - pad * 2))}px`;
+  } else {
+    panel.style.bottom = 'auto';
+    panel.style.top = `${Math.round((rect?.bottom ?? 0) + gap)}px`;
+    panel.style.maxHeight = `${Math.round(Math.min(below, vh - pad * 2))}px`;
+  }
+}
 
 /** 关掉面板并清掉遮罩 */
 export function closeTemplatePanel() {
-  if (!host) return;
+  const root = document.getElementById(OVERLAY_ID);
+  if (!root) return;
   /**
    * **移除**节点，而不是加 hidden。
    *
@@ -29,8 +88,11 @@ export function closeTemplatePanel() {
    * Esc 与点遮罩看起来「没反应」：它们关掉的是上一次留下的残影，新面板还挂在屏幕上。
    * 直接移除就没有这个歧义，也不用去记「到底关的是哪一个」。
    */
-  host.querySelectorAll('.mega--tpl, .scrim').forEach((el) => el.remove());
-  host.classList.remove('is-open');
+  root.querySelectorAll('.mega--tpl, .scrim').forEach((el) => el.remove());
+  root.hidden = true;
+  window.removeEventListener('resize', closeTemplatePanel.onReflow);
+  window.removeEventListener('scroll', closeTemplatePanel.onReflow, true);
+  closeTemplatePanel.onReflow = null;
 }
 
 function rowHtml(tpl) {
@@ -129,14 +191,8 @@ export async function openTemplatePanel({ ledger, go, anchor }) {
 
   closeTemplatePanel();
 
-  // 触发器外面要有定位上下文（.mega-host 是 position: relative）
-  const mount = anchor?.closest('.mega-host') ?? anchor?.parentElement ?? null;
-  if (mount && !mount.classList.contains('mega-host')) mount.classList.add('mega-host');
-
-  host = mount
-    ? mount
-    : h('<div class="mega-host" data-role="tpl-anchor"></div>');
-  if (!mount) document.body.appendChild(host);
+  const host = overlayRoot();
+  host.hidden = false;
 
   const scrim = h('<div class="scrim" data-role="tpl-scrim" hidden></div>');
   const panel = h(`
@@ -156,7 +212,6 @@ export async function openTemplatePanel({ ledger, go, anchor }) {
   `);
   host.appendChild(scrim);
   host.appendChild(panel);
-  host.classList.add('is-open');
 
   const body = panel.querySelector('[data-role=tpl-body]');
   const close = () => closeTemplatePanel();
@@ -172,6 +227,16 @@ export async function openTemplatePanel({ ledger, go, anchor }) {
   scrim.removeAttribute('hidden');
   panel.removeAttribute('hidden');
   openTemplatePanel.onEsc?.();
+
+  /**
+   * 面板现在按视口坐标摆放，滚动窗口（或把浏览器拉窄）之后必须**重新算一遍**，
+   * 否则它会停在旧位置上，慢慢和触发器脱节。
+   * 用 capture 阶段的 scroll 才能接住滚动发生在内层容器（`main`）的情况。
+   */
+  closeTemplatePanel.onReflow = () => placePanel(panel, anchor);
+  window.addEventListener('resize', closeTemplatePanel.onReflow);
+  window.addEventListener('scroll', closeTemplatePanel.onReflow, true);
+  placePanel(panel, anchor);
 
   let list = [];
   try {

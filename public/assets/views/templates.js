@@ -27,6 +27,8 @@ import {
   parseAmountToCents,
 } from '../lib/amounts.js';
 import { TYPE_ICON } from '../lib/tx-format.js';
+/** 类型 + 分类的三级面板：与记账页**同一个模块**，两边不再各画一套 */
+import { createTypeCatPicker, pickTriggerHtml } from '../lib/type-cat-picker.js';
 
 const TYPE_LABEL = {
   expense: '支出',
@@ -246,26 +248,28 @@ export async function renderTemplates(container, { go } = {}) {
     return out.sort((a, b) => (a.txCount ?? 0) > (b.txCount ?? 0) ? -1 : 1);
   };
 
+  /**
+   * 模板表单。
+   *
+   * ## 为什么整体改写成「记账页那一套」
+   *
+   * 模板的字段就是一笔账单的字段（类型 / 分类 / 账户 / 金额 / 商家 / 备注 ……），
+   * 早先这里用一套更朴素的原生控件自己画了一遍，理由是「配置是低频动作」。
+   * 代价是用户得学两套操作：在记账页学会的三级选择器，到了模板页变成两个下拉；
+   * 而且模板**直接喂给**记账表单（长按「记一笔」一键预填），
+   * 两边不一致时，「预填出来的东西和我平时记的不一样」会被当成 bug。
+   * 所以现在：类型与分类用**同一个三级面板**（lib/type-cat-picker.js），
+   * 其余字段沿用记账页的 `.field-row` / `.field` 语法，宽度也跟着 `.compose`（720px）。
+   *
+   * 唯一的区别是**没有附件卡**：模板固化的是「怎么记」，凭证是每次记账时才有的东西。
+   */
   function openForm(tpl = null) {
     const p = tpl?.payload ?? {};
-    const rt = tpl ? (p.recordType ?? 'expense') : 'expense';
-    const dir = p.direction ?? DEFAULT_DIRECTION[rt];
-
-    const catOptions = (t, selected) => {
-      const list = flatCats(t);
-      if (!list.length) return '<option value="">该类型下还没有分类</option>';
-      return (
-        '<option value="">不选分类</option>' +
-        list
-          .map(
-            (c) =>
-              `<option value="${esc(c.id)}"${selected === c.id ? ' selected' : ''}>${esc(
-                `${c.parentName} › ${c.name}`,
-              )}</option>`,
-          )
-          .join('')
-      );
-    };
+    let curType = tpl ? (p.recordType ?? 'expense') : 'expense';
+    let curCat = p.categoryId ?? null;
+    let curDir = p.direction ?? DEFAULT_DIRECTION[curType];
+    /** 图标：没指定就跟着类型走（与记账页同一套语义图标） */
+    let curIcon = tpl?.icon ?? TYPE_ICON[curType] ?? '';
 
     const accOptions = (selected, includeEmpty = true) =>
       (includeEmpty ? '<option value="">不指定</option>' : '') +
@@ -282,173 +286,322 @@ export async function renderTemplates(container, { go } = {}) {
         })
         .join('');
 
+    /** 一级分类树（已过滤归档；只有带未归档子类的支才列出） */
+    const catTrees = (t) =>
+      catRes.filter(
+        (x) =>
+          x.recordType === t &&
+          !x.archivedAt &&
+          (x.children ?? []).some((c) => !c.archivedAt),
+      );
+
     const form = h(`
-      <div class="card">
-        <form novalidate class="stack stack--md">
-          <div class="row row--between row--wrap">
-            <p class="tt-body-strong">${tpl ? `编辑模板「${esc(tpl.name)}」` : '新建模板'}</p>
-            <span class="tt-fine-print">最多 20 字，同一账本内不可重名</span>
-          </div>
+      <div class="tpl-form compose">
+        <section class="card compose__card">
+          <form novalidate class="stack stack--md">
+            <div class="compose__block">
+              <div class="compose__block-head">
+                <span class="tt-body-strong">${tpl ? `编辑模板「${esc(tpl.name)}」` : '新建模板'}</span>
+                <span class="tt-fine-print">最多 20 字，同一账本内不可重名</span>
+              </div>
 
-          <div class="field-row">
-            <div class="field" data-field="name">
-              <label class="field__label" for="tpl-name">模板名</label>
-              <input class="input" id="tpl-name" name="name" maxlength="20"
-                     value="${esc(tpl?.name ?? '')}" placeholder="例如：楼下便利店" />
-              <span class="field__error"></span>
+              <div class="field-row">
+                <div class="field field--wide" data-field="name">
+                  <label class="field__label" for="tpl-name">模板名</label>
+                  <input class="input" id="tpl-name" name="name" maxlength="20"
+                         value="${esc(tpl?.name ?? '')}" placeholder="例如：楼下便利店" />
+                  <span class="field__error"></span>
+                </div>
+                <div class="field" data-field="icon">
+                  <span class="field__label" id="tpl-icon-label">图标</span>
+                  <div class="icon-pick" data-role="icon-pick" role="radiogroup" aria-labelledby="tpl-icon-label"></div>
+                  <input type="hidden" name="icon" value="${esc(curIcon)}" />
+                  <span class="field__error"></span>
+                </div>
+              </div>
             </div>
-            <div class="field" data-field="icon">
-              <label class="field__label" for="tpl-icon">图标</label>
-              <select class="input select" id="tpl-icon" name="icon">
-                ${ICON_CHOICES.map(
-                  (n) =>
-                    `<option value="${n}"${(tpl?.icon ?? '') === n ? ' selected' : ''}>${
-                      n ? n : '（无图标）'
-                    }</option>`,
-                ).join('')}
-              </select>
-            </div>
-          </div>
 
-          <div class="field-row">
-            <div class="field" data-field="recordType">
-              <label class="field__label" for="tpl-rt">记录类型</label>
-              <select class="input select" id="tpl-rt" name="recordType">
-                ${TEMPLATABLE_TYPES.map(
-                  (t) =>
-                    `<option value="${t}"${rt === t ? ' selected' : ''}>${esc(TYPE_LABEL[t])}</option>`,
-                ).join('')}
-              </select>
-            </div>
-            <div class="field" data-field="direction" data-role="dir-field">
-              <label class="field__label" for="tpl-dir">阶段</label>
-              <select class="input select" id="tpl-dir" name="direction"></select>
-            </div>
-            <div class="field" data-field="defaultAmount">
-              <label class="field__label" for="tpl-amt">金额建议值（元）</label>
-              <input class="input" id="tpl-amt" name="defaultAmount" inputmode="decimal"
-                     value="${esc(p.defaultAmount && p.defaultAmount !== '0.00' ? p.defaultAmount : '')}"
-                     placeholder="可留空" data-money />
-              <span class="field__error"></span>
-            </div>
-          </div>
+            <div class="compose__block">
+              <!--
+                类型与分类 = 记账页那个三级面板（同一个模块产出同一份标记）。
+                原来这里是「记录类型」下拉 + 「分类」下拉两个控件，
+                与记账页的合并入口不一致：在记账页一次能点完的事，这里要开两个下拉。
+              -->
+              <div class="field" data-field="recordType">
+                ${pickTriggerHtml({ labelId: 'tpl-pick-label', label: '类型与分类' })}
+              </div>
 
-          <div class="field-row">
-            <div class="field" data-field="accountId">
-              <label class="field__label" for="tpl-acc">账户</label>
-              <select class="input select" id="tpl-acc" name="accountId">${accOptions(
-                p.accountId ?? null,
-              )}</select>
-              <span class="field__error"></span>
+              <div class="field" data-field="direction" data-role="dir-field" hidden>
+                <span class="field__label" id="tpl-dir-label">收付方向</span>
+                <div class="segmented" role="radiogroup" aria-labelledby="tpl-dir-label"
+                     data-role="dir-seg"></div>
+              </div>
             </div>
-            <div class="field" data-field="toAccountId" data-role="to-field" ${rt === 'transfer' ? '' : 'hidden'}>
-              <label class="field__label" for="tpl-to">转入账户</label>
-              <select class="input select" id="tpl-to" name="toAccountId">${accOptions(
-                p.toAccountId ?? null,
-              )}</select>
-              <span class="field__error"></span>
-            </div>
-          </div>
 
-          <div class="field" data-field="categoryId">
-            <label class="field__label" for="tpl-cat">分类</label>
-            <select class="input select" id="tpl-cat" name="categoryId">${catOptions(rt, p.categoryId ?? null)}</select>
-            <span class="field__error"></span>
-          </div>
+            <div class="compose__block">
+              <div class="field-row field-row--money">
+                <div class="field" data-field="accountId">
+                  <label class="field__label" for="tpl-acc">账户</label>
+                  <select class="input select" id="tpl-acc" name="accountId">${accOptions(
+                    p.accountId ?? null,
+                  )}</select>
+                  <span class="field__error"></span>
+                </div>
+                <div class="field amount-field" data-field="defaultAmount">
+                  <label class="field__label" for="tpl-amt">金额建议值</label>
+                  <input class="input" id="tpl-amt" name="defaultAmount" inputmode="decimal"
+                         value="${esc(p.defaultAmount && p.defaultAmount !== '0.00' ? p.defaultAmount : '')}"
+                         placeholder="可留空" data-money />
+                  <span class="tt-fine-print">只是建议值，记账时仍可改</span>
+                  <span class="field__error"></span>
+                </div>
+              </div>
 
-          <div class="field-row">
-            <div class="field" data-field="name2">
-              <label class="field__label" for="tpl-tname">账单名称</label>
-              <input class="input" id="tpl-tname" name="txName" maxlength="50"
-                     value="${esc(p.name ?? '')}" placeholder="例如：便利店" />
-            </div>
-            <div class="field" data-field="merchant">
-              <label class="field__label" for="tpl-merchant">商家</label>
-              <input class="input" id="tpl-merchant" name="merchant" maxlength="50"
-                     value="${esc(p.merchant ?? '')}" />
-            </div>
-          </div>
+              <div class="field" data-field="toAccountId" data-role="to-field" hidden>
+                <label class="field__label" for="tpl-to">转入账户</label>
+                <select class="input select" id="tpl-to" name="toAccountId">${accOptions(
+                  p.toAccountId ?? null,
+                )}</select>
+                <span class="field__error"></span>
+              </div>
 
-          <div class="field-row">
-            <div class="field" data-field="counterparty">
-              <label class="field__label" for="tpl-cp">对象</label>
-              <input class="input" id="tpl-cp" name="counterparty" maxlength="50"
-                     value="${esc(p.counterparty ?? '')}" placeholder="转账 / 应收应付时用" />
+              <div class="field-row field-row--fee">
+                <div class="field" data-field="fee">
+                  <label class="field__label" for="tpl-fee">手续费</label>
+                  <input class="input" id="tpl-fee" name="fee" inputmode="decimal"
+                         value="${esc(p.fee && p.fee !== '0.00' ? p.fee : '')}" placeholder="一般留空" data-money />
+                  <span class="field__error"></span>
+                </div>
+                <div class="field" data-field="discount">
+                  <label class="field__label" for="tpl-discount">折扣</label>
+                  <input class="input" id="tpl-discount" name="discount" inputmode="decimal"
+                         value="${esc(p.discount && p.discount !== '0.00' ? p.discount : '')}" placeholder="一般留空" data-money />
+                  <span class="field__error"></span>
+                </div>
+              </div>
             </div>
-            <div class="field" data-field="fee">
-              <label class="field__label" for="tpl-fee">手续费（元）</label>
-              <input class="input" id="tpl-fee" name="fee" inputmode="decimal"
-                     value="${esc(p.fee && p.fee !== '0.00' ? p.fee : '')}" placeholder="一般留空" data-money />
-            </div>
-          </div>
 
-          <div class="field" data-field="note">
-            <label class="field__label" for="tpl-note">备注</label>
-            <input class="input" id="tpl-note" name="note" maxlength="500"
-                   value="${esc(p.note ?? '')}" />
-          </div>
+            <div class="compose__block">
+              <div class="field-row field-row--named">
+                <div class="field field--wide" data-field="txName">
+                  <label class="field__label" for="tpl-tname">账单名称</label>
+                  <input class="input" id="tpl-tname" name="txName" maxlength="50"
+                         value="${esc(p.name ?? '')}" placeholder="例如：便利店" />
+                  <span class="field__error"></span>
+                </div>
+                <div class="field" data-field="merchant">
+                  <label class="field__label" for="tpl-merchant">商家</label>
+                  <input class="input" id="tpl-merchant" name="merchant" maxlength="50"
+                         value="${esc(p.merchant ?? '')}" />
+                  <span class="field__error"></span>
+                </div>
+              </div>
 
-          <div>
-            <span class="field__label">标签</span>
-            <div class="cat-pick__row" data-role="tag-row">
-              ${
-                tags.length
-                  ? tags
-                      .map(
-                        (t) => `
+              <div class="field-row">
+                <div class="field" data-field="counterparty">
+                  <label class="field__label" for="tpl-cp">对象</label>
+                  <input class="input" id="tpl-cp" name="counterparty" maxlength="50"
+                         value="${esc(p.counterparty ?? '')}" placeholder="转账 / 应收应付时用" />
+                  <span class="field__error"></span>
+                </div>
+                <div class="field field--wide" data-field="note">
+                  <label class="field__label" for="tpl-note">备注</label>
+                  <input class="input" id="tpl-note" name="note" maxlength="500"
+                         value="${esc(p.note ?? '')}" />
+                  <span class="field__error"></span>
+                </div>
+              </div>
+
+              <div class="field" data-field="tagIds">
+                <span class="field__label">标签</span>
+                <div class="cat-pick__row" data-role="tag-row">
+                  ${
+                    tags.length
+                      ? tags
+                          .map(
+                            (t) => `
                     <button class="option-chip" type="button" role="checkbox" data-tag="${esc(t.id)}"
                             aria-checked="${(p.tagIds ?? []).includes(t.id)}">
                       <span class="option-chip__dot" style="--tag-color:${esc(t.color ?? '')}"></span>
                       <span>${esc(t.name)}</span>
                     </button>`,
-                      )
-                      .join('')
-                  : '<span class="tt-fine-print">这个账本还没有标签</span>'
-              }
+                          )
+                          .join('')
+                      : '<span class="tt-fine-print">这个账本还没有标签</span>'
+                  }
+                </div>
+                <span class="field__error"></span>
+              </div>
             </div>
-          </div>
 
-          <div class="row">
-            <button class="btn btn--sm" type="submit">${tpl ? '保存' : '创建'}</button>
-            <button class="btn btn--quiet btn--sm" type="button" data-role="cancel">取消</button>
-          </div>
-        </form>
+            <div class="row">
+              <button class="btn btn--sm" type="submit">${tpl ? '保存' : '创建'}</button>
+              <button class="btn btn--quiet btn--sm" type="button" data-role="cancel">取消</button>
+            </div>
+          </form>
+        </section>
       </div>
     `);
 
-    const rtSel = form.querySelector('[name=recordType]');
-    const dirSel = form.querySelector('[name=direction]');
-    const catSel = form.querySelector('[name=categoryId]');
     const toField = form.querySelector('[data-role=to-field]');
     const dirField = form.querySelector('[data-role=dir-field]');
+    const dirSeg = form.querySelector('[data-role=dir-seg]');
+    const iconPick = form.querySelector('[data-role=icon-pick]');
+    const iconInput = form.querySelector('[name=icon]');
 
-    /** 类型变了：阶段选项、分类候选、转账户显隐都要跟着换（别用旧的残留值提交） */
-    const syncType = () => {
-      const prev = rtSel.dataset.lastType ?? rt;
-      const t = rtSel.value;
-      rtSel.dataset.lastType = t;
-      const dirs = DIRECTION_BY_RECORD_TYPE[t] ?? [];
-      dirSel.innerHTML = dirs
-        .map((d) => {
-          const label = DIRECTION_STAGE_LABEL[t]?.[d] ?? d;
-          return `<option value="${d}"${d === DEFAULT_DIRECTION[t] ? ' selected' : ''}>${esc(label)}</option>`;
-        })
-        .join('');
-      dirField.hidden = dirs.length <= 1;
-      toField.hidden = t !== 'transfer';
-      const keep = catSel.value;
-      catSel.innerHTML = catOptions(t, keep);
-      if (catSel.value !== keep) catSel.value = '';
-      /**
-       * 图标跟着类型走 —— 但**只改「还没自己选过」的那次**：
-       * 用户手动挑的图标在切类型时不该被覆盖（判断依据 = 当前值还是上一次的语义图标或空）。
-       */
-      const iconSel = form.querySelector('[name=icon]');
-      if (iconSel.value === '' || iconSel.value === TYPE_ICON[prev]) {
-        iconSel.value = TYPE_ICON[t] ?? '';
-      }
+    /* ---------------- 图标：可视化选择 ---------------- */
+
+    /**
+     * 图标原来是 `<select>`，option 的文案就是图标名（coffee / tram-front），
+     * 于是用户看到的是一排看不懂的英文 —— 图标列表页里它等于不存在。
+     * 现在画成图标网格：每一格就是它自己，选中的带强调描边。
+     * 除图标外保留一个「无」：模板可以不指定图标（列表里回落到票据图标）。
+     */
+    const paintIcons = () => {
+      iconPick.innerHTML =
+        `<button class="icon-pick__item icon-pick__item--none" type="button" role="radio"
+                 data-icon="" aria-checked="${curIcon === ''}" title="不指定图标">无</button>` +
+        ICON_CHOICES.filter(Boolean)
+          .map(
+            (n) => `
+          <button class="icon-pick__item" type="button" role="radio" data-icon="${esc(n)}"
+                  aria-checked="${curIcon === n}" title="${esc(n)}" aria-label="${esc(n)}">
+            ${lucide(n, 18)}
+          </button>`,
+          )
+          .join('');
+      iconPick.querySelectorAll('[data-icon]').forEach((btn) =>
+        btn.addEventListener('click', () => {
+          curIcon = btn.dataset.icon;
+          iconInput.value = curIcon;
+          paintIcons();
+        }),
+      );
     };
-    rtSel.addEventListener('change', syncType);
+
+    /* ---------------- 收付方向：与记账页同为分段控件 ---------------- */
+
+    const paintDirection = () => {
+      const choices = DIRECTION_BY_RECORD_TYPE[curType] ?? [];
+      dirField.hidden = choices.length <= 1;
+      if (choices.length <= 1) {
+        curDir = choices[0] ?? DEFAULT_DIRECTION[curType];
+        dirSeg.innerHTML = '';
+        return;
+      }
+      if (!choices.includes(curDir)) curDir = DEFAULT_DIRECTION[curType];
+      dirSeg.innerHTML = choices
+        .map(
+          (d) => `
+        <button class="segmented__item" type="button" role="radio" data-dir="${esc(d)}"
+                aria-checked="${curDir === d}">
+          ${esc(DIRECTION_STAGE_LABEL[curType]?.[d] ?? d)}
+        </button>`,
+        )
+        .join('');
+      dirSeg.querySelectorAll('[data-dir]').forEach((btn) =>
+        btn.addEventListener('click', () => {
+          curDir = btn.dataset.dir;
+          paintDirection();
+        }),
+      );
+    };
+
+    /* ---------------- 类型与分类：记账页那个三级面板 ---------------- */
+
+    const picker = createTypeCatPicker({
+      host: form.querySelector('[data-field=recordType]'),
+      types: TEMPLATABLE_TYPES,
+      treesOf: catTrees,
+      flatCats,
+      value: () => ({ recordType: curType, categoryId: curCat }),
+      /**
+       * 副值：选了分类就写「类型 · 一级分类」，没选就给该类型的一句话解释。
+       * 与记账页同一口径（那边多带一个阶段，模板的阶段由下面的分段控件单独呈现）。
+       */
+      subLabel: (meta) => {
+        const c = curCat ? flatCats(curType).find((x) => x.id === curCat) : null;
+        return c ? [meta.label, c.parentName].filter(Boolean).join(' · ') : meta.hint;
+      },
+      onPick: (type, categoryId) => {
+        const prevIcon = TYPE_ICON[curType] ?? '';
+        curType = type;
+        curCat = categoryId ?? null;
+        /**
+         * 图标跟着类型走，但**只改「还没自己选过」的那次**（沿用旧逻辑）：
+         * 用户手动挑过的图标在切类型时不该被覆盖 —— 判断依据是
+         * 当前图标还等于上一个类型的语义图标，或等于空。
+         */
+        if (curIcon === '' || curIcon === prevIcon) {
+          curIcon = TYPE_ICON[type] ?? '';
+          iconInput.value = curIcon;
+          paintIcons();
+        }
+        syncType();
+        picker.paintTrigger();
+        /**
+         * 选完就收起 —— 与记账页同一手感（那边是 closePanels({ focus: true })）。
+         * 少了这一步，面板会一直压在表单上，用户得再点一次触发器才知道选生效了。
+         */
+        closePick();
+      },
+    });
+
+    const pickHost = form.querySelector('[data-role=pick-host]');
+    const pickPanel = form.querySelector('[data-role=pick-panel]');
+    const pickTrigger = form.querySelector('[data-role=pick-trigger]');
+    let onDocClick = null;
+    let onEsc = null;
+
+    const closePick = () => {
+      pickPanel.hidden = true;
+      pickTrigger.setAttribute('aria-expanded', 'false');
+      pickHost.classList.remove('is-open');
+      if (onDocClick) document.removeEventListener('click', onDocClick);
+      if (onEsc) document.removeEventListener('keydown', onEsc);
+      onDocClick = null;
+      onEsc = null;
+    };
+
+    pickTrigger.addEventListener('click', () => {
+      if (!pickPanel.hidden) {
+        closePick();
+        return;
+      }
+      picker.resetDraft();
+      pickPanel.hidden = false;
+      pickTrigger.setAttribute('aria-expanded', 'true');
+      pickHost.classList.add('is-open');
+      picker.paintPanel();
+      /** 点面板外 / Esc 收起 —— 与记账页同一套收起手感 */
+      onDocClick = (e) => {
+        if (!pickHost.contains(e.target)) closePick();
+      };
+      onEsc = (e) => {
+        if (e.key === 'Escape') closePick();
+      };
+      document.addEventListener('click', onDocClick);
+      document.addEventListener('keydown', onEsc);
+    });
+    form.querySelector('[data-role=cat-search]').addEventListener('input', (e) => {
+      picker.setQuery(e.target.value);
+      picker.paintPanel();
+    });
+    form.querySelector('[data-role=cat-clear]').addEventListener('click', () => {
+      curCat = null;
+      picker.paintTrigger();
+      picker.paintPanel();
+      closePick();
+    });
+
+    /** 类型变了：转账户显隐、方向候选都要跟着换（别把上一类型的残留值提交上去） */
+    const syncType = () => {
+      toField.hidden = curType !== 'transfer';
+      paintDirection();
+    };
+
+    picker.paintTrigger();
+    paintIcons();
     syncType();
 
     form.querySelectorAll('[data-tag]').forEach((chip) =>
@@ -459,6 +612,7 @@ export async function renderTemplates(container, { go } = {}) {
     );
 
     form.querySelector('[data-role=cancel]').addEventListener('click', () => {
+      closePick();
       formSlot.replaceChildren();
     });
 
@@ -475,19 +629,24 @@ export async function renderTemplates(container, { go } = {}) {
       setLoading(submit, true, '保存中');
       const payload = {
         name,
-        icon: f.icon.value || null,
+        icon: iconInput.value || null,
         payload: {
-          recordType: rtSel.value,
-          direction: dirSel.value || DEFAULT_DIRECTION[rtSel.value],
+          recordType: curType,
+          direction: curDir || DEFAULT_DIRECTION[curType],
           accountId: f.accountId.value || null,
-          toAccountId: rtSel.value === 'transfer' ? f.toAccountId.value || null : null,
-          categoryId: catSel.value || null,
+          toAccountId: curType === 'transfer' ? f.toAccountId.value || null : null,
+          categoryId: curCat || null,
           name: f.txName.value.trim() || null,
           merchant: f.merchant.value.trim() || null,
           counterparty: f.counterparty.value.trim() || null,
           note: f.note.value.trim() || null,
           fee: parseAmountToCents(f.fee.value) ?? 0,
-          discount: 0,
+          /**
+           * 折扣**以前是写死的 0**：后端 `templates` 的 payload schema 里明明有这一项，
+           * 「再记一笔」的种子也照着读，只有这里的表单没给出口 ——
+           * 于是「模板里配的折扣」永远填不进去，而用户看不出为什么会丢。
+           */
+          discount: parseAmountToCents(f.discount.value) ?? 0,
           defaultAmount: parseAmountToCents(f.defaultAmount.value) ?? 0,
           tagIds: [...form.querySelectorAll('[data-tag][aria-checked=true]')].map((c) => c.dataset.tag),
         },
@@ -500,6 +659,7 @@ export async function renderTemplates(container, { go } = {}) {
           await Api.createTemplate(ledger.id, payload);
           toast(`模板「${name}」已创建`, 'success');
         }
+        closePick();
         formSlot.replaceChildren();
         await reload();
       } catch (err) {
