@@ -27,6 +27,14 @@ const PICKER = [
   'trending-up', 'trending-down', 'percent', 'receipt', 'briefcase', 'store',
   'printer', 'paperclip', 'megaphone', 'wrench', 'hammer', 'scissors',
   'spray-can', 'brush', 'flower-2', 'leaf', 'sun', 'moon', 'star', 'zap',
+  /** 模板页图标库（lib/icon-catalog.js）用到，缺名会让 `lucide()` 静默回退成问号 */
+  'lightbulb',
+  /**
+   * 图标选择器里「不指定图标」的占位图形（lib/icon-picker.js）。
+   * 它必须是一个**看得见的形状**而不是「没有图标」——
+   * 空占位会让触发器左侧塌陷一块，与选了图标时宽度不一样。
+   */
+  'circle-dashed',
   'flame', 'droplet', 'snowflake', 'package', 'tag', 'ticket', 'users',
   'plus', 'info', 'list-filter', 'check', 'archive', 'rotate-ccw',
   /**

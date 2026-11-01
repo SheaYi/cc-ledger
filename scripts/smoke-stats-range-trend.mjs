@@ -199,10 +199,19 @@ check('「所有」趋势桶数 ≥ 3（跨度按首末笔铺开）', allTrend.l
 
 /* =================== 5) 退款必须相减 =================== */
 console.log('\n=== 退款冲减（docs/03 §1.6）===');
-const beforeRefund = await summary({ dateFrom: monthFrom, dateTo: today });
+/**
+ * ⚠️ 窗口必须锚在 D1 上，不能用 monthFrom。
+ *
+ * 每月 1 号那天，D1 = 今天-1天 会落到**上个月**，被 [本月1号, 今天] 排除在外 ——
+ * 于是 `find(period === D1)` 拿到 undefined，「退款相减」这条断言
+ * 报的是「没拿到桶」而不是「算错了」，光看日志根本分不清是哪一种。
+ * 造对照数据的窗口要用**固定包含目标日期**的那一段。
+ */
+const refundWin = { dateFrom: D1, dateTo: today };
+const beforeRefund = await summary(refundWin);
 await mkTx({ recordType: 'expense', name: '可退支出', amount: '210.00' }, D1);
 await mkTx({ recordType: 'expense', name: '退款', amount: '210.00', isRefund: true }, D1);
-const afterRefund = await summary({ dateFrom: monthFrom, dateTo: today });
+const afterRefund = await summary(refundWin);
 const expBefore = Number(beforeRefund.totalExpense ?? 0);
 const expAfter = Number(afterRefund.totalExpense ?? 0);
 check(
@@ -210,7 +219,7 @@ check(
   Math.abs(expAfter - expBefore) < 0.005,
   `before ${expBefore} · after ${expAfter}`,
 );
-const d1After = (await trend({ dateFrom: monthFrom, dateTo: today, granularity: 'day' })).find((b) => b.period === D1);
+const d1After = (await trend({ ...refundWin, granularity: 'day' })).find((b) => b.period === D1);
 check(
   '趋势图同一天也把退款相减（与 KPI 同口径）',
   d1After !== undefined && Number(d1After.expense ?? 0) === 10,

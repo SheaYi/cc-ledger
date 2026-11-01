@@ -61,38 +61,61 @@ const c0 = pc.children[0];
 const c1 = pc.children[1];
 const ic = (await (await fetch(`${API}${P`/ledgers/${ledger.id}/categories?recordType=income`}`, { headers: AH })).json()).data;
 const inc = (ic.find((p) => (p.children ?? []).length) ?? ic[0]).children[0];
-const day = (n) => { const d = new Date(); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
+const iso = (d) => d.toISOString().slice(0, 10);
+const day = (n) => { const d = new Date(); d.setDate(d.getDate() - n); return iso(d); };
+const monthFirst = `${iso(new Date()).slice(0, 7)}-01`;
+/**
+ * ⚠️ 造数的日期必须**落在本月内**，不能是「往前推 N 天」。
+ *
+ * 默认账期就是「本月」。每月 1 号那天，本月的长度只有 1 天，
+ * 「往前推 5 天」会掉到上个月去 —— 于是 KPI 卡是 0、
+ * 结余率算不出来、每日趋势一个点都没有。
+ * 月初跑一遍就红三条，看着像统计口径被改坏了，其实只是造数造在了窗外。
+ * 所以这里从「今天往前推」改成「今天往前推，再只保留仍在月内的那几天」。
+ */
+const inMonth = (n) => [...Array(n)].map((_, i) => day(i)).filter((d) => d >= monthFirst);
+const spendDays = inMonth(20);
+/**
+ * 上期 = 本期的**等长前一段**（后端 previousRange：from 往前推同样多天，到 from 的前一天）。
+ * 本月 1 号那天，本期只有 1 天，上期就只有「上月最后一天」一天 ——
+ * 写死「10 号 / 20 号」或「38 天前」都会掉到窗外，上期恒为 0，
+ * 差异列于是按设计显示「—」，方向箭头一条都出不来。
+ */
+const prevTo = (() => { const d = new Date(); d.setDate(1); d.setDate(d.getDate() - 1); return d; })();
+const prevFrom = (() => { const d = new Date(prevTo); d.setDate(d.getDate() - (inMonth(20).length - 1)); return d; })();
+const prevDays = [iso(prevFrom), iso(prevTo)];
 
 for (let i = 0; i < 24; i += 1) {
   await fetch(`${API}${P`/ledgers/${ledger.id}/transactions`}`, {
     method: 'POST', headers: POST,
     body: JSON.stringify({
-      accountId: acc.id, txDate: day(i % 20), fee: '0', discount: '0',
+      accountId: acc.id, txDate: spendDays[i % spendDays.length], fee: '0', discount: '0',
       recordType: 'expense', categoryId: (i % 3 === 0 ? c1 : c0).id,
       name: `消费${i}`, amount: `${30 + ((i * 17) % 400)}.00`,
       counterparty: i % 2 ? '楼下食堂' : '超市',
     }),
   });
 }
-for (const [d, a] of [[5, '18000.00'], [12, '900.00']]) {
+/** 收入也要在本月内，否则「结余率」在月初恒为 0 那一档，卡片直接不显示结余率 */
+for (const [d, a] of [[spendDays[0], '18000.00'], [spendDays[spendDays.length - 1], '900.00']]) {
   await fetch(`${API}${P`/ledgers/${ledger.id}/transactions`}`, {
     method: 'POST', headers: POST,
-    body: JSON.stringify({ accountId: acc.id, txDate: day(d), fee: '0', discount: '0', recordType: 'income', categoryId: inc.id, name: '工资', amount: a }),
+    body: JSON.stringify({ accountId: acc.id, txDate: d, fee: '0', discount: '0', recordType: 'income', categoryId: inc.id, name: '工资', amount: a }),
   });
 }
 /**
  * 上一期的数据：没有它，「周期对比」卡的上期是 0，
  * 而差异列在上期为 0 时按设计显示「—」（除零没有意义，不谎称「没变」）。
  * 于是「差异列给出方向箭头」这条断言**永远**为 0 处 —— 而且是**日期相关**的：
- * 上面那批数据只落在最近 20 天，月底跑就全在本月内，月初跑才可能跨到上月。
- * 一条会随日历漂移的断言等于没有断言，所以这里显式补上一期的支出。
+ * 造数只落在最近 20 天的话，月初跑会整批掉进上上个月。
+ * 一条会随日历漂移的断言等于没有断言，所以这里显式补上上期的支出。
  */
-for (const [d, a] of [[38, '520.00'], [44, '310.00']]) {
+for (const [d, a] of [[prevDays[0], '520.00'], [prevDays[1], '310.00']]) {
   await fetch(`${API}${P`/ledgers/${ledger.id}/transactions`}`, {
     method: 'POST', headers: POST,
     body: JSON.stringify({
-      accountId: acc.id, txDate: day(d), fee: '0', discount: '0',
-      recordType: 'expense', categoryId: c0.id, name: `上月消费${d}`, amount: a,
+      accountId: acc.id, txDate: d, fee: '0', discount: '0',
+      recordType: 'expense', categoryId: c0.id, name: `上期消费${d}`, amount: a,
     }),
   });
 }
@@ -516,7 +539,18 @@ check('12 月趋势画满 12 根柱组（含 0 值月，保证轴等距）', Num
   `${await q('[data-role=m-trend12] .st-bargroup')} 根`);
 check('环形图有扇区', Number(await q('[data-role=m-donut] .st-arc')) > 0);
 check('排行榜有数据行', Number(await q('[data-role=m-rank] .rank-row')) > 1);
-check('每日趋势有数据点', Number(await q('[data-role=m-daily] .st-point')) > 1);
+/**
+ * 每日趋势的折线（面积）图按判据是「非零时点 ≥ 2 才画」。
+ * 月初 1 号那天，本月只有 1 天有数据 → 它**按设计不画**，点数就是 0。
+ * 这时候期待 0 个点才是对的：把它当成回归去修，修的是产品而不是 bug。
+ */
+check(
+  '每日趋势画出了有交易的每一天',
+  spendDays.length > 1
+    ? Number(await q('[data-role=m-daily] .st-point')) === spendDays.length
+    : Number(await q('[data-role=m-daily] .st-point')) === 0,
+  `${await q('[data-role=m-daily] .st-point')} 点 / 本月造数用了 ${spendDays.length} 天`,
+);
 check('星期分布 7 根柱（含无支出日）', Number(await q('[data-role=m-weekday] .st-bar')) === 7);
 /**
  * 个人账本：那一格是「本期录入汇总」四指标卡（录入总额 / 折扣合计 / 手续费合计 / 净额），
@@ -687,7 +721,10 @@ const tipKinds = JSON.parse(
     area: document.querySelectorAll('[data-role=m-networth] svg rect[data-tip]').length,
   })`),
 );
-check('折线图数据点带提示数据', Number(tipKinds.point) > 0, `${tipKinds.point} 点`);
+// 同上：月初 1 号那天折线按判据不画，数据点自然也是 0
+check('折线图数据点带提示数据',
+  spendDays.length > 1 ? Number(tipKinds.point) > 0 : Number(tipKinds.point) === 0,
+  `${tipKinds.point} 点 · 本月造数用了 ${spendDays.length} 天`);
 check('柱状图柱体带提示数据', Number(tipKinds.bargroup) > 0 && Number(tipKinds.bar) > 0,
   `趋势 ${tipKinds.bargroup} 组 · 星期 ${tipKinds.bar} 柱`);
 /** 个人账本没有成员饼图，饼图扇区的守门断言改落在环形图上 */

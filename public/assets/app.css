@@ -1382,7 +1382,8 @@ a.acct-row:active {
 
 .input {
   width: 100%;
-  height: 44px; /* 00-DESIGN search-input：44px = 触控底线 */
+  /* 00-DESIGN search-input：44px = 触控底线。控件高度只有这一个来源。 */
+  height: var(--h-ctl);
   padding: 0 20px; /* 文档内距 12×20 的横向值（定高输入框纵向内距由行高承担） */
   background: var(--c-canvas);
   border: 1px solid var(--c-hairline);
@@ -5280,7 +5281,7 @@ a.acct-row:hover {
   display: flex;
   align-items: center;
   gap: 8px;
-  height: 44px;
+  height: var(--h-ctl);
   padding: 0 10px 0 20px;
   border: 1px solid var(--c-hairline);
   border-radius: var(--r-md);
@@ -5864,58 +5865,201 @@ a.acct-row:hover {
 }
 
 /**
- * 图标选择网格。
- *
- * 原先是 `<select>` → option 文案就是图标名（coffee / tram-front），
- * 用户看到的是一排看不懂的英文。这里每一格直接画图标本身：
- * 选图标是**形状识别**，不是读名字，图标必须看得见。
- *
- * `auto-fill minmax(44px, 1fr)`：44px 是触屏底线，格子按屏宽自动换行，
- * 不需要为窄屏另写一套列数。
+ * 模板列表与表单**同宽**：下面这张卡和上面那张一样宽（720px），
+ * 页面里就不再出现「一宽一窄两张卡看着像两个不相干板块」的割裂感。
  */
-.icon-pick {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));
-  gap: 6px;
-  padding: 6px;
+.tpl-list {
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+/**
+ * 模板页的**控件高度统一到 44px**（= `.input` 那一条）。
+ *
+ * 记账页的三级面板触发器是 56px 两行（它要同时写「类型 · 阶段 · 一级分类」，
+ * 阶段这一项在模板页由下面单独的「收付方向」控件承担），
+ * 所以模板页改成一行：图标 + 「支出 · 餐饮」+ 箭头，压到 44px。
+ * 省下来的 12px 不是形式 —— 不这么做，表单里第一个控件就比其余高出一头。
+ */
+.tpl-form .pick-trigger {
+  min-height: var(--h-ctl);
+  height: var(--h-ctl);
+  padding: 0 12px;
+}
+
+/**
+ * 模板页的字段一律**等宽**：不再有 `.field--wide` 那种「这格占两份」的写法。
+ * 同一张表单里，并排的格子就应该是同样宽 —— 否则每一行都自成一套栅格。
+ */
+.tpl-form .field-row > .field {
+  flex: 1 1 0;
+}
+
+/**
+ * 「收付方向」是模板页里唯一的分段控件，它也要跟着 44px 走。
+ *
+ * 只把里面的项拉到 44px 是不够的：外壳还有 3px 内距，44 + 3 + 3 = 50px，
+ * 反而比旁边的输入框**高**出 6px。所以外壳自己定高 44，项改成填满。
+ * 基类 34px 是给「嵌在卡片里的一小段开关」用的，模板页里它和输入框平级。
+ */
+.tpl-form .segmented {
+  height: var(--h-ctl);
+  align-items: center;
+}
+
+.tpl-form .segmented__item {
+  height: 100%;
+}
+
+.tpl-form .pick-trigger__text {
+  flex-direction: row;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.tpl-form .pick-trigger__icon {
+  width: 28px;
+  height: 28px;
+}
+
+/* --------- 图标选择器：触发器（与 .input 同高） --------- */
+
+/**
+ * 形状与 `.input` 对齐：同样的 44px 高、同样的圆角与边框、同样的内距节奏。
+ * 它代替的是「把 18 个图标平铺在表单里」那种写法 ——
+ * 那种写法让一行里两个控件差出 100px 高度，整张表单立刻变成锯齿形。
+ */
+.icon-trigger {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  height: var(--h-ctl);
+  padding: 0 12px;
   border: 1px solid var(--c-hairline);
   border-radius: var(--r-md);
-  background: var(--c-parchment);
-}
-
-.icon-pick__item {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 44px;
-  padding: 0;
-  border: 1px solid transparent;
-  border-radius: var(--r-sm);
   background: var(--c-canvas);
-  color: var(--c-ink);
-  cursor: pointer;
-  transition: border-color var(--d-state) var(--e-standard), background var(--d-state) var(--e-standard);
+  text-align: left;
+  transition: border-color var(--d-state) var(--e-standard),
+    background var(--d-state) var(--e-standard);
 }
 
-.icon-pick__item:hover {
+.icon-trigger:hover {
+  border-color: var(--c-ink-muted-48);
+}
+
+.icon-trigger[aria-expanded='true'] {
+  border-color: var(--c-primary-focus);
   background: var(--c-accent-1);
 }
 
-/** 选中 = 可点的反面：用强调色描边说出「这是当前值」，而不是换掉图标本身的颜色 */
-.icon-pick__item[aria-checked='true'] {
-  border-color: var(--c-primary);
+.icon-trigger__icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-sm);
   background: var(--c-accent-2);
   color: var(--c-primary);
 }
 
-/** 「无」是文字格而不是图标格，给它一个自己的宽度免得被挤成竖排 */
-.icon-pick__item--none {
-  font-size: 13px;
+.icon-trigger__text {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 15px;
+  color: var(--c-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.icon-trigger__chev {
+  flex: none;
+  display: grid;
+  place-items: center;
+  color: var(--c-ink-muted-48);
+  transition: transform var(--d-state) var(--e-standard);
+}
+
+.icon-trigger[aria-expanded='true'] .icon-trigger__chev {
+  transform: rotate(180deg);
+}
+
+/* 未指定图标：整枚控件降一档，别让空值看起来像已经填好了 */
+.icon-trigger.is-empty .icon-trigger__text {
+  color: var(--c-placeholder);
+}
+
+.icon-trigger.is-empty .icon-trigger__icon {
+  background: var(--c-parchment);
   color: var(--c-ink-muted-48);
 }
 
-.icon-pick__item--none[aria-checked='true'] {
+/* --------- 图标库弹层：搜索 + 分组 + 网格 --------- */
+
+/**
+ * 右对齐而不是左对齐：图标字段通常排在行的**右半格**，
+ * 左对齐的 360px 弹层会捅出卡片右边缘（在窄屏上就是捅出屏幕外）。
+ * 右对齐时它向左长，无论格子多窄都落得进卡片。
+ */
+.mega--icon {
+  right: 0;
+  left: auto;
+  width: 360px;
+  max-width: calc(100vw - 48px);
+  max-height: min(70vh, 460px);
+  padding: 0;
+}
+
+/**
+ * 分组条：只有 9 个短标签，换行就能全部露出来。
+ * 横滑会让最右边那个被切成半个字，看着像坏了 —— 横滑是为长列表准备的。
+ */
+.icon-cats {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px;
+}
+
+.icon-cat {
+  flex: none;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: var(--r-pill);
+  background: var(--c-parchment);
+  font-size: 12px;
+  color: var(--c-ink-muted-80);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--d-state) var(--e-standard), color var(--d-state) var(--e-standard);
+}
+
+.icon-cat:hover {
+  background: var(--c-accent-1);
+}
+
+.icon-cat[aria-selected='true'] {
+  background: var(--c-canvas);
+  border-color: var(--c-primary);
   color: var(--c-primary);
+}
+
+/**
+ * 弹层内的网格：只有它滚，搜索框与分组条钉在上面不跟着动。
+ * 基类 `.icon-grid` 的 192px 上限是给「表单里平铺」那一种形态准备的
+ * （它当时没有弹层可依靠，只能自己封顶）；弹层里高度由外层分配。
+ */
+.icon-grid--pop {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+  padding: 8px;
+  overflow-y: auto;
 }
 
 .tplm-group {
@@ -6691,6 +6835,30 @@ a.acct-row:hover {
      第 3 段（二级分类）保持换行平铺 —— 它才是真正要「挑一个」的地方。 */
   .mega--pick {
     padding: 0 0 env(safe-area-inset-bottom, 0px);
+  }
+
+  /* 图标库也走 Sheet：它继承上面 .mega 的 fixed 形态，只是内距按它自己的内容收 */
+  .mega--icon {
+    padding: 8px 12px calc(12px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .icon-cats {
+    padding: 8px 0;
+  }
+
+  .icon-grid--pop {
+    padding: 4px 0;
+  }
+
+  /**
+   * 模板页窄屏：一格一行，全部。
+   *
+   * `.field-row--fee` 的 140px 基准在 366px 宽里还挤得下两个，
+   * 于是「手续费 / 折扣」并排、其余字段却各自独占一行 ——
+   * 同一张表单里出现两种行距，正是要消掉的那类参差。
+   */
+  .tpl-form .field-row > .field {
+    flex: 1 1 100%;
   }
 
   .mega__panes,

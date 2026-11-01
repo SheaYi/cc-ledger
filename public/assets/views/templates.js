@@ -29,6 +29,8 @@ import {
 import { TYPE_ICON } from '../lib/tx-format.js';
 /** 类型 + 分类的三级面板：与记账页**同一个模块**，两边不再各画一套 */
 import { createTypeCatPicker, pickTriggerHtml } from '../lib/type-cat-picker.js';
+/** 图标库弹层：与分类页的图标网格同一个目录，只是形态从「平铺」改成「弹层」 */
+import { createIconPicker, iconPickerHtml } from '../lib/icon-picker.js';
 
 const TYPE_LABEL = {
   expense: '支出',
@@ -40,13 +42,6 @@ const TYPE_LABEL = {
 };
 /** 余额调整不能做模板（它只由对账生成，docs/05 §9.5） */
 const TEMPLATABLE_TYPES = RECORD_TYPES.filter((t) => t !== 'adjustment');
-
-/** 模板图标候选项：从记账页已在用的语义图标里挑（生成集里都有，见 gen-lucide 的 UI_ICONS） */
-const ICON_CHOICES = [
-  '', 'receipt', 'banknote', 'arrow-left-right', 'hand-coins', 'heart-handshake',
-  'utensils', 'coffee', 'croissant', 'tram-front', 'car-taxi-front', 'fuel',
-  'shopping-basket', 'package', 'house', 'lightbulb', 'stethoscope', 'graduation-cap',
-];
 
 export async function renderTemplates(container, { go } = {}) {
   const me = await loadSession();
@@ -87,7 +82,12 @@ export async function renderTemplates(container, { go } = {}) {
       </div>
 
       <div data-role="form-slot"></div>
-      <div data-role="list-slot"></div>
+      <!--
+        列表与上面的表单**同宽**（720px）：先前的列表铺满整页、表单只有 720px，
+        同一个页面里两张卡一宽一窄，看上去像两个不相干的板块。
+        宽度级差留在外层（页面）与卡片之间，卡片之间必须对齐。
+      -->
+      <div data-role="list-slot" class="tpl-list"></div>
     `,
   });
   container.replaceChildren(frame);
@@ -305,16 +305,19 @@ export async function renderTemplates(container, { go } = {}) {
                 <span class="tt-fine-print">最多 20 字，同一账本内不可重名</span>
               </div>
 
+              <!--
+                模板名与图标**等宽**：图标不再是铺开三行的网格而是一个触发器，
+                两个控件一样宽、一样高（44px），行内不再一高一矮。
+              -->
               <div class="field-row">
-                <div class="field field--wide" data-field="name">
+                <div class="field" data-field="name">
                   <label class="field__label" for="tpl-name">模板名</label>
                   <input class="input" id="tpl-name" name="name" maxlength="20"
                          value="${esc(tpl?.name ?? '')}" placeholder="例如：楼下便利店" />
                   <span class="field__error"></span>
                 </div>
                 <div class="field" data-field="icon">
-                  <span class="field__label" id="tpl-icon-label">图标</span>
-                  <div class="icon-pick" data-role="icon-pick" role="radiogroup" aria-labelledby="tpl-icon-label"></div>
+                  ${iconPickerHtml({ labelId: 'tpl-icon-label', label: '图标' })}
                   <input type="hidden" name="icon" value="${esc(curIcon)}" />
                   <span class="field__error"></span>
                 </div>
@@ -339,15 +342,24 @@ export async function renderTemplates(container, { go } = {}) {
             </div>
 
             <div class="compose__block">
-              <div class="field-row field-row--money">
+              <!--
+                账户 + 金额**不用记账页的 .field-row--money**：那条规则刻意让账户框
+                长到 64px、金额框占 1.25 份宽（记账页里账户是第二常用的字段，给足
+                点击面积）。但模板页的字段是一个个平级的配置项，
+                照搬过来就成了「一行里两个控件一高一矮一宽一窄」。
+                这里用普通 .field-row：等宽等高，两个提示行也配对出现，
+                否则只有金额那格下面多一行，标签就对不齐。
+              -->
+              <div class="field-row">
                 <div class="field" data-field="accountId">
                   <label class="field__label" for="tpl-acc">账户</label>
                   <select class="input select" id="tpl-acc" name="accountId">${accOptions(
                     p.accountId ?? null,
                   )}</select>
+                  <span class="tt-fine-print">留空则记账时再选</span>
                   <span class="field__error"></span>
                 </div>
-                <div class="field amount-field" data-field="defaultAmount">
+                <div class="field" data-field="defaultAmount">
                   <label class="field__label" for="tpl-amt">金额建议值</label>
                   <input class="input" id="tpl-amt" name="defaultAmount" inputmode="decimal"
                          value="${esc(p.defaultAmount && p.defaultAmount !== '0.00' ? p.defaultAmount : '')}"
@@ -382,8 +394,8 @@ export async function renderTemplates(container, { go } = {}) {
             </div>
 
             <div class="compose__block">
-              <div class="field-row field-row--named">
-                <div class="field field--wide" data-field="txName">
+              <div class="field-row">
+                <div class="field" data-field="txName">
                   <label class="field__label" for="tpl-tname">账单名称</label>
                   <input class="input" id="tpl-tname" name="txName" maxlength="50"
                          value="${esc(p.name ?? '')}" placeholder="例如：便利店" />
@@ -404,7 +416,7 @@ export async function renderTemplates(container, { go } = {}) {
                          value="${esc(p.counterparty ?? '')}" placeholder="转账 / 应收应付时用" />
                   <span class="field__error"></span>
                 </div>
-                <div class="field field--wide" data-field="note">
+                <div class="field" data-field="note">
                   <label class="field__label" for="tpl-note">备注</label>
                   <input class="input" id="tpl-note" name="note" maxlength="500"
                          value="${esc(p.note ?? '')}" />
@@ -446,38 +458,31 @@ export async function renderTemplates(container, { go } = {}) {
     const toField = form.querySelector('[data-role=to-field]');
     const dirField = form.querySelector('[data-role=dir-field]');
     const dirSeg = form.querySelector('[data-role=dir-seg]');
-    const iconPick = form.querySelector('[data-role=icon-pick]');
     const iconInput = form.querySelector('[name=icon]');
 
-    /* ---------------- 图标：可视化选择 ---------------- */
+    /* ---------------- 图标：图标库弹层 ---------------- */
 
     /**
-     * 图标原来是 `<select>`，option 的文案就是图标名（coffee / tram-front），
-     * 于是用户看到的是一排看不懂的英文 —— 图标列表页里它等于不存在。
-     * 现在画成图标网格：每一格就是它自己，选中的带强调描边。
-     * 除图标外保留一个「无」：模板可以不指定图标（列表里回落到票据图标）。
+     * 图标的三种形态，最后一种才是能用的：
+     *   ① `<select>` —— option 文案就是图标名（coffee / tram-front），
+     *      用户看到的是一排读不懂的英文；
+     *   ② 表单里**平铺的图标网格** —— 能看见图标了，但它占了三行高度，
+     *      跟同一行 44px 的模板名输入框一比，整行变成锯齿；
+     *   ③ **弹层** —— 平时只占 44px 一格（与输入框同高），
+     *      点开才是那个 102 个图标、能按中文搜索的库。
+     * 弹层里保留了「清除图标」：模板可以不指定图标（列表里回落到票据图标）。
      */
-    const paintIcons = () => {
-      iconPick.innerHTML =
-        `<button class="icon-pick__item icon-pick__item--none" type="button" role="radio"
-                 data-icon="" aria-checked="${curIcon === ''}" title="不指定图标">无</button>` +
-        ICON_CHOICES.filter(Boolean)
-          .map(
-            (n) => `
-          <button class="icon-pick__item" type="button" role="radio" data-icon="${esc(n)}"
-                  aria-checked="${curIcon === n}" title="${esc(n)}" aria-label="${esc(n)}">
-            ${lucide(n, 18)}
-          </button>`,
-          )
-          .join('');
-      iconPick.querySelectorAll('[data-icon]').forEach((btn) =>
-        btn.addEventListener('click', () => {
-          curIcon = btn.dataset.icon;
-          iconInput.value = curIcon;
-          paintIcons();
-        }),
-      );
-    };
+    const iconPicker = createIconPicker({
+      host: form.querySelector('[data-field=icon]'),
+      value: () => curIcon,
+      onPick: (name) => {
+        curIcon = name;
+        iconInput.value = name;
+        iconPicker.paint();
+        // 选完就收起：弹层压在下面的字段上，用户得再点一次才知道选生效了
+        iconPicker.close();
+      },
+    });
 
     /* ---------------- 收付方向：与记账页同为分段控件 ---------------- */
 
@@ -535,7 +540,7 @@ export async function renderTemplates(container, { go } = {}) {
         if (curIcon === '' || curIcon === prevIcon) {
           curIcon = TYPE_ICON[type] ?? '';
           iconInput.value = curIcon;
-          paintIcons();
+          iconPicker.paint();
         }
         syncType();
         picker.paintTrigger();
@@ -601,7 +606,7 @@ export async function renderTemplates(container, { go } = {}) {
     };
 
     picker.paintTrigger();
-    paintIcons();
+    iconPicker.paint();
     syncType();
 
     form.querySelectorAll('[data-tag]').forEach((chip) =>
@@ -613,6 +618,7 @@ export async function renderTemplates(container, { go } = {}) {
 
     form.querySelector('[data-role=cancel]').addEventListener('click', () => {
       closePick();
+      iconPicker.close();
       formSlot.replaceChildren();
     });
 
@@ -660,6 +666,7 @@ export async function renderTemplates(container, { go } = {}) {
           toast(`模板「${name}」已创建`, 'success');
         }
         closePick();
+        iconPicker.close();
         formSlot.replaceChildren();
         await reload();
       } catch (err) {
