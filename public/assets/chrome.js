@@ -581,7 +581,14 @@ function wireComposeAction(el, { go, onLongPress } = {}) {
     }
   });
 
-  ['pointerup', 'pointercancel', 'pointerleave', 'contextmenu'].forEach((evt) =>
+  // contextmenu：iOS Safari 长按会派发它并随之弹出系统复制菜单。
+  // 这里既取消自定义长按计时（与抬指同效），又 preventDefault 把系统菜单压掉，
+  // 否则它会在我们 400ms 打开的模板面板之上再盖一层系统菜单（长按冲突）。
+  el.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    cancel();
+  });
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach((evt) =>
     el.addEventListener(evt, cancel),
   );
 

@@ -1172,7 +1172,14 @@ export async function renderTransactions(container, { go, query }) {
       if (!timer) return;
       if (Math.abs(e.clientX - sx) > MOVE_CANCEL_PX || Math.abs(e.clientY - sy) > MOVE_CANCEL_PX) cancel();
     });
-    ['pointerup', 'pointercancel', 'pointerleave', 'contextmenu'].forEach((evt) =>
+    // contextmenu：iOS Safari 长按会派发它并弹出系统复制菜单。
+    // 既取消自定义长按计时（与抬指同效），又 preventDefault 压掉系统菜单，
+    // 否则它会在我们长按打开的选择态浮层之上再盖一层（长按冲突）。
+    node.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      cancel();
+    });
+    ['pointerup', 'pointercancel', 'pointerleave'].forEach((evt) =>
       node.addEventListener(evt, cancel),
     );
     node.addEventListener(

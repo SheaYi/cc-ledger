@@ -56,6 +56,43 @@
 }
 
 /* ==========================================================================
+   零·乙、触屏系统复制菜单 / 文本选中：整体禁用（iPhone Safari 长按冲突）
+   --------------------------------------------------------------------------
+   问题：iPhone Safari 在长按时会先触发系统自带的两件事，与我们的自定义长按
+   手势（「记」带模板面板、账单行进选择态）打架：
+     ① 文字选择的放大镜 + 选中手柄（按住即现，≈100ms 起）；
+     ② 系统「复制 / 共享 / 查询」呼叫菜单（≈500ms 弹出），并派发 contextmenu。
+   我们的自定义长按在 400ms 已经打开自己的浮层，随后系统菜单又盖在上面，
+   就是用户看到的「冲突」。
+
+   修法两层（本块是 CSS 主修，JS 兜底见 chrome.js / transactions.js）：
+     · `-webkit-touch-callout: none` —— 关掉系统呼叫菜单，长按不再弹复制条；
+     · `-webkit-user-select: none` —— 关掉文本选中，长按不再起放大镜与蓝选。
+   只针对触屏（`hover: none` + `pointer: coarse`），桌面鼠标不受影响：
+   桌面上用户仍可正常框选、复制金额等文本。表单字段重新放开选中，
+   否则 iOS 上没法在输入框里编辑、定位光标、粘贴。
+   ========================================================================== */
+@media (hover: none) and (pointer: coarse) {
+  *,
+  *::before,
+  *::after {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  /* 输入框 / 文本域 / 下拉 / 可编辑区：恢复选中，保证可编辑与可粘贴 */
+  input,
+  textarea,
+  select,
+  [contenteditable] {
+    -webkit-user-select: text;
+    user-select: text;
+    -webkit-touch-callout: default;
+  }
+}
+
+/* ==========================================================================
    一、≤1023px：平板竖屏与手机
    ========================================================================== */
 @media (max-width: 1023px) {
@@ -74,9 +111,11 @@
     gap: 12px;
   }
 
-  /* 记账页不挂 TabBar（docs/13 §4.1 全屏页），底部只留操作条与安全区 */
+  /* 记账页不挂 TabBar（docs/13 §4.1 全屏页），底部留足空间让最后一行字段
+     在滚动到底时不被悬浮的操作条（约 68px 高 + 12px 间隙）挡住。 */
   .page--compose {
-    padding: 8px var(--page-gutter) calc(20px + env(safe-area-inset-bottom, 0px));
+    padding: 8px var(--page-gutter)
+      calc(20px + 88px + env(safe-area-inset-bottom, 0px));
   }
 
   .footer-min {
@@ -187,8 +226,35 @@
   }
 
   .st-filter__bar {
-    flex-wrap: wrap;
-    gap: 12px;
+    /* 强制一排，不换行：旧值 wrap 让「‹ 账期 › / 日期段 / 更多」在窄屏挤成两行，
+       违背 stats 页「默认只显示一行」的承诺。时间段最有弹性先收缩，日期段次之，
+       更多最短不可压（与 app.css ≤833 的弹性分配一致）。 */
+    flex-wrap: nowrap;
+    gap: 8px;
+  }
+
+  .st-filter__opt--time {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .st-filter__opt--range {
+    flex: 0 1 auto;
+    min-width: 0;
+  }
+
+  /* 账期 / 日期段文字过长时省略号收尾，绝不溢出把这一行撑破 */
+  .st-filter__period-trigger,
+  .st-filter__range-trigger {
+    min-width: 0;
+  }
+
+  .st-filter__period,
+  .st-filter__range-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .st-filter__picks {
@@ -608,7 +674,15 @@
      只有 `bottom` 与安全区是贴底构件该有的：`--keyboard-height` 让它在输入法弹起时跟着上移。 */
   .action-bar {
     position: sticky;
-    bottom: 0;
+    /**
+     * **悬浮间隙（而不是贴死底部）**：用 `bottom` 抬高整张卡片，让它浮在屏幕底部之上，
+     * 与下方留出 12px 的呼吸感（之前是 `bottom: 0`，在 safe-area 为 0 的设备上直接贴底）。
+     *
+     * 同时把键盘适配从「外边距相减」搬到这里：`max(safe-area, 键盘高)` 保证
+     * —— 没弹键盘时离 Home 指示条留 safe-area；弹起键盘时直接浮到键盘顶上 12px。
+     * 键盘高度来自 `--keyboard-height`（app.js 用 visualViewport 写）。
+     */
+    bottom: calc(12px + max(env(safe-area-inset-bottom, 0px), var(--keyboard-height, 0px)));
     z-index: 10;
     /**
      * ⚠️ **安全区必须用外边距让开，不能加进 padding-bottom**。
@@ -618,8 +692,9 @@
      * 于是**下边框与两个下圆角被推到 Home 指示条那一条里**：
      * 用户看到的就是「这张卡片高度不对，边框溢出去了」。
      * 安全区是**屏幕**的属性，不是卡片内边距的属性，所以它属于卡片外。
+     * （键盘/安全区的让位已挪进上面的 `bottom`，这里外边距归零。）
      */
-    margin: 0 0 calc(env(safe-area-inset-bottom, 0px) - var(--keyboard-height, 0px));
+    margin: 0;
     padding: 12px 16px;
     /* 高度回到卡片节奏：上下 12 + 44 的按钮 = 68，与同页其它按钮行同高；
        不写死 height，由 44px 的触控底线撑出来，免得以后按钮变高被裁。 */
@@ -959,6 +1034,18 @@
     align-items: flex-start;
     gap: 8px;
     padding: 20px 16px;
+  }
+
+  /* 账户消费一览：名称 / 类型各占半行（app.css ≤833 的栅格），
+     禁止内部折行；名称过长省略号收尾，绝不撑破这一行。 */
+  .report-grid .tbl--acct td:nth-child(1) {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .report-grid .tbl--acct td:nth-child(2) {
+    white-space: nowrap;
   }
 
 }

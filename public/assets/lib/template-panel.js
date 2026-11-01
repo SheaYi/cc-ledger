@@ -62,6 +62,24 @@ function placePanel(panel, anchor) {
   /** 下方连 220px 都放不下就翻上去（220 ≈ 头 + 两条模板，再短就没用了） */
   const openUp = below < 220 && above > below;
 
+  /**
+   * 手机端（≤1023，即 mobile.css 接管后的布局）：触发按钮恒为底部 TabBar 的「+」。
+   * 旧逻辑按按钮矩形定位，面板会窄（≈280px）且偏右，既和卡片左右边距不齐，
+   * 又可能压住按钮让「+」只露出一半。这里强制与卡片同边距对齐（左右各 12px），
+   * 并固定从按钮**上方**弹出、留 8px 间隙，保证「+」完整可见。
+   */
+  if (vw <= 1023 && rect) {
+    const gutter = 12;
+    const w = vw - gutter * 2;
+    panel.style.width = `${Math.round(w)}px`;
+    panel.style.left = `${gutter}px`;
+    panel.style.transform = 'none';
+    panel.style.top = 'auto';
+    panel.style.bottom = `${Math.round(vh - (rect.top - gap))}px`;
+    panel.style.maxHeight = `${Math.round(Math.min(rect.top - gap - pad, vh - pad * 2))}px`;
+    return;
+  }
+
   panel.style.width = `${Math.round(width)}px`;
   panel.style.left = `${Math.round(left)}px`;
   panel.style.transform = 'none';
