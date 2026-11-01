@@ -1036,18 +1036,56 @@
     padding: 20px 16px;
   }
 
-  /* 账户消费一览：名称 / 类型各占半行（app.css ≤833 的栅格），
-     禁止内部折行；名称过长省略号收尾，绝不撑破这一行。 */
-  .report-grid .tbl--acct td:nth-child(1) {
+  /* 账户消费一览：名称 / 类型各占半行（app.css ≤833 的 6 栅格）。
+     ⚠️ 必须覆盖桌面 `.tbl--acct` 的 `width:30%/16%` —— 那是给整宽表格定列的，
+     手机改成 6 栅格后名称占左半(3 列)、类型占右半(3 列)；桌面定宽会把名称
+     卡在 30%≈105px 里被省略号截断（图 2）。改 `width:auto` 让栅格轨道决定宽度，
+     常规银行名一行放得下、完整显示；只剩极长名才省略号兜底。 */
+  .report-grid .tbl--acct td:nth-child(1),
+  .report-grid .tbl--acct td:nth-child(2) {
+    width: auto;
+    min-width: 0;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
-  .report-grid .tbl--acct td:nth-child(2) {
-    white-space: nowrap;
+}
+
+/* ==========================================================================
+   三·补、≤833px：日期段弹层居中（图 1）
+   ========================================================================== */
+@media (max-width: 833px) {
+  /**
+   * 日期段弹层：手机上改为**相对整条筛选栏水平居中**的浮层。
+   *
+   * 旧规则 `.st-filter__opt--range .st-filter__pop { left:auto; right:0 }`
+   * 让弹层以「日期段」触发器右缘为锚向左展开 —— 屏幕上看着贴左边、右边空一大块，
+   * 既没居中、宽度也随触发器位置忽大忽小（图 1）。
+   *
+   * 做法：把定位上下文从窄的 opt--range 让给整宽 `.st-filter__bar`（position:relative），
+   * 弹层 `left:50% + translateX(-50%)` 就相对整条栏（≈屏幕中轴）居中；
+   * 宽度锁定在 `100vw-32px` 内，左右对称、大小稳定。
+   * 触发器 / 取消 / 确定仍正常开合（弹层仍是 range-card 子节点，外部点击照关）。
+   */
+  .st-filter__bar {
+    position: relative;
   }
 
+  .st-filter__opt--range {
+    position: static;
+  }
+
+  .st-filter__opt--range .st-filter__pop {
+    position: absolute;
+    left: 50%;
+    right: auto;
+    top: calc(100% + 8px);
+    bottom: auto;
+    transform: translateX(-50%);
+    width: min(340px, calc(100vw - 32px));
+    max-width: calc(100vw - 32px);
+  }
 }
 
 /* ==========================================================================
