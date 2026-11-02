@@ -90,18 +90,56 @@ function last12Range() {
   return { from: iso(from), to: iso(to) };
 }
 
-/** 账期切换：按当前区间的**跨度类型**平移，而不是死板地按月移 */
-function shiftRange(range, dir) {
+/**
+ * 账期切换：按**账期类型**平移，而不是死板地按月移。
+ *
+ * ⚠️ `granularity` 必须由账期类型（`filters.quick`）给定，**不能靠区间跨度反推**。
+ * 这是本函数曾经的真实 bug：`monthRange(0)` 把「本月」的结束日**截到今天**
+ * （避免统计到还没发生的日子），于是每月 1~7 号这几天，本月区间只有 1~7 天。
+ * 跨度判据 `days <= 7` 就把它当成了「一周」—— 用户选着「本月」点 ‹，
+ * 跳出来的却是「上月 25 号 ~ 26 号」这种碎区间，而不是「上个月」。
+ * 表现就是「选了本月，左右键却不按月跳」，而且只在月初那几天复现，
+ * 月中再点又是好的，极易被当成偶发。
+ *
+ * 只有手填的自定义区间没有账期类型可言，那种情况才退回按跨度判断。
+ */
+function shiftRange(range, dir, granularity) {
   const f = new Date(`${range.from}T00:00:00`);
   const t = new Date(`${range.to}T00:00:00`);
+
+  if (granularity === 'week') {
+    return {
+      from: iso(new Date(f.setDate(f.getDate() + dir * 7))),
+      to: iso(new Date(t.setDate(t.getDate() + dir * 7))),
+    };
+  }
+  if (granularity === 'month') {
+    /**
+     * 落到**目标月的整月**（1 号 ~ 月末），不是「起点 + 一个月」。
+     * 后者从 1 月 31 号起算会滑到 3 月（`setMonth` 的溢出进位）。
+     */
+    const nf = new Date(f.getFullYear(), f.getMonth() + dir, 1);
+    const nt = new Date(f.getFullYear(), f.getMonth() + dir + 1, 0);
+    return { from: iso(nf), to: iso(nt) };
+  }
+  if (granularity === 'year') {
+    return yearRange(new Date(`${range.from}T00:00:00`).getFullYear() - new Date().getFullYear() + dir);
+  }
+
+  /* 自定义区间：无账期类型，退回按跨度判断 */
   const days = Math.round((t - f) / 86400000) + 1;
-  if (days <= 7) return { from: iso(new Date(f.setDate(f.getDate() + dir * 7))), to: iso(new Date(t.setDate(t.getDate() + dir * 7))) };
+  if (days <= 7) {
+    return {
+      from: iso(new Date(f.setDate(f.getDate() + dir * 7))),
+      to: iso(new Date(t.setDate(t.getDate() + dir * 7))),
+    };
+  }
   if (days <= 31) {
     const nf = new Date(f.getFullYear(), f.getMonth() + dir, 1);
     const nt = new Date(f.getFullYear(), f.getMonth() + dir + 1, 0);
     return { from: iso(nf), to: iso(nt) };
   }
-  return yearRange((new Date(`${range.from}T00:00:00`).getFullYear() - new Date().getFullYear()) + dir);
+  return yearRange(new Date(`${range.from}T00:00:00`).getFullYear() - new Date().getFullYear() + dir);
 }
 
 const periodLabel = (r) => {
@@ -961,8 +999,23 @@ export async function renderStats(container, { go } = {}) {
     const el = $('[data-role=period-label]');
     if (el) el.textContent = periodLabel(r);
   }
+  /**
+   * 左右键的平移粒度 = 当前账期类型。
+   *
+   * ⚠️ 手填过日期（`manualRange`）之后就不再有「账期类型」这回事了，
+   * 那种情况交回 `shiftRange` 按跨度退化 —— 用户自己圈的一段，
+   * 「按整月跳」反而不是他要的（他圈的可能就是 8 天）。
+   * 「所有 / 自定义」同理没有类型可言。
+   */
+  const stepGranularity = () => {
+    if (filters.manualRange) return undefined;
+    return filters.quick === 'week' || filters.quick === 'month' || filters.quick === 'year'
+      ? filters.quick
+      : undefined;
+  };
+
   $('[data-role=prev]')?.addEventListener('click', () => {
-    const r = shiftRange(activeRange(), -1);
+    const r = shiftRange(activeRange(), -1, stepGranularity());
     filters.dateFrom = r.from;
     filters.dateTo = r.to;
     filters.manualRange = true;
@@ -970,7 +1023,7 @@ export async function renderStats(container, { go } = {}) {
     load();
   });
   $('[data-role=next]')?.addEventListener('click', () => {
-    const r = shiftRange(activeRange(), 1);
+    const r = shiftRange(activeRange(), 1, stepGranularity());
     filters.dateFrom = r.from;
     filters.dateTo = r.to;
     filters.manualRange = true;
