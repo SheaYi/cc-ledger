@@ -36,6 +36,31 @@ import {
   suggestBudgets,
   tagBudgetProgress,
 } from './advanced.js';
+import {
+  adjustBudget,
+  alertCenter,
+  archivePeriod,
+  archivePreview,
+  archivedSnapshot,
+  budgetControl,
+  createReservation,
+  dimensionOptions,
+  elasticPreview,
+  envelopePlan,
+  getAlertRules,
+  listArchivedPeriods,
+  listReservations,
+  precheckPolicy,
+  releaseReservation,
+} from './control.js';
+import {
+  annualTrend,
+  budgetReview,
+  generateNextBudgets,
+  METHOD_DOCS,
+  nextSuggestions,
+  PERIOD_RULES,
+} from './review.js';
 
 const amount = z.union([z.string(), z.number()]);
 
@@ -59,6 +84,13 @@ const budgetBody = z.object({
   alertEnabled: z.boolean().optional(),
   /* B-13 可见性 */
   visibility: z.enum(['ledger', 'private']).optional(),
+  /* docs/16 预算类型 / 编制方法 / 弹性 / 占用 / 归档 */
+  budgetKind: z.enum(['expense', 'income', 'savings']).optional(),
+  budgetMethod: z.enum(['zero_base', 'envelope', 'ratio', 'historical', 'elastic']).nullish(),
+  elasticBase: z.number().int().min(0).nullish(),
+  elasticRatio: z.number().int().min(0).max(10000).nullish(),
+  occupancyMode: z.enum(['full', 'spread']).optional(),
+  archivedAt: z.string().max(40).nullish(),
 });
 
 const ratioBody = z.object({
@@ -75,7 +107,7 @@ const rolloverBody = z.object({
   fromMonth: z.number().int().min(1).max(12),
   toYear: z.number().int().min(1970).max(9999),
   toMonth: z.number().int().min(1).max(12),
-  mode: z.enum(['clear', 'carry', 'to_savings']),
+  mode: z.enum(['clear', 'carry', 'carry_negative', 'to_savings']),
   categoryIds: z.array(z.string()).optional(),
   mapping: z.record(z.string(), z.string()).optional(),
   note: z.string().max(200).nullish(),
@@ -118,6 +150,47 @@ const prefsBody = z.object({
   dndTo: z.string().regex(/^\d{2}:\d{2}$/).nullish(),
   notifyOnCreate: z.boolean().optional(),
   predictionMinDays: z.number().int().min(1).max(30).optional(),
+  /* docs/16 阶段三 */
+  alertTiers: z.array(z.number().int().min(1).max(200)).min(1).max(3).optional(),
+  largeExpenseCents: z.number().int().min(0).nullish(),
+  channels: z.array(z.enum(['in_app', 'banner', 'digest'])).optional(),
+  overspendPolicy: z.enum(['allow', 'confirm', 'block', 'suggest_transfer']).optional(),
+  timeProgressAlert: z.boolean().optional(),
+});
+
+/** 新端点共用的账期查询 / 请求体 */
+const periodQuery = z.object({
+  year: z.coerce.number().int().min(1970).max(9999),
+  month: z.coerce.number().int().min(1).max(12),
+});
+const reservationBody = z.object({
+  kind: z.enum(['committed', 'reserved']),
+  amount,
+  budgetId: z.string().min(1).nullish(),
+  categoryId: z.string().min(1).nullish(),
+  expectedOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullish(),
+  note: z.string().max(200).nullish(),
+});
+const adjustBody = z.object({
+  delta: amount,
+  reason: z.string().min(1).max(200),
+});
+const envelopeBody = z.object({
+  total: amount,
+  allocations: z.array(z.object({ categoryId: z.string().min(1), amount })).min(1),
+});
+const generateNextBody = z.object({
+  year: z.number().int().min(1970).max(9999),
+  month: z.number().int().min(1).max(12),
+  items: z.array(z.object({
+    /* 总预算用 null；缺省也归一为 null，服务层不复处理 undefined */
+    categoryId: z.string().min(1).nullish().default(null),
+    amount,
+    budgetKind: z.enum(['expense', 'income', 'savings']).optional(),
+    scope: z.enum(['category', 'tag', 'project']).optional(),
+    scopeId: z.string().min(1).nullish(),
+    projectLabel: z.string().max(60).nullish(),
+  })).min(1),
 });
 
 const copyBody = z.object({
@@ -404,5 +477,146 @@ export async function registerBudgetRoutes(app: FastifyInstance, ctx: AppCtx): P
     const m = membershipFromRequest(ctx, req);
     const q = req.query as { limit?: string };
     return ok(listChanges(ctx, m.ledgerId, q.limit ? Number(q.limit) : 50));
+  });
+
+  /* ================================================================ *
+   * docs/16 预算重设计：五阶段闭环端点
+   *
+   * ⚠️ 静态段在 Fastify 的 radix 树里永远优先于同层动态段，与注册顺序无关
+   *    （本文件上方已有实测留档），所以这些 `/control` `/review` 等静态路径
+   *    不会被 `PATCH /budgets/:id` 遮蔽。
+   * ================================================================ */
+
+  /* ---------- 阶段一 编制：方法与规则说明、信封法、弹性预算 ---------- */
+
+  app.get(`${base}/methods`, { preHandler: app.requireAuth }, async () => ok(METHOD_DOCS));
+
+  app.get(`${base}/period-rules`, { preHandler: app.requireAuth }, async () => ok(PERIOD_RULES));
+
+  app.post(`${base}/plan/envelope`, { preHandler: app.requireAuth }, async (req) => {
+    const m = membershipFromRequest(ctx, req);
+    return ok(envelopePlan(ctx, m.ledgerId, parseOrThrow(envelopeBody, req.body)));
+  });
+
+  app.get(`${base}/plan/elastic-preview`, { preHandler: app.requireAuth }, async (req) => {
+    const m = membershipFromRequest(ctx, req);
+    const q = req.query as { year?: string; month?: string; base?: string; ratioBp?: string };
+    const now = new Date();
+    return ok(elasticPreview(
+      ctx, m.ledgerId,
+      Number(q.year ?? now.getFullYear()), Number(q.month ?? now.getMonth() + 1),
+      Number(q.base ?? 0), Number(q.ratioBp ?? 0),
+    ));
+  });
+
+  /* ---------- 阶段二 执行控制：五元组 / 承诺占用 / 维度 ---------- */
+
+  app.get(`${base}/control`, { preHandler: app.requireAuth }, async (req) => {
+    const m = membershipFromRequest(ctx, req);
+    const q = req.query as { year?: string; month?: string; dim?: string; dimId?: string };
+    const now = new Date();
+    return ok(budgetControl(
+      ctx, m.ledgerId,
+      Number(q.year ?? now.getFullYear()), Number(q.month ?? now.getMonth() + 1),
+      { key: q.dim ?? 'ledger', id: q.dimId ?? null },
+    ));
+  });
+
+  app.get(`${base}/dimension-options`, { preHandler: app.requireAuth }, async (req) => {
+    const m = membershipFromRequest(ctx, req);
+    return ok(dimensionOptions(ctx, m.ledgerId));
+  });
+
+  app.get(`${base}/reservations`, { preHandler: app.requireAuth }, async (req) => {
+    const m = membershipFromRequest(ctx, req);
+    const p = parseOrThrow(periodQuery, req.query);
+    return ok(listReservations(ctx, m.ledgerId, p.year, p.month));
+  });
+
+  app.post(`${base}/reservations`, { preHandler: app.requireAuth }, async (req, reply) => {
+    const m = membershipFromRequest(ctx, req);
+    return reply.code(201).send(ok(createReservation(ctx, m.userId, m.ledgerId, parseOrThrow(reservationBody, req.body))));
+  });
+
+  app.post(`${base}/reservations/:id/release`, { preHandler: app.requireAuth }, async (req) => {
+    const m = membershipFromRequest(ctx, req);
+    const { id } = req.params as { id: string };
+    return ok(releaseReservation(ctx, m.userId, m.ledgerId, id));
+  });
+
+  /* ---------- 阶段三 预警：规则 / 预警中心 / 记账预检策略 ---------- */
+
+  app.get(`${base}/alert-rules`, { preHandler: app.requireAuth }, async (req) => {
+    const m = membershipFromRequest(ctx, req);
+    return ok(getAlertRules(ctx, m.ledgerId));
+  });
+
+  app.get(`${base}/alert-center`, { preHandler: app.requireAuth }, async (req) => {
+    const m = membershipFromRequest(ctx, req);
+    const p = parseOrThrow(periodQuery, req.query);
+    /** 纯读、不写去重记录 —— 可随局部刷新反复调用 */
+    return ok(alertCenter(ctx, m.ledgerId, p.year, p.month));
+  });
+
+  app.get(`${base}/precheck-policy`, { preHandler: app.requireAuth }, async (req) => {
+    const m = membershipFromRequest(ctx, req);
+    const p = parseOrThrow(periodQuery, req.query);
+    return ok(precheckPolicy(ctx, m.ledgerId, p.year, p.month));
+  });
+
+  /* ---------- 阶段四 调整：追加削减 / 归档 / 历史周期 ---------- */
+
+  app.post(`${base}/:id/adjust`, { preHandler: app.requireAuth }, async (req) => {
+    const m = membershipFromRequest(ctx, req);
+    const { id } = req.params as { id: string };
+    return ok(adjustBudget(ctx, m.userId, m.ledgerId, id, parseOrThrow(adjustBody, req.body)));
+  });
+
+  app.get(`${base}/archive-preview`, { preHandler: app.requireAuth }, async (req) => {
+    const m = membershipFromRequest(ctx, req);
+    const p = parseOrThrow(periodQuery, req.query);
+    return ok(archivePreview(ctx, m.ledgerId, p.year, p.month));
+  });
+
+  app.post(`${base}/archive-period`, { preHandler: app.requireAuth }, async (req) => {
+    const m = membershipFromRequest(ctx, req);
+    const p = parseOrThrow(periodQuery, req.body ?? {});
+    return ok(archivePeriod(ctx, m.userId, m.ledgerId, p.year, p.month));
+  });
+
+  app.get(`${base}/archived-periods`, { preHandler: app.requireAuth }, async (req) => {
+    const m = membershipFromRequest(ctx, req);
+    return ok(listArchivedPeriods(ctx, m.ledgerId));
+  });
+
+  app.get(`${base}/archived/:period`, { preHandler: app.requireAuth }, async (req) => {
+    const m = membershipFromRequest(ctx, req);
+    const { period } = req.params as { period: string };
+    return ok(archivedSnapshot(ctx, m.ledgerId, period));
+  });
+
+  /* ---------- 阶段五 复盘：对照表 / 年度趋势 / 建议 / 一键生成 ---------- */
+
+  app.get(`${base}/review`, { preHandler: app.requireAuth }, async (req) => {
+    const m = membershipFromRequest(ctx, req);
+    const p = parseOrThrow(periodQuery, req.query);
+    return ok(budgetReview(ctx, m.ledgerId, p.year, p.month));
+  });
+
+  app.get(`${base}/review/trend`, { preHandler: app.requireAuth }, async (req) => {
+    const m = membershipFromRequest(ctx, req);
+    const q = req.query as { year?: string };
+    return ok(annualTrend(ctx, m.ledgerId, Number(q.year ?? new Date().getFullYear())));
+  });
+
+  app.get(`${base}/review/suggestions`, { preHandler: app.requireAuth }, async (req) => {
+    const m = membershipFromRequest(ctx, req);
+    const p = parseOrThrow(periodQuery, req.query);
+    return ok(nextSuggestions(ctx, m.ledgerId, p.year, p.month));
+  });
+
+  app.post(`${base}/review/generate-next`, { preHandler: app.requireAuth }, async (req, reply) => {
+    const m = membershipFromRequest(ctx, req);
+    return reply.code(201).send(ok(generateNextBudgets(ctx, m.userId, m.ledgerId, parseOrThrow(generateNextBody, req.body))));
   });
 }

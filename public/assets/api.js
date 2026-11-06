@@ -681,6 +681,54 @@ export const Api = {
   /** B-06 调整留痕 */
   listBudgetChanges: (ledgerId, query = {}) =>
     request('GET', `/ledgers/${seg(ledgerId)}/budgets/changes${qs(query)}`),
+  getBudgetPrefs: (ledgerId) => request('GET', `/ledgers/${seg(ledgerId)}/budgets/prefs`),
+  updateBudgetPrefs: (ledgerId, payload) =>
+    request('PATCH', `/ledgers/${seg(ledgerId)}/budgets/prefs`, { body: payload }),
+
+  /* ---- docs/16 预算重设计：五阶段闭环 ---- */
+  budgetMethods: (ledgerId) => request('GET', `/ledgers/${seg(ledgerId)}/budgets/methods`),
+  budgetPeriodRules: (ledgerId) => request('GET', `/ledgers/${seg(ledgerId)}/budgets/period-rules`),
+  planBudgetEnvelope: (ledgerId, payload) =>
+    request('POST', `/ledgers/${seg(ledgerId)}/budgets/plan/envelope`, { body: payload }),
+  elasticBudgetPreview: (ledgerId, query = {}) =>
+    request('GET', `/ledgers/${seg(ledgerId)}/budgets/plan/elastic-preview${qs(query)}`),
+  /** 阶段二：B / U / C / R / A 五元组，dim + dimId 切换账户 / 成员 / 标签 */
+  budgetControl: (ledgerId, query = {}) =>
+    request('GET', `/ledgers/${seg(ledgerId)}/budgets/control${qs(query)}`),
+  budgetDimensionOptions: (ledgerId) =>
+    request('GET', `/ledgers/${seg(ledgerId)}/budgets/dimension-options`),
+  listBudgetReservations: (ledgerId, query = {}) =>
+    request('GET', `/ledgers/${seg(ledgerId)}/budgets/reservations${qs(query)}`),
+  createBudgetReservation: (ledgerId, payload) =>
+    request('POST', `/ledgers/${seg(ledgerId)}/budgets/reservations`, { body: payload }),
+  releaseBudgetReservation: (ledgerId, id) =>
+    request('POST', `/ledgers/${seg(ledgerId)}/budgets/reservations/${seg(id)}/release`),
+  /** 阶段三：规则 / 预警中心（纯读）/ 记账预检策略 */
+  budgetAlertRules: (ledgerId) => request('GET', `/ledgers/${seg(ledgerId)}/budgets/alert-rules`),
+  budgetAlertCenter: (ledgerId, query = {}) =>
+    request('GET', `/ledgers/${seg(ledgerId)}/budgets/alert-center${qs(query)}`),
+  budgetPrecheckPolicy: (ledgerId, query = {}) =>
+    request('GET', `/ledgers/${seg(ledgerId)}/budgets/precheck-policy${qs(query)}`),
+  /** 阶段四：追加削减 / 归档 */
+  adjustBudget: (ledgerId, id, payload) =>
+    request('POST', `/ledgers/${seg(ledgerId)}/budgets/${seg(id)}/adjust`, { body: payload }),
+  budgetArchivePreview: (ledgerId, query = {}) =>
+    request('GET', `/ledgers/${seg(ledgerId)}/budgets/archive-preview${qs(query)}`),
+  archiveBudgetPeriod: (ledgerId, payload) =>
+    request('POST', `/ledgers/${seg(ledgerId)}/budgets/archive-period`, { body: payload }),
+  listArchivedBudgetPeriods: (ledgerId) =>
+    request('GET', `/ledgers/${seg(ledgerId)}/budgets/archived-periods`),
+  archivedBudgetSnapshot: (ledgerId, period) =>
+    request('GET', `/ledgers/${seg(ledgerId)}/budgets/archived/${seg(period)}`),
+  /** 阶段五：对照表 / 年度趋势 / 下期建议 / 一键生成 */
+  budgetReview: (ledgerId, query = {}) =>
+    request('GET', `/ledgers/${seg(ledgerId)}/budgets/review${qs(query)}`),
+  budgetReviewTrend: (ledgerId, query = {}) =>
+    request('GET', `/ledgers/${seg(ledgerId)}/budgets/review/trend${qs(query)}`),
+  budgetReviewSuggestions: (ledgerId, query = {}) =>
+    request('GET', `/ledgers/${seg(ledgerId)}/budgets/review/suggestions${qs(query)}`),
+  generateNextBudgets: (ledgerId, payload) =>
+    request('POST', `/ledgers/${seg(ledgerId)}/budgets/review/generate-next`, { body: payload }),
 
   // ---- 自动分类规则（docs/04 §十五） ----
   listCategoryRules: (ledgerId) => request('GET', `/ledgers/${seg(ledgerId)}/category-rules`),

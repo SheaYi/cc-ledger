@@ -1211,3 +1211,166 @@
     padding: 0 var(--s-xs);
   }
 }
+
+/* ==================================================================== *
+ * docs/16 预算重设计：手机端浮层与五阶段布局
+ * 本文件只放 max-width 媒体段；桌面定义一律留在 app.css。
+ * ==================================================================== */
+
+@media (max-width: 1023px) {
+  /** 抽屉在手机端变成底部抽屉（拇指可达），与全站 .modal 的窄屏表现一致 */
+  .ov-drawer__panel {
+    top: auto;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    max-height: 88vh;
+    border-radius: var(--r-lg) var(--r-lg) 0 0;
+    animation-name: ov-sheet-in;
+  }
+
+  .ov-modal {
+    place-items: end center;
+    padding: 0;
+  }
+
+  .ov-modal__panel,
+  .ov-modal--wide .ov-modal__panel {
+    width: 100%;
+    max-height: 88vh;
+    border-radius: var(--r-lg) var(--r-lg) 0 0;
+  }
+
+  .ov-modal__panel--confirm {
+    width: 100%;
+  }
+
+  .ov-body {
+    padding: var(--s-md);
+  }
+
+  .ov-head,
+  .ov-foot {
+    padding-left: var(--s-md);
+    padding-right: var(--s-md);
+  }
+
+  .ov-foot .btn {
+    min-height: var(--h-ctl);
+  }
+
+  /** 五个阶段在窄屏横滑，但每项仍等宽分摊可见区域 */
+  .bdg2-tabs {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .bdg2-tabs__item {
+    flex: 1 1 0;
+    min-width: 72px;
+    min-height: var(--h-ctl);
+  }
+
+  .bdg2-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .bdg2-card {
+    padding: var(--s-md);
+  }
+
+  /** 每行改成「名称独占一行 + 四格数值两列 + 操作独占一行」 */
+  .bdg2-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--s-xs) var(--s-sm);
+  }
+
+  .bdg2-row__name,
+  .bdg2-row__acts {
+    grid-column: 1 / -1;
+  }
+
+  .bdg2-row__num {
+    text-align: left;
+  }
+
+  .bdg2-row__acts {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .bdg2-row__acts .btn {
+    min-height: var(--h-ctl);
+  }
+
+  .bdg2-tbl {
+    min-width: 620px;
+  }
+
+  .bdg2-trend {
+    gap: 2px;
+  }
+
+  .bdg2-trend__label {
+    font-size: 9px;
+  }
+}
+
+/* ==========================================================================
+   预算页交互三件套（月份日历 / 类型+定位菜单 / 表单行对齐）的窄屏形态
+   --------------------------------------------------------------------------
+   桌面是 112px 标签列，390px 屏撑不住：收成 88px，控件仍是 1fr，
+   所有输入框左边线依旧对齐；触控目标一律不低于 --h-ctl。
+   ========================================================================== */
+@media (max-width: 1023px) {
+  .mcal-trigger,
+  .mcal__nav,
+  .mcal__cell,
+  .mcal__today {
+    min-height: var(--h-ctl);
+  }
+
+  /* 手机默认 17px 输入字号，触发按钮跟齐，避免同一排控件字一大一小 */
+  .mcal-trigger {
+    font-size: 17px;
+  }
+
+  .bdg2-form__row {
+    grid-template-columns: 88px minmax(0, 1fr);
+    gap: var(--s-xs);
+  }
+
+  .bdg2-form .pick-trigger {
+    min-height: var(--h-ctl);
+  }
+
+  .bdg2-method {
+    align-items: center;
+  }
+
+  .bdg2-method__acts {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .bdg2-method__acts .btn {
+    min-height: var(--h-ctl);
+  }
+
+  .bsp .mega__item,
+  .bsp .mega__navitem,
+  .bsp .option-chip {
+    min-height: var(--h-ctl);
+  }
+}
+
+@media (max-width: 640px) {
+  .bdg2-form__row {
+    grid-template-columns: 84px minmax(0, 1fr);
+  }
+
+  .bdg2-form__label {
+    font-size: 12px;
+  }
+}

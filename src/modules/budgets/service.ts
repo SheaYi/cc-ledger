@@ -28,6 +28,7 @@ import { and, desc, eq, isNull, sql } from 'drizzle-orm';
 import type { AppCtx } from '../../context.js';
 import {
   budgets,
+  budgetPoolEntries,
   budgetTransfers,
   categories,
   transactions,
@@ -64,6 +65,17 @@ export interface BudgetDto {
   scope: string;
   scopeId: string | null;
   projectLabel: string | null;
+  /** docs/16 §4.1 预算类型：expense（默认）/ income / savings */
+  budgetKind: string;
+  /** docs/16 §4.2 编制方法：zero_base / envelope / ratio / historical / elastic */
+  budgetMethod: string | null;
+  /** 弹性预算：固定基数（分）/ 收入浮动比例（万分比） */
+  elasticBase: number | null;
+  elasticRatio: number | null;
+  /** docs/16 §3.5 占用方式：full（一次性全额）/ spread（分摊展示，不改账务） */
+  occupancyMode: string;
+  /** 周期归档标记；NULL = 在用 */
+  archivedAt: string | null;
   /** B-13 可见性 */
   visibility: string;
   ownerId: string | null;
@@ -211,47 +223,137 @@ function validatePeriod(
   ]);
 }
 
-/** 该期间内的支出合计（分），口径见文件头 */
+/* ------------------------------------------------------------------ *
+ * 「已用」的账务口径（docs/03 §1.2/§1.5/§1.6/§10.2，docs/16 §3）
+ * ------------------------------------------------------------------ */
+
 /**
- * 账本级已花。
+ * 净额表达式：**冲减项取负**。
  *
- * ⚠️ 参数是**起止日**而不是年月 —— 周预算的「已花」必须是那 7 天的，
- * 按自然月算会让每周 120 的预算显示成「本月已花 480」，看起来像严重超支。
- * 这是「口径用错但数字仍然合理」的那一类：不会有任何报错，
- * 只会让用户以为自己在超支。
+ * ⚠️ 这是本次重设计修掉的最硬一处错误。旧实现直接 `SUM(actual_amount)`，
+ * 把退款/红字冲销当成支出**加**进去：支出 210、退款 210，预算已花显示 420。
+ * 03 §1.6 把「预算已花 = 210 ← 未冲减 ❌」明确列为三处同时失真之一，
+ * 并规定统计口径必须「正常 − 冲减」。
+ *
+ * 冲减项不是独立 record_type：它沿用原类型与原 direction，只是
+ * `adjustment_reason IN ('refund','reversal')` 且现金流取反（03 §1.6）。
+ * 与 `accounts/service.ts:CONTRA_CASE`、`stats/advanced.ts` 的 case 表达式同源。
  */
-function spentInPeriod(ctx: AppCtx, ledgerId: string, from: string, to: string): number {
-  const row = ctx.db
-    .select({ s: sql<number>`coalesce(sum(${transactions.actualAmount}), 0)` })
-    .from(transactions)
-    .where(
-      and(
-        eq(transactions.ledgerId, ledgerId),
-        sql`${transactions.deletedAt} is null`,
-        eq(transactions.recordType, 'expense'),
-        sql`${transactions.txDate} >= ${from}`,
-        sql`${transactions.txDate} <= ${to}`,
-      ),
-    )
-    .get();
+const NET_ACTUAL = sql<number>`
+  case when ${transactions.adjustmentReason} in ('refund', 'reversal')
+       then -${transactions.actualAmount}
+       else ${transactions.actualAmount} end`;
+
+/**
+ * 报销 / 内部往来不占预算（docs/16 §3.4）。
+ *
+ * 可空列的存量行是 NULL；`coalesce(...,'') = ''` 同时覆盖 NULL 与空串，
+ * 不能写 `= ''`（NULL 不等于任何东西，会把所有历史账单排除掉）。
+ */
+const BUDGET_INCLUDED = sql`coalesce(${transactions.budgetExcluded}, '') = ''`;
+
+/**
+ * 期间基础条件。**一律按 `tx_date` 归期**（不是 created_at / occurred_at）：
+ * 跨月补记、跨月退款都落在各自 `tx_date` 所属账期，不回滚原月（03 §1.6 边界表）。
+ */
+function periodConds(ledgerId: string, from: string, to: string, recordType: string) {
+  return [
+    eq(transactions.ledgerId, ledgerId),
+    sql`${transactions.deletedAt} is null`,
+    // 转账 / 应收 / 应付 / 余额调整天然排除（03 §1.5 / §10.2）
+    eq(transactions.recordType, recordType),
+    BUDGET_INCLUDED,
+    sql`${transactions.txDate} >= ${from}`,
+    sql`${transactions.txDate} <= ${to}`,
+  ];
+}
+
+export interface SpentSpec {
+  /** 支出 / 收入，默认支出 */
+  recordType?: 'expense' | 'income';
+  /** 一级分类：命中 categoryId 或 parentCategoryId */
+  categoryId?: string | null;
+  /** 标签：走 transaction_tags 多对多 join */
+  tagId?: string | null;
+  /** docs/16 §9 维度切换：按账户 / 成员过滤，口径不变（仍冲减相减、报销排除） */
+  accountId?: string | null;
+  memberId?: string | null;
+}
+
+/**
+ * 「已用」的**唯一出口**（导出供单测直接验证口径）。
+ *
+ * 所有预算取数路径（账本 / 分类 / 标签 / 收入）都必须经过这里，
+ * 否则冲减相减、报销排除、按 tx_date 归期这三条会在某一路上漏掉，
+ * 而且漏掉的那一路数字仍然合理、不会报错 —— 正是最难发现的那类错。
+ */
+export function budgetSpent(
+  ctx: AppCtx,
+  ledgerId: string,
+  from: string,
+  to: string,
+  spec: SpentSpec = {},
+): number {
+  const recordType = spec.recordType ?? 'expense';
+  const conds = [...periodConds(ledgerId, from, to, recordType)];
+  if (spec.categoryId) {
+    conds.push(sql`(${transactions.categoryId} = ${spec.categoryId} or ${transactions.parentCategoryId} = ${spec.categoryId})`);
+  }
+  if (spec.tagId) conds.push(eq(transactionTags.tagId, spec.tagId));
+  if (spec.accountId) conds.push(eq(transactions.accountId, spec.accountId));
+  if (spec.memberId) conds.push(eq(transactions.createdBy, spec.memberId));
+  const sum = sql<number>`coalesce(sum(${NET_ACTUAL}), 0)`;
+  const row = spec.tagId
+    ? ctx.db
+        .select({ s: sum })
+        .from(transactionTags)
+        .innerJoin(transactions, eq(transactionTags.transactionId, transactions.id))
+        .where(and(...conds))
+        .get()
+    : ctx.db.select({ s: sum }).from(transactions).where(and(...conds)).get();
   return Number(row?.s ?? 0);
 }
 
-/** 分类在该期间的支出（含其子分类 —— 子分类的账单 parentCategoryId 指向一级） */
-/** 分类在该期间的支出（含其子分类 —— 子分类的账单 parentCategoryId 指向一级）。起止日由调用方给。 */
-function spentByCategory(ctx: AppCtx, ledgerId: string, categoryId: string, from: string, to: string): number {
+/** 账本级已花（支出净额）。参数是起止日，不是年月 —— 周预算必须只算那 7 天。 */
+function spentInPeriod(ctx: AppCtx, ledgerId: string, from: string, to: string, dim: SpentDim = {}): number {
+  return budgetSpent(ctx, ledgerId, from, to, dim);
+}
+
+/** 分类支出净额（含子分类：子分类账单的 parentCategoryId 指向一级）。 */
+function spentByCategory(ctx: AppCtx, ledgerId: string, categoryId: string, from: string, to: string, dim: SpentDim = {}): number {
+  return budgetSpent(ctx, ledgerId, from, to, { ...dim, categoryId });
+}
+
+/** docs/16 §9 维度上下文：只影响取数过滤，不改变账务口径 */
+export type SpentDim = Pick<SpentSpec, 'accountId' | 'memberId' | 'tagId'>;
+
+/**
+ * 收入预算达成额（docs/16 §3.3）。
+ * 与支出同构：正常收入减收入侧的退款/冲销，同样按 tx_date 归期。
+ */
+function incomeAchieved(ctx: AppCtx, ledgerId: string, from: string, to: string, dim: SpentDim = {}): number {
+  return budgetSpent(ctx, ledgerId, from, to, { ...dim, recordType: 'income' });
+}
+
+/**
+ * 储蓄预算达成额（docs/16 §3.3）。
+ *
+ * ⚠️ 口径例外必须写明：03 §1.5 约束的是「净结余」这一利润表口径，
+ * 转账在那里被排除；而储蓄预算的「达成」本身就是存钱动作，
+ * 用专项池 contribute 流水计量。二者不混用，**储蓄达成额不进净结余**。
+ */
+function savingsAchieved(ctx: AppCtx, ledgerId: string, from: string, to: string, dim: SpentDim = {}): number {
+  // 账户/成员/标签维度对专项池流水没有对应字段，切换时如实返回「不适用」而不是错算成 0 混入总额
+  void dim;
   const row = ctx.db
-    .select({ s: sql<number>`coalesce(sum(${transactions.actualAmount}), 0)` })
-    .from(transactions)
+    .select({ s: sql<number>`coalesce(sum(${budgetPoolEntries.amount}), 0)` })
+    .from(budgetPoolEntries)
     .where(
       and(
-        eq(transactions.ledgerId, ledgerId),
-        sql`${transactions.deletedAt} is null`,
-        eq(transactions.recordType, 'expense'),
-        // 一级分类的账单 categoryId 本身就是它；子分类的账单 parentCategoryId 是一级
-        sql`(${transactions.categoryId} = ${categoryId} or ${transactions.parentCategoryId} = ${categoryId})`,
-        sql`${transactions.txDate} >= ${from}`,
-        sql`${transactions.txDate} <= ${to}`,
+        eq(budgetPoolEntries.ledgerId, ledgerId),
+        eq(budgetPoolEntries.kind, 'contribute'),
+        sql`${budgetPoolEntries.occurredOn} >= ${from}`,
+        sql`${budgetPoolEntries.occurredOn} <= ${to}`,
       ),
     )
     .get();
@@ -281,6 +383,12 @@ function toDto(row: typeof budgets.$inferSelect, name: string | null): BudgetDto
     scope: row.scope ?? 'category',
     scopeId: row.scopeId,
     projectLabel: row.projectLabel,
+    budgetKind: row.budgetKind ?? 'expense',
+    budgetMethod: row.budgetMethod,
+    elasticBase: row.elasticBase,
+    elasticRatio: row.elasticRatio,
+    occupancyMode: row.occupancyMode ?? 'full',
+    archivedAt: row.archivedAt,
     visibility: row.visibility ?? 'ledger',
     ownerId: row.ownerId,
     alertEnabled: row.alertEnabled ?? true,
@@ -338,11 +446,22 @@ const STATUS_LABEL: Record<BudgetProgressDto['alertLevel'], BudgetProgressDto['s
   const MIN_DAYS_FOR_PREDICTION = 3;
 
   function withProgress(dto: BudgetDto, spent: number): BudgetProgressDto {
+    /**
+     * 支出类 vs 目标类（收入/储蓄）方向相反（docs/16 §7.3）：
+     *  · 支出类：用得多 = 坏，>100% 是超支
+     *  · 目标类：达成得多 = 好，>100% 是超额达成，**不是超支**
+     * 所以目标类的 `over` 恒为 false，预警只在「落后于时间进度」时给，
+     * 否则达成 120% 会被染成红色、置顶成「超支」，正好把好消息说成坏消息。
+     */
+    const isTarget = dto.budgetKind === 'income' || dto.budgetKind === 'savings';
     const budgetCents = Math.round(Number(dto.amount) * 100);
     const remaining = budgetCents - spent;
     const usedRatio = budgetCents > 0 ? (spent / budgetCents) * 100 : 0;
-    const alertLevel = levelOf(usedRatio, dto.alertRatio);
-    const over = usedRatio > 100;
+    const alertLevel: BudgetProgressDto['alertLevel'] = isTarget
+      ? // 目标类：只在「达成落后于时间进度」时提示，超额达成不报警
+        'normal'
+      : levelOf(usedRatio, dto.alertRatio);
+    const over = !isTarget && usedRatio > 100;
 
     /* ---------- 节奏：本期多长、过了多少 ---------- */
     /**
@@ -369,8 +488,23 @@ const STATUS_LABEL: Record<BudgetProgressDto['alertLevel'], BudgetProgressDto['s
      * 节奏判定。**只在能预测时给结论** —— 前 3 天的数据不足以判断速度，
      * 报一个「on_track」会让用户以为系统确认了，实际什么都没说。
      */
-    const pace: BudgetProgressDto['pace'] =
-      remaining <= 0 ? 'behind' : canPredict ? (usedRatio - timeProgress > PACE_TOLERANCE_PP ? 'behind' : usedRatio - timeProgress < -PACE_TOLERANCE_PP ? 'ahead' : 'on_track') : 'on_track';
+    const gap = usedRatio - timeProgress;
+    const pace: BudgetProgressDto['pace'] = isTarget
+      ? // 目标类方向反转：达成快于时间 = 好（ahead），慢于时间 = 落后（behind）
+        usedRatio >= 100 || (canPredict && gap > PACE_TOLERANCE_PP)
+        ? 'ahead'
+        : canPredict && gap < -PACE_TOLERANCE_PP
+          ? 'behind'
+          : 'on_track'
+      : remaining <= 0
+        ? 'behind'
+        : canPredict
+          ? gap > PACE_TOLERANCE_PP
+            ? 'behind'
+            : gap < -PACE_TOLERANCE_PP
+              ? 'ahead'
+              : 'on_track'
+          : 'on_track';
 
     return {
       ...dto,
@@ -403,8 +537,16 @@ const STATUS_LABEL: Record<BudgetProgressDto['alertLevel'], BudgetProgressDto['s
     };
   }
 
-export function listBudgets(ctx: AppCtx, ledgerId: string, year: number, month?: number): BudgetDto[] {
+export function listBudgets(
+  ctx: AppCtx,
+  ledgerId: string,
+  year: number,
+  month?: number,
+  opts: { includeArchived?: boolean } = {},
+): BudgetDto[] {
   const conds = [eq(budgets.ledgerId, ledgerId), eq(budgets.year, year)];
+  /** 归档预算不进当期清单（但复盘快照仍可回看），docs/16 §8 */
+  if (!opts.includeArchived) conds.push(isNull(budgets.archivedAt));
   if (month !== undefined) conds.push(eq(budgets.month, month));
   const rows = ctx.db
     .select()
@@ -418,42 +560,62 @@ export function listBudgets(ctx: AppCtx, ledgerId: string, year: number, month?:
   return rows.map((r) => toDto(r, r.categoryId ? (names.get(r.categoryId) ?? null) : null));
 }
 
-export function budgetProgress(ctx: AppCtx, ledgerId: string, year: number, month?: number): BudgetProgressDto[] {
-  const dtos = listBudgets(ctx, ledgerId, year, month);
+export function budgetProgress(
+  ctx: AppCtx,
+  ledgerId: string,
+  year: number,
+  month?: number,
+  dim: SpentDim = {},
+  opts: { includeArchived?: boolean } = {},
+): BudgetProgressDto[] {
+  /**
+   * 复盘 / 归档期回看必须带 includeArchived。
+   * 默认仍排除归档（当期执行视图只看在用预算），但**归档不等于删除**：
+   * 若复盘也用默认值，用户一归档整个对照表就空了，且不报任何错。
+   */
+  const dtos = listBudgets(ctx, ledgerId, year, month, opts);
   const rows = dtos.map((d) => {
-    // 已花一律用这条预算自己的账期区间（toDto 已经解析好 start/end）
+    // 一律用这条预算自己的账期区间（toDto 已解析好 start/end）
     const from = d.periodStart!;
     const to = d.periodEnd!;
+    /**
+     * 按预算类型分派「已用」来源（docs/16 §3.3）：
+     *   支出类 → 支出净额（分类/标签/账本三种取数路径）
+     *   收入类 → 收入达成额（同样冲减相减）
+     *   储蓄类 → 专项池 contribute 流水
+     * ⚠️ 收入/储蓄是**达成额**，方向反转：超额达成是有利差异，不是超支。
+     */
     const spent =
-      d.scope === 'tag'
-        ? spentByTag(ctx, ledgerId, d.scopeId, from, to)
-        : d.categoryId === null
-          ? spentInPeriod(ctx, ledgerId, from, to)
-          : spentByCategory(ctx, ledgerId, d.categoryId, from, to);
+      d.budgetKind === 'income'
+        ? incomeAchieved(ctx, ledgerId, from, to, dim)
+        : d.budgetKind === 'savings'
+          ? savingsAchieved(ctx, ledgerId, from, to, dim)
+          : d.scope === 'tag' || d.scope === 'project'
+            ? /**
+               * 项目预算用「项目标签」归集支出（docs/16 §4.1）。
+               * 少了 project 这个分支时它会掉进下面的 categoryId===null 分支，
+               * 把整本账的支出算成一个项目的已用 —— 数字合理、不报错，
+               * 但用户看到「装修已花 380」其实是全月伙食费。
+               */
+              spentByTag(ctx, ledgerId, d.scopeId, from, to, dim)
+            : d.categoryId === null
+              ? spentInPeriod(ctx, ledgerId, from, to, dim)
+              : spentByCategory(ctx, ledgerId, d.categoryId, from, to, dim);
     return withProgress(d, spent);
   });
-  return withAllocation(ctx, rows);
+  const out = withAllocation(ctx, rows);
+  /** 超支置顶（docs/16 §9）：over 优先，其次按 |差异| 降序 */
+  return out.sort((a, b) => {
+    if (a.over !== b.over) return a.over ? -1 : 1;
+    return Math.abs(Number(b.remainingAmount)) - Math.abs(Number(a.remainingAmount));
+  });
 }
 
-/** 标签下的支出（标签在交易上，是多对多 —— 取数路径与分类不同） */
-function spentByTag(ctx: AppCtx, ledgerId: string, tagId: string | null, from: string, to: string): number {
+/** 标签下的支出净额（多对多，取数路径与分类不同；同样冲减相减、报销排除） */
+function spentByTag(ctx: AppCtx, ledgerId: string, tagId: string | null, from: string, to: string, dim: SpentDim = {}): number {
   if (!tagId) return 0;
-  const row = ctx.db
-    .select({ s: sql<number>`coalesce(sum(${transactions.actualAmount}), 0)` })
-    .from(transactionTags)
-    .innerJoin(transactions, eq(transactionTags.transactionId, transactions.id))
-    .where(
-      and(
-        eq(transactions.ledgerId, ledgerId),
-        sql`${transactions.deletedAt} is null`,
-        eq(transactions.recordType, 'expense'),
-        eq(transactionTags.tagId, tagId),
-        sql`${transactions.txDate} >= ${from}`,
-        sql`${transactions.txDate} <= ${to}`,
-      ),
-    )
-    .get();
-  return Number(row?.s ?? 0);
+  // 预算自身的标签与维度标签取交集：不同标签 → 自然为 0，语义正确
+  return budgetSpent(ctx, ledgerId, from, to, { ...dim, tagId: dim.tagId ?? tagId });
 }
 
 /* ------------------------------------------------------------------ *
@@ -544,11 +706,41 @@ export interface BudgetInput {
   /* --- B-05 / B-13 --- */
   alertEnabled?: boolean;
   visibility?: string;
+  /* --- docs/16 预算类型 / 编制方法 / 弹性 / 占用 / 归档 --- */
+  budgetKind?: string;
+  budgetMethod?: string | null;
+  elasticBase?: number | null;
+  elasticRatio?: number | null;
+  occupancyMode?: string;
+  archivedAt?: string | null;
+}
+
+const KIND_SET = new Set(['expense', 'income', 'savings']);
+const METHOD_SET = new Set(['zero_base', 'envelope', 'ratio', 'historical', 'elastic']);
+const OCCUPANCY_SET = new Set(['full', 'spread']);
+
+/** 预算类型/编制方法/占用方式的白名单校验（严格，避免脏枚举进库） */
+function validateBudgetMeta(input: BudgetInput) {
+  const kind = input.budgetKind ?? 'expense';
+  if (!KIND_SET.has(kind)) {
+    throw HttpError.validation([{ field: 'budgetKind', message: '预算类型只支持 expense / income / savings' }]);
+  }
+  if (input.budgetMethod != null && !METHOD_SET.has(input.budgetMethod)) {
+    throw HttpError.validation([{ field: 'budgetMethod', message: '编制方法不合法' }]);
+  }
+  if (input.occupancyMode != null && !OCCUPANCY_SET.has(input.occupancyMode)) {
+    throw HttpError.validation([{ field: 'occupancyMode', message: '占用方式只支持 full / spread' }]);
+  }
+  if (input.elasticRatio != null && (input.elasticRatio < 0 || input.elasticRatio > 10000)) {
+    throw HttpError.validation([{ field: 'elasticRatio', message: '浮动比例需在 0-10000（万分比）之间' }]);
+  }
+  return kind;
 }
 
 function assertInput(ctx: AppCtx, ledgerId: string, input: BudgetInput) {
   const periodType = input.periodType ?? 'monthly';
   validatePeriod(periodType, input.year, input.month ?? null, input.periodStart, input.periodEnd);
+  validateBudgetMeta(input);
 
   const amount = toCents(input.amount);
   if (amount <= 0) {
@@ -602,6 +794,13 @@ export function createBudget(ctx: AppCtx, actorId: string, ledgerId: string, inp
    */
   const scope = input.scope ?? 'category';
   const scopeId = scope === 'category' ? (input.categoryId ?? null) : (input.scopeId ?? null);
+  /**
+   * 判重必须**含 budgetKind**：总支出预算与总收入预算都是
+   * (categoryId=null, scope='category')，不带类型就会互相判成重复 ——
+   * 用户「设完支出总预算再设收入预算」会莫名报「已经设过了」。
+   * 存量行 budgetKind 为 NULL，按 'expense' 归一化比较。
+   */
+  const kind = input.budgetKind ?? 'expense';
   const dup = ctx.db
     .select({ id: budgets.id })
     .from(budgets)
@@ -615,6 +814,7 @@ export function createBudget(ctx: AppCtx, actorId: string, ledgerId: string, inp
         // scope 可能是 NULL（新增列的存量行），两种情况都要覆盖
         sql`coalesce(${budgets.scope}, 'category') = ${scope}`,
         scopeId === null ? isNull(budgets.scopeId) : eq(budgets.scopeId, scopeId),
+        sql`coalesce(${budgets.budgetKind}, 'expense') = ${kind}`,
         // 周/自定义账期还要比起止日，否则同月第二条周预算被误判为重复
         v.needsPeriodRange
           ? and(
@@ -648,6 +848,12 @@ export function createBudget(ctx: AppCtx, actorId: string, ledgerId: string, inp
       scope,
       scopeId,
       projectLabel: input.projectLabel ?? null,
+      budgetKind: kind,
+      budgetMethod: input.budgetMethod ?? null,
+      elasticBase: input.elasticBase ?? null,
+      elasticRatio: input.elasticRatio ?? null,
+      occupancyMode: input.occupancyMode ?? 'full',
+      archivedAt: input.archivedAt ?? null,
       visibility: input.visibility ?? 'ledger',
       ownerId: input.visibility === 'private' ? actorId : null,
       createdBy: actorId,
@@ -690,6 +896,14 @@ export function updateBudget(
     amount: patch.amount ?? formatCents(before.amount),
     rollover: patch.rollover ?? before.rollover,
     alertRatio: patch.alertRatio ?? before.alertRatio,
+    periodStart: patch.periodStart !== undefined ? patch.periodStart : before.periodStart,
+    periodEnd: patch.periodEnd !== undefined ? patch.periodEnd : before.periodEnd,
+    budgetKind: patch.budgetKind !== undefined ? patch.budgetKind : before.budgetKind ?? 'expense',
+    budgetMethod: patch.budgetMethod !== undefined ? patch.budgetMethod : before.budgetMethod,
+    elasticBase: patch.elasticBase !== undefined ? patch.elasticBase : before.elasticBase,
+    elasticRatio: patch.elasticRatio !== undefined ? patch.elasticRatio : before.elasticRatio,
+    occupancyMode: patch.occupancyMode !== undefined ? patch.occupancyMode : before.occupancyMode ?? 'full',
+    archivedAt: patch.archivedAt !== undefined ? patch.archivedAt : before.archivedAt,
   };
   const v = assertInput(ctx, ledgerId, merged);
 
@@ -703,6 +917,12 @@ export function updateBudget(
       amount: v.amount,
       rollover: merged.rollover ?? false,
       alertRatio: v.alertRatio,
+      budgetKind: merged.budgetKind ?? 'expense',
+      budgetMethod: merged.budgetMethod ?? null,
+      elasticBase: merged.elasticBase ?? null,
+      elasticRatio: merged.elasticRatio ?? null,
+      occupancyMode: merged.occupancyMode ?? 'full',
+      archivedAt: merged.archivedAt ?? null,
     })
     .where(eq(budgets.id, id))
     .run();

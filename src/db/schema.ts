@@ -379,6 +379,15 @@ export const transactions = sqliteTable(
     installmentIndex: integer('installment_index'),
     adjustmentReason: text('adjustment_reason'),
     importHash: text('import_hash'),
+    /**
+     * 预算归属排除标记（docs/16 §3.4）：
+     *   'reimbursement' 报销/代垫 —— 垫付待收回，不是自己的消费，不占预算
+     *   'internal'       内部往来 —— 与个人消费无关，不占预算
+     *
+     * ⚠️ 可空列（迁移纪律）：存量行是 NULL，业务层用 `IS NULL OR = ''` 判定「占预算」。
+     * 收回时按 03 §1.6 走 contra 冲减原分类，绝不记成收入。
+     */
+    budgetExcluded: text('budget_excluded'),
 
     createdBy: text('created_by')
       .notNull()
@@ -776,6 +785,25 @@ export const budgets = sqliteTable(
     ownerId: text('owner_id').references((): AnySQLiteColumn => users.id, {
       onDelete: 'set null',
     }),
+    /* ---------- docs/16 预算重设计：五阶段闭环新增列 ---------- */
+    /**
+     * 预算类型：'expense'(支出，默认) / 'income'(收入) / 'savings'(储蓄)。
+     * 收入与储蓄的「已用」是**达成额**，差异方向反转（超额=有利），见 docs/16 §3.3。
+     * 可空：存量行 NULL 由业务层按 'expense' 兜底。
+     */
+    budgetKind: text('budget_kind'),
+    /** 编制方法：zero_base / envelope / ratio / historical / elastic，仅记录来源 */
+    budgetMethod: text('budget_method'),
+    /** 弹性预算：固定基数（分）与收入浮动比例（万分比，5000 = 50%） */
+    elasticBase: integer('elastic_base'),
+    elasticRatio: integer('elastic_ratio'),
+    /**
+     * 占用方式：'full' 一次性全额（默认，03 §7.7 不做费用分摊）/ 'spread' 按还款期分摊**展示**。
+     * ⚠️ spread 只改预算口径，绝不改写账务、不生成支出账单。
+     */
+    occupancyMode: text('occupancy_mode'),
+    /** 周期重置归档标记（非删除；归档后仍可复盘） */
+    archivedAt: text('archived_at'),
     createdBy: text('created_by')
       .notNull()
       .references((): AnySQLiteColumn => users.id),
@@ -1159,6 +1187,17 @@ export const budgetPrefs = sqliteTable('budget_prefs', {
    * 样本不足时宁可不给预测 —— 「还不知道」不能写成「确认没问题」。
    */
   predictionMinDays: integer('prediction_min_days').notNull().default(3),
+  /* ---------- docs/16 阶段三：分级预警 / 渠道 / 超支后策略 ---------- */
+  /** JSON 数组，如 [80,90,100]；NULL → 业务层用默认三档 */
+  alertTiers: text('alert_tiers'),
+  /** 大额消费阈值（分），NULL → 用「分类可用额度 × 20%」兜底 */
+  largeExpenseCents: integer('large_expense_cents'),
+  /** JSON 数组，站内渠道：in_app / banner / digest */
+  channelsJson: text('channels_json'),
+  /** allow / confirm / block / suggest_transfer；NULL → allow（宽容标记） */
+  overspendPolicy: text('overspend_policy'),
+  /** 时间进度预警开关，NULL → 开 */
+  timeProgressAlert: integer('time_progress_alert', { mode: 'boolean' }),
   updatedAt: text('updated_at').notNull(),
 });
 
@@ -1192,7 +1231,7 @@ export const budgetRollovers = sqliteTable(
   (t) => extras(
     index('idx_rollover_ledger').on(t.ledgerId, t.fromPeriod),
     index('idx_rollover_target').on(t.toBudgetId),
-    check('rollover_mode', sql`${t.mode} IN ('clear','carry','to_savings')`),
+    check('rollover_mode', sql`${t.mode} IN ('clear','carry','carry_negative','to_savings')`),
   ),
 );
 
@@ -1316,6 +1355,88 @@ export const budgetChanges = sqliteTable(
   (t) => extras(
     index('idx_bchange_budget').on(t.budgetId, t.createdAt),
     index('idx_bchange_ledger').on(t.ledgerId, t.createdAt),
+  ),
+);
+
+/**
+ * docs/16 阶段二：承诺占用 / 预留。
+ *
+ * ⚠️ 这两项**不是账单**：不进任何收支统计，只影响「还能花多少」。
+ * 承诺兑现（周期账单生成 / 分期还款 / 应付结算）后转 `released`，
+ * 其金额自然落进「已用 U」，避免 C 与 U 双计。
+ *
+ * C/R 单独成表而不塞进 budgets 的列：一条预算会挂多条来源不同的占用
+ * （周期规则、分期计划、应付、手工预留、专项池预提），列存不下来源与预计日期，
+ * 而「这笔占用什么时候兑现」正是用户在抽屉里要逐条看的信息。
+ */
+export const budgetReservations = sqliteTable(
+  'budget_reservations',
+  {
+    id: text('id').primaryKey(),
+    ledgerId: text('ledger_id')
+      .notNull()
+      .references((): AnySQLiteColumn => ledgers.id, { onDelete: 'cascade' }),
+    budgetId: text('budget_id').references((): AnySQLiteColumn => budgets.id, {
+      onDelete: 'cascade',
+    }),
+    categoryId: text('category_id').references((): AnySQLiteColumn => categories.id, {
+      onDelete: 'set null',
+    }),
+    /** committed（未来确定支出义务）/ reserved（专项池预提或手工预留） */
+    kind: text('kind').notNull(),
+    /** held（仍占用）/ released（已兑现或手工释放） */
+    status: text('status').notNull().default('held'),
+    amount: integer('amount').notNull(),
+    /** 预计兑现日，落在账期剩余区间才计入 C */
+    expectedOn: text('expected_on'),
+    /** recurring / installment / payable / manual / pool */
+    source: text('source').notNull().default('manual'),
+    sourceId: text('source_id'),
+    note: text('note'),
+    releasedAt: text('released_at'),
+    createdBy: text('created_by')
+      .notNull()
+      .references((): AnySQLiteColumn => users.id),
+    createdAt: text('created_at').notNull(),
+  },
+  (t) => extras(
+    index('idx_bres_ledger').on(t.ledgerId, t.status, t.expectedOn),
+    index('idx_bres_budget').on(t.budgetId, t.status),
+    check('bres_kind', sql`${t.kind} IN ('committed','reserved')`),
+    check('bres_status', sql`${t.status} IN ('held','released')`),
+  ),
+);
+
+/**
+ * docs/16 阶段四/五：周期归档快照。
+ *
+ * 预算额与差异是**历史事实**：下个月改了预算、补记了账单，都不该改写
+ * 「10 月这条预算当时定的是多少、实际花了多少」。所以归档写快照，
+ * 而不是靠「现在再去算一遍」—— 那会让年度趋势随今天的编辑悄悄变样。
+ */
+export const budgetSnapshots = sqliteTable(
+  'budget_snapshots',
+  {
+    id: text('id').primaryKey(),
+    ledgerId: text('ledger_id')
+      .notNull()
+      .references((): AnySQLiteColumn => ledgers.id, { onDelete: 'cascade' }),
+    periodKey: text('period_key').notNull(),
+    budgetId: text('budget_id'),
+    scopeName: text('scope_name'),
+    budgetKind: text('budget_kind').notNull().default('expense'),
+    /** 归档时的预算额 / 实际 / 差异（分） */
+    amount: integer('amount').notNull(),
+    actual: integer('actual').notNull(),
+    variance: integer('variance').notNull(),
+    /** 差异率 ×100（两位小数整数位，例如 12.34% 存 1234） */
+    varianceRatioBp: integer('variance_ratio_bp'),
+    periodDays: integer('period_days').notNull(),
+    archivedAt: text('archived_at').notNull(),
+  },
+  (t) => extras(
+    uniqueIndex('idx_bsnap_unique').on(t.ledgerId, t.periodKey, t.budgetId),
+    index('idx_bsnap_ledger').on(t.ledgerId, t.periodKey),
   ),
 );
 

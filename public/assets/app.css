@@ -10570,3 +10570,814 @@ button.st-filter__pick {
     min-height: 44px;
   }
 }
+
+/* ==================================================================== *
+ * docs/16 预算重设计：浮层原语 + 五阶段视图
+ *
+ * 颜色纪律：只引 tokens.css 变量。预警分级不新增第三枚语义色 ——
+ * 80/90 档用 danger 的弱化线，100 档才用 danger 本体（tokens.css 的三条纪律）。
+ * 控件高度一律读 --h-ctl；分段控件只让**外壳**定高、项 height:100%。
+ * ==================================================================== */
+
+.ov-modal,
+.ov-drawer {
+  position: fixed;
+  inset: 0;
+  display: grid;
+}
+
+.ov-modal {
+  place-items: center;
+  padding: var(--s-lg);
+}
+
+.ov-modal__scrim,
+.ov-drawer__scrim {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.12);
+  backdrop-filter: saturate(160%) blur(2px);
+  -webkit-backdrop-filter: saturate(160%) blur(2px);
+}
+
+.ov-modal__panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: min(560px, 100%);
+  max-height: min(84vh, 760px);
+  background: var(--c-canvas);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-overlay);
+  animation: ov-in var(--d-state) var(--e-standard);
+}
+
+.ov-modal--wide .ov-modal__panel {
+  width: min(860px, 100%);
+}
+
+.ov-modal__panel--confirm {
+  width: min(420px, 100%);
+}
+
+.ov-drawer__panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  width: min(460px, 100%);
+  background: var(--c-canvas);
+  border-radius: var(--r-lg) 0 0 var(--r-lg);
+  box-shadow: var(--shadow-overlay);
+  animation: ov-drawer-in var(--d-state) var(--e-standard);
+}
+
+@keyframes ov-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes ov-drawer-in {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/** 手机端底部抽屉的入场方向（媒体段在 mobile.css，动画定义放这里） */
+@keyframes ov-sheet-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ov-modal__panel,
+  .ov-drawer__panel {
+    animation: none;
+  }
+}
+
+.ov-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-sm);
+  padding: var(--s-md) var(--s-lg) var(--s-sm);
+  border-bottom: 1px solid var(--c-divider-soft);
+}
+
+.ov-head--confirm {
+  padding: 0 0 var(--s-sm);
+  border-bottom: 0;
+}
+
+.ov-title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: 0px;
+}
+
+.ov-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--s-lg);
+}
+
+.ov-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--s-xs);
+  padding: var(--s-sm) var(--s-lg) var(--s-lg);
+  border-top: 1px solid var(--c-divider-soft);
+}
+
+.ov-foot:empty {
+  display: none;
+}
+
+/* 气泡卡片：fixed 定位，避免被祖先 overflow 裁掉 */
+.ov-pop {
+  position: fixed;
+  z-index: 90;
+  max-width: calc(100vw - 16px);
+  padding: var(--s-sm) var(--s-md);
+  background: var(--c-canvas);
+  border: 1px solid var(--c-hairline);
+  border-radius: var(--r-card);
+  box-shadow: var(--shadow-overlay);
+}
+
+.ov-pop p {
+  margin: 0 0 var(--s-xs);
+}
+
+.ov-pop p:last-child {
+  margin-bottom: 0;
+}
+
+/* 页面内折叠 */
+.ov-collapse {
+  border: 1px solid var(--c-hairline);
+  border-radius: var(--r-card);
+  background: var(--c-canvas);
+}
+
+.ov-collapse + .ov-collapse {
+  margin-top: var(--s-xs);
+}
+
+.ov-collapse__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-sm);
+  width: 100%;
+  min-height: var(--h-ctl);
+  padding: var(--s-sm) var(--s-md);
+  background: transparent;
+  border: 0;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ov-collapse__label {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-xs);
+  flex-wrap: wrap;
+  color: var(--c-body);
+}
+
+.ov-collapse__icon {
+  align-self: center;
+  color: var(--c-primary);
+}
+
+.ov-collapse__chev {
+  flex: none;
+  color: var(--c-ink-muted-48);
+  transition: transform var(--d-state) var(--e-standard);
+}
+
+.ov-collapse.is-open .ov-collapse__chev {
+  transform: rotate(180deg);
+}
+
+.ov-collapse__body {
+  padding: 0 var(--s-md) var(--s-md);
+}
+
+/* ---------- 五阶段分段控件 ---------- */
+
+.bdg2-tabs {
+  display: flex;
+  gap: 3px;
+  height: var(--h-ctl);
+  padding: 3px;
+  margin-bottom: var(--s-lg);
+  border: 1px solid var(--c-hairline);
+  border-radius: var(--r-md);
+  background: var(--c-soft-fill);
+}
+
+.bdg2-tabs__item {
+  flex: 1 1 0;
+  height: 100%;
+  min-width: 0;
+  padding: 0 var(--s-xs);
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--c-ink-muted-80);
+  font-size: 13px;
+  font-weight: 400;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.bdg2-tabs__item[aria-current='true'] {
+  background: var(--c-canvas);
+  color: var(--c-primary);
+  font-weight: 600;
+  box-shadow: var(--c-overlay-ring) 0 0 0 1px;
+}
+
+/* ---------- 指标条 / 卡片 / 进度 ---------- */
+
+.bdg2-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--s-sm);
+  margin-bottom: var(--s-lg);
+}
+
+.bdg2-metric {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-xxs);
+  min-width: 0;
+  padding: var(--s-md);
+  border: 1px solid var(--c-hairline);
+  border-radius: var(--r-card);
+  background: var(--c-canvas);
+}
+
+.bdg2-metric__label {
+  font-size: 12px;
+  color: var(--c-ink-muted-48);
+}
+
+.bdg2-metric__value {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: 0px;
+  font-variant-numeric: tabular-nums;
+}
+
+.bdg2-metric__sub {
+  font-size: 11px;
+  color: var(--c-ink-muted-48);
+}
+
+.bdg2-card {
+  padding: var(--s-lg);
+  margin-bottom: var(--s-lg);
+}
+
+.bdg2-card__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s-sm);
+  margin-bottom: var(--s-md);
+}
+
+.bdg2-card__title {
+  display: flex;
+  align-items: center;
+  gap: var(--s-xs);
+  font-weight: 600;
+}
+
+.bdg2-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 1.4fr) repeat(4, minmax(80px, 1fr)) auto;
+  align-items: center;
+  gap: var(--s-sm);
+  padding: var(--s-sm) 0;
+  border-top: 1px solid var(--c-divider-soft);
+}
+
+.bdg2-row:first-child {
+  border-top: 0;
+}
+
+.bdg2-row__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.bdg2-row__num {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+/**
+ * 五元组每格是「小标题 + 金额」两行。不给 small 定 display:block 时，
+ * 桌面端会渲染成「预算额 B¥ 50.00」挤在一行，标签和钱黏在一起；
+ * 之前只在 max-width 媒体段里修过，桌面截图才露出这个静默错。
+ * 一条基础规则覆盖全部断点，别在 mobile.css 里再写第二份。
+ */
+.bdg2-row__num small {
+  display: block;
+  margin-bottom: var(--s-xxs);
+  font-size: 12px;
+  line-height: 1.45;
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--c-ink-muted-48);
+}
+
+.bdg2-row__acts {
+  display: flex;
+  gap: var(--s-xxs);
+  justify-content: flex-end;
+}
+
+.bdg2-bar {
+  position: relative;
+  height: 8px;
+  border-radius: var(--r-pill);
+  background: var(--c-soft-fill);
+  overflow: hidden;
+}
+
+.bdg2-bar__fill {
+  display: block;
+  height: 100%;
+  border-radius: var(--r-pill);
+  background: var(--c-primary);
+}
+
+.bdg2-bar__fill.is-t2 {
+  background: var(--c-danger-line);
+}
+
+.bdg2-bar__fill.is-t3,
+.bdg2-bar__fill.is-over {
+  background: var(--c-danger);
+}
+
+.bdg2-bar__time {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--c-ink-muted-48);
+  opacity: 0.55;
+}
+
+.bdg2-tbl-wrap {
+  overflow-x: auto;
+}
+
+.bdg2-tbl {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.bdg2-tbl th,
+.bdg2-tbl td {
+  padding: var(--s-xs) var(--s-sm);
+  text-align: right;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--c-divider-soft);
+}
+
+.bdg2-tbl th:first-child,
+.bdg2-tbl td:first-child {
+  text-align: left;
+}
+
+.bdg2-tbl th {
+  font-weight: 600;
+  color: var(--c-ink-muted-48);
+}
+
+.bdg2-tbl td.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+.bdg2-trend {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--s-xs);
+  height: 120px;
+  padding-top: var(--s-sm);
+}
+
+.bdg2-trend__col {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--s-xxs);
+  height: 100%;
+  min-width: 0;
+}
+
+.bdg2-trend__bar {
+  width: 100%;
+  max-width: 28px;
+  min-height: 2px;
+  border-radius: var(--r-xs) var(--r-xs) 0 0;
+  background: var(--c-primary);
+  opacity: 0.85;
+}
+
+.bdg2-trend__bar.is-over {
+  background: var(--c-danger);
+}
+
+.bdg2-trend__bar.is-empty {
+  background: var(--c-hairline);
+  opacity: 0.5;
+}
+
+.bdg2-trend__label {
+  font-size: 10px;
+  color: var(--c-ink-muted-48);
+  white-space: nowrap;
+}
+
+.bdg2-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-sm);
+  padding: var(--s-sm) var(--s-md);
+  border: 1px solid var(--c-hairline);
+  border-radius: var(--r-sm);
+  margin-bottom: var(--s-xs);
+}
+
+.bdg2-alert.is-warning {
+  border-color: var(--c-danger-line);
+  background: var(--c-danger-bg);
+}
+
+.bdg2-alert.is-danger {
+  border-color: var(--c-danger-line);
+  background: var(--c-danger-bg);
+}
+
+.bdg2-alert__dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-top: 6px;
+  border-radius: var(--r-pill);
+  background: var(--c-primary);
+}
+
+.bdg2-alert.is-warning .bdg2-alert__dot {
+  background: var(--c-danger-line);
+}
+
+.bdg2-alert.is-danger .bdg2-alert__dot {
+  background: var(--c-danger);
+}
+
+.bdg2-method {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s-sm);
+  padding: var(--s-sm) 0;
+  border-top: 1px solid var(--c-divider-soft);
+}
+
+.bdg2-method:first-child {
+  border-top: 0;
+}
+
+.bdg2-stack > * + * {
+  margin-top: var(--s-lg);
+}
+
+.bdg2-hint {
+  font-size: 12px;
+  color: var(--c-ink-muted-48);
+}
+
+/* ==========================================================================
+   预算页交互三件套（docs/00-DESIGN.md）
+   --------------------------------------------------------------------------
+   ① 月份日历：触发按钮 + 12 格月视图，只选月，选中回填隐藏日期字段。
+   ② 类型与定位：一个 Mega Menu 完成两级选择，与记一笔的选择器同源语法。
+   ③ 表单行：标签与控件同一水平线、同一栅格列宽，行距统一。
+   只引 tokens.css 变量；触控目标一律 ≥ --h-ctl（44px）；无阴影、无渐变。
+   ========================================================================== */
+
+/* --------- ① 月份日历触发按钮 --------- */
+.mcal-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-xs);
+  min-height: var(--h-ctl);
+  padding: 0 12px;
+  border: 1px solid var(--c-hairline);
+  border-radius: var(--r-md);
+  background: var(--c-canvas);
+  color: var(--c-ink);
+  font-size: 15px;
+  white-space: nowrap;
+  transition: border-color var(--d-state) var(--e-standard),
+    background var(--d-state) var(--e-standard);
+}
+
+.mcal-trigger:hover {
+  border-color: var(--c-ink-muted-48);
+}
+
+.mcal-trigger[aria-expanded='true'] {
+  border-color: var(--c-primary-focus);
+  background: var(--c-accent-1);
+}
+
+.mcal-trigger__ico,
+.mcal-trigger__chev {
+  flex: none;
+  display: grid;
+  place-items: center;
+  color: var(--c-ink-muted-48);
+}
+
+.mcal-trigger__ico {
+  color: var(--c-primary);
+}
+
+.mcal-trigger__chev {
+  transition: transform var(--d-state) var(--e-standard);
+}
+
+.mcal-trigger[aria-expanded='true'] .mcal-trigger__chev {
+  transform: rotate(180deg);
+}
+
+.mcal-trigger__text {
+  font-variant-numeric: tabular-nums;
+}
+
+/* --------- 气泡卡片：菜单形态（去掉说明气泡的内距） --------- */
+.ov-pop--menu {
+  padding: 0;
+  overflow: hidden;
+  border-radius: var(--r-lg);
+}
+
+/* --------- ① 月份日历本体 --------- */
+.mcal {
+  padding: var(--s-sm);
+}
+
+.mcal__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-xs);
+  padding-bottom: var(--s-sm);
+  border-bottom: 1px solid var(--c-divider-soft);
+}
+
+.mcal__nav {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: var(--h-ctl);
+  height: var(--h-ctl);
+  border: 1px solid var(--c-hairline);
+  border-radius: var(--r-sm);
+  background: var(--c-canvas);
+  color: var(--c-ink);
+  transition: background var(--d-state) var(--e-standard);
+}
+
+.mcal__nav:hover {
+  background: var(--c-parchment);
+}
+
+.mcal__nav:active {
+  transform: scale(var(--press-scale));
+}
+
+/* 只有一个 chevron-down 图标，用旋转得到左 / 右，不必往图标库里添名字 */
+.mcal__nav.is-prev svg {
+  transform: rotate(90deg);
+}
+
+.mcal__nav.is-next svg {
+  transform: rotate(-90deg);
+}
+
+.mcal__year {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--c-ink);
+}
+
+.mcal__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--s-xs);
+  margin-top: var(--s-sm);
+}
+
+.mcal__cell {
+  min-height: var(--h-ctl);
+  padding: 0 4px;
+  border: 1px solid var(--c-hairline);
+  border-radius: var(--r-sm);
+  background: var(--c-canvas);
+  color: var(--c-ink-muted-80);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  transition: border-color var(--d-state) var(--e-standard),
+    background var(--d-state) var(--e-standard);
+}
+
+.mcal__cell:hover {
+  border-color: var(--c-ink-muted-48);
+}
+
+.mcal__cell:active {
+  transform: scale(var(--press-scale));
+}
+
+/* 用内描边加粗选中态，避免 1px → 2px 边框把格子顶歪 */
+.mcal__cell.is-on {
+  background: var(--c-accent-2);
+  border-color: var(--c-primary-focus);
+  box-shadow: inset 0 0 0 1px var(--c-primary-focus);
+  color: var(--c-primary);
+  font-weight: 600;
+}
+
+.mcal__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-xs);
+  margin-top: var(--s-sm);
+  padding-top: var(--s-sm);
+  border-top: 1px solid var(--c-divider-soft);
+  font-size: 12px;
+  color: var(--c-ink-muted-48);
+}
+
+.mcal__today {
+  min-height: var(--h-ctl);
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: var(--c-primary);
+  font-size: 13px;
+}
+
+/* --------- ② 类型 + 定位合并菜单 --------- */
+.bsp {
+  display: flex;
+  flex-direction: column;
+  max-height: min(70vh, 460px);
+}
+
+.bsp__head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-xs);
+  padding: 0 var(--s-sm);
+  border-bottom: 1px solid var(--c-divider-soft);
+}
+
+.bsp__search-ico {
+  flex: none;
+  display: grid;
+  place-items: center;
+  color: var(--c-ink-muted-48);
+}
+
+.bsp__search {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: var(--h-ctl);
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--c-ink);
+  font-size: 14px;
+}
+
+.bsp__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.bsp__sec {
+  padding: var(--s-sm);
+}
+
+.bsp__sec + .bsp__sec {
+  border-top: 1px solid var(--c-divider-soft);
+}
+
+.bsp__kinds,
+.bsp__scopes {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.bsp__leaves {
+  margin-top: var(--s-xs);
+  padding-left: var(--s-sm);
+  border-left: 1px solid var(--c-divider-soft);
+}
+
+/* 菜单里的每一个可点行都按触控底线撑到 44px */
+.bsp .mega__item,
+.bsp .mega__navitem,
+.bsp .option-chip {
+  min-height: var(--h-ctl);
+}
+
+/* --------- ③ 表单行：标签与控件水平对齐 --------- */
+.bdg2-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-sm);
+}
+
+.bdg2-form__row {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  align-items: start;
+  gap: var(--s-sm);
+}
+
+.bdg2-form__label {
+  padding-top: 12px;
+  font-size: 13px;
+  color: var(--c-ink-muted-80);
+  text-align: left;
+}
+
+.bdg2-form__ctrl {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+/* 隐藏字段的报错锚点不占布局 */
+.bdg2-form__hidden {
+  display: contents;
+}
+
+/* 触发按钮与同行输入框等高；默认 56px 的 pick-trigger 会破坏行距 */
+.bdg2-form .pick-trigger {
+  min-height: var(--h-ctl);
+  padding: 0 12px;
+}
+
+.bdg2-method__acts {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--s-xs);
+}

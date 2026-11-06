@@ -6,7 +6,7 @@
  *   · 统计页出现「本期结论 / 净资产 / 现金流 / 订阅 / 支出强度 / 导出」六块
  *   · 洞察区块排在趋势图**之上**（结论先行，埋在底部等于没做）
  *   · 对账页出现排期，且「从未对账」是自成一档而不是混在「未到期」里
- *   · 预算页「比例法 / 历史推荐」能打开且不报错
+ *   · 预算页（docs/16 五阶段视图）「比例模板 / 历史智能推荐」抽屉能打开且不报错
  *   · 全程无控制台错误、无失败请求
  *
  * 纪律与胶水都在 scripts/lib/cdp.mjs。
@@ -174,22 +174,47 @@ check('「从未对账」单独成档', badges.includes('从未对账'), JSON.st
 
 c.shot(await probe.shot('reconciliations-advanced-1440', { dir: OUT, focus: '[data-role=schedule]' }));
 
-/* ══════════════ 3. 预算页比例法 ══════════════ */
-console.log('\n── 3. 预算页比例法 / 历史推荐 ──');
-await open('/budgets', { wait: '.bdg__summary', theme: 'light', arm: auth.arm });
-await ev(`document.querySelector('[data-action=ratio]').click()`);
-await new Promise((r) => setTimeout(r, 1200));
-const ratioText = await ev(
-  `(document.querySelector('[data-role=plan-slot]') || {}).textContent || ''`,
+/* ══════════════ 3. 预算页编制方法（docs/16 五阶段视图） ══════════════ */
+console.log('\n── 3. 预算页编制方法 ──');
+/**
+ * 预算页已按 docs/16 重写：旧的 `.bdg__summary` / `[data-action=ratio]` /
+ * `[data-role=plan-slot]` 全部下线，二级功能统一收进浮层原语。
+ *
+ * 交互又改过一次：五种编制方法的「打开」不再开独立方法抽屉，而是**直接开新建预算**
+ * 并预填方法；原来的预览 / 批量生成挪到同排的「批量工具」。这里两条都验：
+ * 新入口验预填，旧能力验没丢。
+ */
+await open('/budgets', { wait: '.bdg2-tabs', theme: 'light', arm: auth.arm });
+await new Promise((r) => setTimeout(r, 900));
+check(
+  '预算页五个阶段都在',
+  Number(await ev(`document.querySelectorAll('[data-act=stage]').length`)) === 5,
 );
-check('比例法面板打开且有内容', String(ratioText).includes('比例法'), String(ratioText).slice(0, 60));
-c.shot(await probe.shot('budgets-ratio-1440', { dir: OUT, focus: '[data-role=plan-slot]' }));
+const methodBtns = await ev(`document.querySelectorAll('[data-act=method]').length`);
+check('五种编制方法入口都在', Number(methodBtns) === 5, String(methodBtns));
 
-await ev(`document.querySelector('[data-action=suggest]').click()`);
-await new Promise((r) => setTimeout(r, 1200));
-const sugText = await ev(`(document.querySelector('[data-role=plan-slot]') || {}).textContent || ''`);
-check('历史推荐面板打开且有内容', String(sugText).includes('历史推荐'), String(sugText).slice(0, 60));
-c.shot(await probe.shot('budgets-suggest-1440', { dir: OUT, focus: '[data-role=plan-slot]' }));
+await ev(`document.querySelector('[data-act=method][data-method=ratio]').click()`);
+await new Promise((r) => setTimeout(r, 500));
+const ratioText = await ev(`(document.querySelector('.ov-drawer__panel .ov-body') || {}).textContent || ''`);
+check(
+  '比例模板「打开」直达新建预算且方法已预填',
+  String(ratioText).includes('比例模板') &&
+    (await ev(`document.querySelector('.ov-drawer [name=budgetMethod]')?.value ?? ''`)) === 'ratio',
+  String(ratioText).slice(0, 80),
+);
+c.shot(await probe.shot('budgets-ratio-1440', { dir: OUT, focus: '.ov-drawer__panel' }));
+await ev(`document.querySelector('.ov-drawer [data-role=close]').click()`);
+
+await ev(`document.querySelector('[data-act=method-tools][data-method=historical]').click()`);
+await new Promise((r) => setTimeout(r, 900));
+const sugText = await ev(`(document.querySelector('.ov-drawer__panel .ov-body') || {}).textContent || ''`);
+check(
+  '历史智能推荐的批量工具仍能打开且有内容',
+  String(sugText).includes('P50') || String(sugText).includes('近 3 个月') || String(sugText).includes('历史数据不足'),
+  String(sugText).slice(0, 80),
+);
+c.shot(await probe.shot('budgets-suggest-1440', { dir: OUT, focus: '.ov-drawer__panel' }));
+await ev(`document.querySelector('.ov-drawer [data-role=close]').click()`);
 
 /* ══════════════ 4. 暗色与窄屏 ══════════════ */
 console.log('\n── 4. 暗色 / 窄屏 ──');

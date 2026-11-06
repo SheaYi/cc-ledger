@@ -529,6 +529,33 @@ export interface BudgetPrefsDto {
   dndTo: string | null;
   notifyOnCreate: boolean;
   predictionMinDays: number;
+  /* docs/16 阶段三：分级预警 / 渠道 / 超支后策略 */
+  /** 三档阈值，默认 [80, 90, 100]；解析失败一律回落默认值 */
+  alertTiers: number[];
+  /** 大额消费阈值（分）。null → 按「分类可用额度 × 20%」动态判定 */
+  largeExpenseCents: number | null;
+  /** 站内提醒渠道 */
+  channels: string[];
+  /** allow / confirm / block / suggest_transfer */
+  overspendPolicy: string;
+  /** 时间进度预警开关 */
+  timeProgressAlert: boolean;
+}
+
+export const DEFAULT_ALERT_TIERS = [80, 90, 100];
+const CHANNEL_SET = new Set(['in_app', 'banner', 'digest']);
+const POLICY_SET = new Set(['allow', 'confirm', 'block', 'suggest_transfer']);
+
+/** JSON 列解析：坏数据不能让整个预算页 500，一律回落默认 */
+function parseJsonArray<T>(raw: string | null | undefined, fallback: T[], guard: (v: unknown) => boolean): T[] {
+  if (!raw) return fallback;
+  try {
+    const v: unknown = JSON.parse(raw);
+    if (!Array.isArray(v) || !v.every(guard)) return fallback;
+    return v as T[];
+  } catch {
+    return fallback;
+  }
 }
 
 export function getPrefs(ctx: AppCtx, ledgerId: string): BudgetPrefsDto {
@@ -541,6 +568,11 @@ export function getPrefs(ctx: AppCtx, ledgerId: string): BudgetPrefsDto {
       dndTo: null,
       notifyOnCreate: true,
       predictionMinDays: 3,
+      alertTiers: [...DEFAULT_ALERT_TIERS],
+      largeExpenseCents: null,
+      channels: ['in_app', 'banner'],
+      overspendPolicy: 'allow',
+      timeProgressAlert: true,
     };
   }
   return {
@@ -550,12 +582,35 @@ export function getPrefs(ctx: AppCtx, ledgerId: string): BudgetPrefsDto {
     dndTo: row.dndTo,
     notifyOnCreate: row.notifyOnCreate,
     predictionMinDays: row.predictionMinDays,
+    alertTiers: parseJsonArray<number>(row.alertTiers, [...DEFAULT_ALERT_TIERS], (v) => typeof v === 'number' && v >= 1 && v <= 200),
+    largeExpenseCents: row.largeExpenseCents ?? null,
+    channels: parseJsonArray<string>(row.channelsJson, ['in_app', 'banner'], (v) => typeof v === 'string' && CHANNEL_SET.has(v)),
+    overspendPolicy: row.overspendPolicy && POLICY_SET.has(row.overspendPolicy) ? row.overspendPolicy : 'allow',
+    timeProgressAlert: row.timeProgressAlert ?? true,
   };
 }
 
 export function setPrefs(ctx: AppCtx, ledgerId: string, input: Partial<BudgetPrefsDto>): BudgetPrefsDto {
   const cur = getPrefs(ctx, ledgerId);
   const next = { ...cur, ...input };
+
+  if (input.alertTiers !== undefined) {
+    const tiers = input.alertTiers;
+    const ascending = tiers.every((v, i) => i === 0 || v > (tiers[i - 1] ?? -Infinity));
+    if (!Array.isArray(tiers) || tiers.length === 0 || tiers.length > 3 ||
+        tiers.some((v) => !Number.isInteger(v) || v < 1 || v > 200) || !ascending) {
+      throw HttpError.validation([{ field: 'alertTiers', message: '预警档位需为 1-3 个递增的百分数' }]);
+    }
+  }
+  if (input.channels !== undefined && input.channels.some((v) => !CHANNEL_SET.has(v))) {
+    throw HttpError.validation([{ field: 'channels', message: '提醒渠道只支持 in_app / banner / digest' }]);
+  }
+  if (input.overspendPolicy !== undefined && !POLICY_SET.has(input.overspendPolicy)) {
+    throw HttpError.validation([{ field: 'overspendPolicy', message: '超支后行为策略不合法' }]);
+  }
+  if (input.largeExpenseCents !== undefined && input.largeExpenseCents !== null && input.largeExpenseCents < 0) {
+    throw HttpError.validation([{ field: 'largeExpenseCents', message: '大额阈值不能为负' }]);
+  }
 
   // 免打扰时段必须能解析，否则开启后所有提醒都发不出/全发出，用户会以为功能坏了
   if (next.dndEnabled) {
@@ -584,6 +639,11 @@ export function setPrefs(ctx: AppCtx, ledgerId: string, input: Partial<BudgetPre
     dndTo: next.dndTo,
     notifyOnCreate: next.notifyOnCreate,
     predictionMinDays: next.predictionMinDays,
+    alertTiers: JSON.stringify(next.alertTiers),
+    largeExpenseCents: next.largeExpenseCents,
+    channelsJson: JSON.stringify(next.channels),
+    overspendPolicy: next.overspendPolicy,
+    timeProgressAlert: next.timeProgressAlert,
     updatedAt: nowIso(),
   };
   const exists = ctx.db.select({ ledgerId: budgetPrefs.ledgerId }).from(budgetPrefs).where(eq(budgetPrefs.ledgerId, ledgerId)).get();
@@ -694,8 +754,11 @@ export interface RolloverInput {
   fromMonth: number;
   toYear: number;
   toMonth: number;
-  /** clear=清零 · carry=滚存到下期同类预算 · to_savings=划入储蓄（记账，不加到任何预算） */
-  mode: 'clear' | 'carry' | 'to_savings';
+  /**
+   * clear=清零 · carry=只滚存正结余 · carry_negative=连超支一起滚入下期
+   * （docs/16 §8 负结转）· to_savings=划入储蓄（记账，不加到任何预算）
+   */
+  mode: 'clear' | 'carry' | 'carry_negative' | 'to_savings';
   /** 只处理这些分类；不传则处理全部 */
   categoryIds?: string[];
   /** carry 的目标分类映射：`{ 来源分类id: 目标分类id }` */
@@ -775,6 +838,7 @@ export function rollover(ctx: AppCtx, actorId: string, ledgerId: string, input: 
   }
 
   let movedTotal = 0;
+  const doCarry = input.mode === 'carry' || input.mode === 'carry_negative';
 
   for (const row of fromRows) {
     // 结余 = 预算 − 区间内该分类的实际支出。复算而不是读快照：
@@ -782,14 +846,18 @@ export function rollover(ctx: AppCtx, actorId: string, ledgerId: string, input: 
     const spent = spentOfRow(ctx, ledgerId, row);
     const remaining = row.amount - spent;
     if (remaining === 0) continue;
-    if (remaining < 0 && input.mode !== 'carry') continue;
+    if (remaining < 0 && !doCarry) continue;
     if (remaining < 0 && input.mode === 'carry') {
-      warnings.push(`${catName(row.categoryId)}已超支 ${formatCents(-remaining)}，超支不会自动带到下期（需要的话请手动调减）`);
+      warnings.push(`${catName(row.categoryId)}已超支 ${formatCents(-remaining)}，超支不会自动带到下期（如需带走请改用「负结转」）`);
       continue;
+    }
+    if (remaining < 0 && input.mode === 'carry_negative') {
+      /* 负结转是显式选择：金额以负数写入下期预算，可用额度因此变少，必须留一句明示 */
+      warnings.push(`${catName(row.categoryId)}超支 ${formatCents(-remaining)} 已滚入下期，下期可用额度相应减少`);
     }
 
     let toBudgetId: string | null = null;
-    if (input.mode === 'carry') {
+    if (doCarry) {
       const targetId = input.mapping?.[row.categoryId ?? ''] ?? row.categoryId;
       const target = targetId
         ? ctx.db
@@ -868,7 +936,7 @@ export function rollover(ctx: AppCtx, actorId: string, ledgerId: string, input: 
     });
   }
 
-  if (input.mode === 'carry') {
+  if (doCarry) {
     // 目标期总额预算若未单独结转，「Σ分类 ≤ 总额」会被顶破 —— 明确提示但不阻止
     const totalRow = fromRows.find((b) => b.categoryId === null);
     if (totalRow) {

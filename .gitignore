@@ -2,6 +2,8 @@ node_modules/
 dist/
 data/
 coverage/
+# CDP 探针用的 headless 浏览器临时用户目录（体积大、每次重建，勿入库）
+.edge-*/
 *.log
 .env
 .env.local

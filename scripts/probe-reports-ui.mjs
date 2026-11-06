@@ -4,8 +4,9 @@
  * 这三页的风险不在「能不能渲染」，而在**数字对不对**与**流程能不能走通**：
  *   1. 统计的每个数字都要与后端返回**逐格相等**（前端不重算任何汇总）
  *   2. 趋势图的点数与后端桶数一致；近三月要真的跨 3 个自然月
- *   3. 预算的「已花」必须等于统计的「支出」—— 两页口径若不同源就会露馅
- *   4. 超支时 `over` 的呈现是红条 + 负数剩余
+ *   3. 预算「执行」阶段的「已用 U」必须等于统计的「支出」—— 两页口径若不同源就会露馅
+ *   4. 超支时 `over` 的呈现是危险徽标 + 置顶 + 可用额度 `is-neg`
+ *      （预算页已按 docs/16 改为五阶段视图，旧 `.bdg-card` 断言整体迁移到 `.bdg2-*`）
  *   5. 导入：真实上传一个 CSV → 预览表出现 → 改映射 → 提交 → 报告逐格对得上
  *      （这里必须**真传文件**而不是 mock，因为 FormData 的边界、
  *      BOM 剥离、GBK 嗅探全都在真实上传路径上才跑得到）
@@ -318,57 +319,75 @@ c.shot(await probe.shot('stats-range-1440', { dir: OUT, focus: '.kpi-grid' }));
 await ev(`document.querySelector('[data-quick=month]').click()`);
 await sleep(700);
 
-/* ══════════════ 3. 预算页 ══════════════ */
+/* ══════════════ 3. 预算页（docs/16 五阶段视图） ══════════════ */
 console.log('\n── 3. 预算页 ──');
-const openedB = await open('/budgets', { wait: '.bdg-card', theme: 'light', arm: auth.arm });
-check('预算页渲染出卡片', openedB === true);
-check('卡片数 = 后端预算条数', Number(await ev(`document.querySelectorAll('.bdg-card').length`)) === sProgress.length, `${await ev(`document.querySelectorAll('.bdg-card').length`)} vs ${sProgress.length}`);
+const openedB = await open('/budgets', { wait: '.bdg2-card', theme: 'light', arm: auth.arm });
+check('预算页渲染出五阶段卡片', openedB === true);
+check(
+  '五个阶段分段控件都在',
+  Number(await ev(`document.querySelectorAll('[data-role=tabs] [data-act=stage]').length`)) === 5,
+);
+check(
+  '默认落在「编制」阶段',
+  (await ev(`document.querySelector('[data-act=stage][aria-current=true]')?.dataset.stage`)) === 'plan',
+);
+check(
+  '编制列表条数 = 后端预算条数',
+  Number(await ev(`document.querySelectorAll('.bdg2-tbl tbody tr').length`)) === sProgress.length,
+  `${await ev(`document.querySelectorAll('.bdg2-tbl tbody tr').length`)} vs ${sProgress.length}`,
+);
 
-const cards = JSON.parse(
-  await ev(`JSON.stringify([...document.querySelectorAll('.bdg-card')].map(el => ({
-    title: el.querySelector('.bdg-card__title')?.textContent.replace(/\\s+/g,' ').trim(),
-    amt: el.querySelector('.bdg-card__amt')?.textContent.trim(),
-    over: el.classList.contains('is-over'),
-    negCount: el.querySelectorAll('.recon-line .is-neg').length,
-    barW: el.querySelector('.bdg-card__bar-fill')?.style.width,
-    lines: [...el.querySelectorAll('.recon-line')].map(x => x.textContent.replace(/\\s+/g,' ').trim()),
+/* 五元组 B/U/C/R/A 在「执行」阶段；口径与统计页的比对必须在这里做 */
+await ev(`document.querySelector('[data-act=stage][data-stage=control]').click()`);
+await waitUntil(async () => (await ev(`!!document.querySelector('.bdg2-row')`)) || null, { label: '执行阶段渲染', tries: 40 });
+check(
+  '切到执行阶段',
+  (await ev(`document.querySelector('[data-act=stage][aria-current=true]')?.dataset.stage`)) === 'control',
+);
+
+const rows = JSON.parse(
+  await ev(`JSON.stringify([...document.querySelectorAll('.bdg2-row')].map(el => ({
+    name: el.querySelector('.bdg2-row__name')?.textContent.replace(/\\s+/g,' ').trim(),
+    nums: [...el.querySelectorAll('.bdg2-row__num')].map(x => x.textContent.replace(/\\s+/g,' ').trim()),
+    hint: el.querySelector('.bdg2-hint')?.textContent.replace(/\\s+/g,' ').trim(),
+    over: !!el.querySelector('.badge--danger'),
+    negCount: el.querySelectorAll('.is-neg').length,
+    barW: el.querySelector('.bdg2-bar__fill')?.style.width,
   })))`),
 );
-check('总预算排在第一位', cards[0]?.title?.startsWith('总预算'), cards[0]?.title);
+const totalProgress = sProgress.find((x) => x.categoryId === null);
+const totalRow = rows.find((x) => x.name?.includes('总预算'));
+check('执行明细里有总预算行', Boolean(totalRow), JSON.stringify(rows.map((x) => x.name)));
+check('执行明细条数 = 后端预算条数', rows.length === sProgress.length, `${rows.length} vs ${sProgress.length}`);
 check(
-  '总预算金额逐格相等',
-  norm(cards[0]?.amt) === norm(sProgress.find((x) => x.categoryId === null).amount),
-  `${cards[0]?.amt} vs ${sProgress.find((x) => x.categoryId === null).amount}`,
-);
-const totalLines = cards[0].lines.join(' | ');
-check(
-  '总预算「已花」= 统计的「支出」（两页口径必须同源）',
-  norm(totalLines).includes('已花' + norm(sSummary.totalExpense)),
-  `${totalLines} vs ${sSummary.totalExpense}`,
+  '总预算 B 与后端逐格相等',
+  norm(totalRow?.nums?.[0]) === `预算额B${norm(totalProgress.amount)}`,
+  `${totalRow?.nums?.[0]} vs ${totalProgress.amount}`,
 );
 check(
-  '总预算「已用 X%」= 后端 usedRatio',
-  totalLines.replace(/\s/g, '').includes(`已用${sProgress.find((x) => x.categoryId === null).usedRatio}%`),
-  totalLines,
-);
-const overCard = cards.find((x) => x.over);
-check('超支的分类预算卡片带 is-over', Boolean(overCard), JSON.stringify(cards.map((x) => x.title)));
-check(
-  '超支卡片的剩余额带 is-neg（语义色落在有符号含义的数字上）',
-  overCard && overCard.negCount >= 1,
-  `neg=${overCard?.negCount} lines=${overCard?.lines.join(' | ')}`,
+  '总预算「已用 U」= 统计页「支出」（两页口径必须同源）',
+  norm(totalRow?.nums?.[1]) === `已用U${norm(sSummary.totalExpense)}`,
+  `${totalRow?.nums?.[1]} vs ${sSummary.totalExpense}`,
 );
 check(
-  '超支时显示「超出 ¥38.00」而不是「超出 −¥38.00」（负号不重复）',
-  overCard && /超出/.test(overCard.lines.join(' ')) && !/超出\s*-/.test(overCard.lines.join(' ').replace(/\s/g, '')),
-  overCard?.lines.join(' | '),
+  '总预算「执行率」= 后端 usedRatio',
+  Boolean(totalRow?.hint?.replace(/\s/g, '').includes(`执行率${totalProgress.usedRatio}%`)),
+  totalRow?.hint,
+);
+const overRow = rows.find((x) => x.over);
+check('超支的分类预算带危险徽标', Boolean(overRow), JSON.stringify(rows.map((x) => x.name)));
+check('超支置顶（over 行排在最前）', rows[0]?.over === true, JSON.stringify(rows.map((x) => x.over)));
+check(
+  '超支行的可用额度带 is-neg（语义色只落在有符号含义的数字上）',
+  Boolean(overRow && overRow.negCount >= 1),
+  `neg=${overRow?.negCount}`,
 );
 check(
   '进度条宽度不会超过 100%（超支时不溢出）',
-  cards.every((x) => Number(String(x.barW).replace('%', '')) <= 100),
-  JSON.stringify(cards.map((x) => x.barW)),
+  rows.every((x) => Number(String(x.barW).replace('%', '')) <= 100),
+  JSON.stringify(rows.map((x) => x.barW)),
 );
-c.shot(await probe.shot('budgets-light-1440', { dir: OUT, focus: '.bdg-card' }));
+c.shot(await probe.shot('budgets-light-1440', { dir: OUT, focus: '.bdg2-card' }));
 
 /* ══════════════ 4. 导入页（真上传文件） ══════════════ */
 console.log('\n── 4. 导入页 ──');
@@ -540,8 +559,8 @@ check(
 
 /* ══════════════ 5. 暗色与窄屏 ══════════════ */
 console.log('\n── 5. 暗色 / 窄屏 ──');
-await open('/budgets', { wait: '.bdg-card', theme: 'dark', arm: auth.arm });
-c.shot(await probe.shot('budgets-dark-1440', { dir: OUT, focus: '.bdg-card' }));
+await open('/budgets', { wait: '.bdg2-card', theme: 'dark', arm: auth.arm });
+c.shot(await probe.shot('budgets-dark-1440', { dir: OUT, focus: '.bdg2-card' }));
 
 await open('/stats', { wait: '.kpi-card', theme: 'light', width: 390, height: 900, arm: auth.arm });
 const ov = await ev(`document.documentElement.scrollWidth - document.documentElement.clientWidth`);

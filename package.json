@@ -1,6 +1,6 @@
 {
   "name": "cc-ledger",
-  "version": "1.1.20",
+  "version": "1.1.21",
   "private": true,
   "description": "CC记账 — Docker 化的多人协作记账系统",
   "type": "module",
@@ -63,7 +63,8 @@
     "smoke:17": "node scripts/smoke-recon-tools.mjs",
     "probe:recontools": "node scripts/probe-recon-tools.mjs",
     "probe:mobile": "node scripts/probe-mobile-ui.mjs",
-    "probe:templates": "node scripts/probe-templates-ui.mjs"
+    "probe:templates": "node scripts/probe-templates-ui.mjs",
+    "probe:budget16": "node scripts/probe-budget-redesign-ui.mjs"
   },
   "dependencies": {
     "@fastify/cors": "^10.0.1",
